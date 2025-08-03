@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Image Editor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+        .container { max-width: 600px; margin: 30px auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px #0001; }
+        #canvas { border: 1px solid #ccc; border-radius: 4px; background: #eee; cursor: crosshair; }
+        .toolbar { margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .toolbar label { margin-right: 4px; }
+        .toolbar input[type="color"] { vertical-align: middle; }
+        .toolbar input[type="number"] { width: 50px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Simple Image Editor</h2>
+        <div class="toolbar">
+            <input type="file" id="imgLoader" accept="image/*">
+            <label><input type="radio" name="tool" value="rect" checked> Rectangle</label>
+            <label><input type="radio" name="tool" value="ellipse"> Ellipse</label>
+            <label><input type="radio" name="tool" value="arrow"> Arrow</label>
+            <label><input type="radio" name="tool" value="text"> Text</label>
+            <input type="color" id="color" value="#ff0000">
+            <input type="number" id="size" value="3" min="1" max="20">
+            <button id="clear">Clear</button>
+            <button id="download">Download</button>
+        </div>
+        <canvas id="canvas" width="500" height="400"></canvas>
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let img = null;
+        let drawing = false;
+        let startX, startY;
+        let tool = 'rect';
+        let color = document.getElementById('color').value;
+        let size = parseInt(document.getElementById('size').value);
+        let textInput = '';
+        let shapes = [];
+
+        document.getElementsByName('tool').forEach(radio => {
+            radio.addEventListener('change', e => { tool = e.target.value; });
+        });
+        document.getElementById('color').addEventListener('input', e => { color = e.target.value; });
+        document.getElementById('size').addEventListener('input', e => { size = parseInt(e.target.value); });
+        document.getElementById('clear').onclick = () => { shapes = []; img = null; ctx.clearRect(0,0,canvas.width,canvas.height); };
+        document.getElementById('download').onclick = () => {
+            const link = document.createElement('a');
+            link.download = 'edited-image.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        };
+        document.getElementById('imgLoader').onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const image = new Image();
+                image.onload = function() {
+                    img = image;
+                    canvas.width = image.width > 800 ? 800 : image.width;
+                    canvas.height = image.height > 600 ? 600 : image.height;
+                    redraw();
+                };
+                image.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        function redraw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            if (img) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            for (const s of shapes) drawShape(s, false);
+        }
+
+        function drawShape(s, temp) {
+            ctx.save();
+            ctx.strokeStyle = s.color;
+            ctx.lineWidth = s.size;
+            ctx.fillStyle = s.color;
+            if (s.type === 'rect') {
+                ctx.strokeRect(s.x, s.y, s.w, s.h);
+            } else if (s.type === 'ellipse') {
+                ctx.beginPath();
+                ctx.ellipse(s.x + s.w/2, s.y + s.h/2, Math.abs(s.w/2), Math.abs(s.h/2), 0, 0, 2*Math.PI);
+                ctx.stroke();
+            } else if (s.type === 'arrow') {
+                drawArrow(s.x, s.y, s.x2, s.y2, s.color, s.size);
+            } else if (s.type === 'text') {
+                ctx.font = `${Math.max(16, s.size*6)}px sans-serif`;
+                ctx.fillText(s.text, s.x, s.y);
+            }
+            ctx.restore();
+        }
+
+        function drawArrow(x1, y1, x2, y2, color, size) {
+            const headlen = 10 + size*2;
+            const dx = x2 - x1, dy = y2 - y1;
+            const angle = Math.atan2(dy, dx);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI/6), y2 - headlen * Math.sin(angle - Math.PI/6));
+            ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI/6), y2 - headlen * Math.sin(angle + Math.PI/6));
+            ctx.lineTo(x2, y2);
+            ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI/6), y2 - headlen * Math.sin(angle - Math.PI/6));
+            ctx.stroke();
+        }
+
+        canvas.onmousedown = e => {
+            if (tool === 'text') return;
+            drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+        };
+        canvas.onmouseup = e => {
+            if (!drawing && tool !== 'text') return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (tool === 'rect' || tool === 'ellipse') {
+                shapes.push({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size });
+            } else if (tool === 'arrow') {
+                shapes.push({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size });
+            } else if (tool === 'text') {
+                const text = prompt('Enter text:');
+                if (text) shapes.push({ type: 'text', x, y, text, color, size });
+            }
+            drawing = false;
+            redraw();
+        };
+        canvas.onmousemove = e => {
+            if (!drawing || tool === 'text') return;
+            redraw();
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (tool === 'rect' || tool === 'ellipse') {
+                drawShape({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
+            } else if (tool === 'arrow') {
+                drawShape({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size }, true);
+            }
+        };
+        canvas.onclick = e => {
+            if (tool !== 'text') return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const text = prompt('Enter text:');
+            if (text) {
+                shapes.push({ type: 'text', x, y, text, color, size });
+                redraw();
+            }
+        };
+    </script>
+</body>
+</html>
