@@ -143,6 +143,10 @@
         let isDragging = false;
         let canvasScale = { x: 1, y: 1 };
         let canvasOffset = { x: 0, y: 0 };
+        let rotationHandle = null;
+        let isRotating = false;
+        let rotationCenter = { x: 0, y: 0 };
+        let rotationStartAngle = 0;
 
         // Convert HEIC to JPEG using heic2any
         async function convertHeicToJpeg(file) {
@@ -236,6 +240,44 @@
             return null;
         }
 
+        // Calculate rotation handle position
+        function getRotationHandle(shape) {
+            if (shape.type === 'rect' || shape.type === 'ellipse') {
+                const centerX = shape.x + shape.w / 2;
+                const centerY = shape.y + shape.h / 2;
+                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + 20;
+                return {
+                    x: centerX + handleDistance * Math.cos(shape.rotation || 0),
+                    y: centerY + handleDistance * Math.sin(shape.rotation || 0),
+                    centerX: centerX,
+                    centerY: centerY
+                };
+            } else if (shape.type === 'text') {
+                const handleDistance = 30;
+                return {
+                    x: shape.x + handleDistance * Math.cos(shape.rotation || 0),
+                    y: shape.y - 10 + handleDistance * Math.sin(shape.rotation || 0),
+                    centerX: shape.x,
+                    centerY: shape.y
+                };
+            }
+            return null;
+        }
+
+        // Check if point is near rotation handle
+        function isPointNearRotationHandle(x, y, shape) {
+            const handle = getRotationHandle(shape);
+            if (!handle) return false;
+            
+            const distance = Math.sqrt((x - handle.x) ** 2 + (y - handle.y) ** 2);
+            return distance <= 10; // 10px radius for handle
+        }
+
+        // Calculate angle between two points
+        function calculateAngle(x1, y1, x2, y2) {
+            return Math.atan2(y2 - y1, x2 - x1);
+        }
+
         // Update button states
         function updateButtonStates() {
             undoBtn.disabled = shapes.length === 0;
@@ -300,10 +342,8 @@
         document.getElementById('clear').onclick = () => { 
             shapes = []; 
             selectedShape = null;
-            img = null; 
-            ctx.clearRect(0,0,canvas.width,canvas.height); 
+            redraw();
             updateButtonStates();
-            updateImageInfo();
         };
         document.getElementById('download').onclick = () => {
             const link = document.createElement('a');
@@ -405,6 +445,15 @@
             ctx.lineWidth = s.size;
             ctx.fillStyle = s.color;
             
+            // Apply rotation if shape has rotation
+            if (s.rotation && !temp) {
+                const centerX = s.type === 'text' ? s.x : s.x + s.w / 2;
+                const centerY = s.type === 'text' ? s.y : s.y + s.h / 2;
+                ctx.translate(centerX, centerY);
+                ctx.rotate(s.rotation);
+                ctx.translate(-centerX, -centerY);
+            }
+            
             // Draw selection highlight
             if (s === selectedShape && !temp) {
                 ctx.strokeStyle = '#00ff00';
@@ -424,7 +473,33 @@
                 ctx.font = `${Math.max(16, s.size*6)}px sans-serif`;
                 ctx.fillText(s.text, s.x, s.y);
             }
+            
             ctx.restore();
+            
+            // Draw rotation handle for selected shapes
+            if (s === selectedShape && !temp && (s.type === 'rect' || s.type === 'ellipse' || s.type === 'text')) {
+                const handle = getRotationHandle(s);
+                if (handle) {
+                    ctx.save();
+                    ctx.fillStyle = '#00ff00';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(handle.x, handle.y, 8, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Draw rotation line
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.setLineDash([3, 3]);
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(handle.centerX, handle.centerY);
+                    ctx.lineTo(handle.x, handle.y);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
         }
 
         function drawArrow(x1, y1, x2, y2, color, size) {
@@ -452,6 +527,14 @@
             const y = coords.y;
             
             if (tool === 'select') {
+                // Check if clicking on rotation handle
+                if (selectedShape && isPointNearRotationHandle(x, y, selectedShape)) {
+                    isRotating = true;
+                    rotationCenter = getRotationHandle(selectedShape);
+                    rotationStartAngle = calculateAngle(rotationCenter.centerX, rotationCenter.centerY, x, y);
+                    return;
+                }
+                
                 const shapeInfo = getShapeAtPoint(x, y);
                 if (shapeInfo) {
                     selectedShape = shapeInfo.shape;
@@ -468,7 +551,7 @@
             } else if (tool === 'text') {
                 const text = prompt('Enter text:');
                 if (text) {
-                    shapes.push({ type: 'text', x, y, text, color, size });
+                    shapes.push({ type: 'text', x, y, text, color, size, rotation: 0 });
                     redraw();
                     updateButtonStates();
                 }
@@ -486,26 +569,72 @@
             const y = coords.y;
             
             if (tool === 'rect' || tool === 'ellipse') {
-                shapes.push({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size });
+                shapes.push({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0 });
             } else if (tool === 'arrow') {
                 shapes.push({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size });
             }
             
             drawing = false;
             isDragging = false;
+            isRotating = false;
             redraw();
             updateButtonStates();
         };
 
+        // Handle keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedShape) {
+                    console.log('Delete key pressed - deleting selected shape');
+                    const index = shapes.indexOf(selectedShape);
+                    if (index > -1) {
+                        shapes.splice(index, 1);
+                        selectedShape = null;
+                        redraw();
+                        updateButtonStates();
+                        console.log('Shape deleted via keyboard');
+                    }
+                }
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                // Ctrl+Z or Cmd+Z for undo
+                e.preventDefault();
+                if (shapes.length > 0) {
+                    shapes.pop();
+                    selectedShape = null;
+                    redraw();
+                    updateButtonStates();
+                    console.log('Undo via Ctrl+Z');
+                }
+            }
+        });
+
+        // Update cursor based on mouse position
         canvas.onmousemove = e => {
             const coords = screenToCanvas(e.clientX, e.clientY);
             const x = coords.x;
             const y = coords.y;
             
-            if (tool === 'select' && isDragging && selectedShape) {
-                selectedShape.x = x - dragOffset.x;
-                selectedShape.y = y - dragOffset.y;
-                redraw();
+            // Update cursor for rotation handle
+            if (tool === 'select' && selectedShape && isPointNearRotationHandle(x, y, selectedShape)) {
+                canvas.style.cursor = 'grab';
+            } else if (tool === 'select') {
+                canvas.style.cursor = 'crosshair';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+            
+            if (tool === 'select') {
+                if (isRotating && selectedShape && rotationCenter) {
+                    const currentAngle = calculateAngle(rotationCenter.centerX, rotationCenter.centerY, x, y);
+                    const deltaAngle = currentAngle - rotationStartAngle;
+                    selectedShape.rotation = (selectedShape.rotation || 0) + deltaAngle;
+                    rotationStartAngle = currentAngle;
+                    redraw();
+                } else if (isDragging && selectedShape) {
+                    selectedShape.x = x - dragOffset.x;
+                    selectedShape.y = y - dragOffset.y;
+                    redraw();
+                }
             } else if (drawing && tool !== 'text') {
                 redraw();
                 if (tool === 'rect' || tool === 'ellipse') {
@@ -532,23 +661,6 @@
         // Handle window resize
         window.addEventListener('resize', () => {
             resizeCanvas();
-        });
-
-        // Handle keyboard shortcuts
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (selectedShape) {
-                    console.log('Delete key pressed - deleting selected shape');
-                    const index = shapes.indexOf(selectedShape);
-                    if (index > -1) {
-                        shapes.splice(index, 1);
-                        selectedShape = null;
-                        redraw();
-                        updateButtonStates();
-                        console.log('Shape deleted via keyboard');
-                    }
-                }
-            }
         });
 
         // Initialize
