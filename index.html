@@ -28,6 +28,7 @@
             background: #eee; 
             margin-top: 10px;
             min-height: 400px;
+            position: relative;
         }
         #canvas { 
             width: 100%; 
@@ -52,7 +53,23 @@
         .button-group button { padding: 5px 10px; border: 1px solid #ccc; background: #f8f8f8; cursor: pointer; border-radius: 3px; }
         .button-group button:hover { background: #e8e8e8; }
         .button-group button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .image-info { font-size: 11px; color: #666; margin-top: 5px; text-align: center; }
+                 .image-info { font-size: 11px; color: #666; margin-top: 5px; text-align: center; }
+         .status-line { font-size: 10px; color: #888; margin-top: 3px; text-align: center; font-family: monospace; }
+        .canvas-text-input { 
+            position: absolute; 
+            border: 2px solid #007acc; 
+            outline: none; 
+            background: rgba(255, 255, 255, 0.95); 
+            color: #000; 
+            font-family: Arial, sans-serif; 
+            font-size: 16px; 
+            padding: 4px 8px; 
+            margin: 0; 
+            min-width: 50px; 
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
         
         @media (max-width: 768px) {
             .container { 
@@ -90,8 +107,10 @@
         </div>
         <div class="canvas-container">
             <canvas id="canvas" width="800" height="600"></canvas>
+            <input type="text" id="canvasTextInput" class="canvas-text-input" placeholder="Type here...">
         </div>
         <div class="image-info" id="imageInfo">No image loaded</div>
+        <div class="status-line" id="statusLine">Mouse: Screen (0, 0) | Canvas (0, 0) | Container (0, 0)</div>
     </div>
 
     <!-- HEIC Help Modal -->
@@ -129,7 +148,9 @@
         const loading = document.getElementById('loading');
         const undoBtn = document.getElementById('undo');
         const deleteBtn = document.getElementById('delete');
-        const imageInfo = document.getElementById('imageInfo');
+                 const imageInfo = document.getElementById('imageInfo');
+         const canvasTextInput = document.getElementById('canvasTextInput');
+         const statusLine = document.getElementById('statusLine');
         let img = null;
         let drawing = false;
         let startX, startY;
@@ -154,6 +175,9 @@
         let resizeHandle = null;
         let originalShape = null;
         let hasEdited = false;
+        let isEditingText = false;
+        let textInputElement = null;
+        let editingTextShape = null;
 
         // Convert HEIC to JPEG using heic2any
         async function convertHeicToJpeg(file) {
@@ -161,7 +185,6 @@
                 throw new Error('HEIC library not loaded');
             }
             
-            console.log('Converting HEIC file:', file.name);
             return await heic2any({
                 blob: file,
                 toType: 'image/jpeg',
@@ -358,6 +381,79 @@
             return Math.atan2(y2 - y1, x2 - x1);
         }
 
+        // Start inline text editing
+        function startTextEditing(x, y, existingText = '') {
+            isEditingText = true;
+            editingTextShape = { x, y, text: existingText, color, size, rotation: 0 };
+            
+            // Position the input element relative to the canvas container
+            const container = document.querySelector('.canvas-container');
+            const rect = canvas.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            // Convert canvas coordinates to container-relative coordinates
+            // The input is positioned relative to the canvas-container, not the canvas itself
+            const inputX = x * (rect.width / canvas.width);
+            const inputY = y * (rect.height / canvas.height) - 15; // Offset to align with text baseline
+            
+            // Ensure the input stays within the container bounds
+            const maxX = containerRect.width - 50; // Leave some margin
+            const maxY = containerRect.height - 30; // Leave some margin
+            const minX = Math.max(0, Math.min(inputX, maxX));
+            const minY = Math.max(0, Math.min(inputY, maxY));
+            
+            canvasTextInput.style.left = minX + 'px';
+            canvasTextInput.style.top = minY + 'px';
+            canvasTextInput.style.fontSize = Math.max(16, size * 6) + 'px';
+            canvasTextInput.style.color = color;
+            canvasTextInput.style.display = 'block';
+            canvasTextInput.value = existingText || 'Type here...';
+            
+            // Delay focus to ensure element is visible
+            setTimeout(() => {
+                canvasTextInput.focus();
+                canvasTextInput.select();
+            }, 10);
+        }
+
+        // Finish inline text editing
+        function finishTextEditing() {
+            if (!isEditingText) {
+                return;
+            }
+            
+            const text = canvasTextInput.value.trim();
+            
+            if (text) {
+                if (editingTextShape && editingTextShape.text) {
+                    // Update existing text
+                    const index = shapes.findIndex(s => s === editingTextShape);
+                    if (index !== -1) {
+                        shapes[index].text = text;
+                    }
+                } else {
+                    // Add new text
+                    shapes.push({ 
+                        type: 'text', 
+                        x: editingTextShape.x, 
+                        y: editingTextShape.y, 
+                        text, 
+                        color, 
+                        size, 
+                        rotation: 0 
+                    });
+                }
+                redraw();
+                updateButtonStates();
+            }
+            
+            // Clean up
+            canvasTextInput.style.display = 'none';
+            canvasTextInput.value = '';
+            isEditingText = false;
+            editingTextShape = null;
+        }
+
         // Update button states
         function updateButtonStates() {
             undoBtn.disabled = shapes.length === 0;
@@ -387,25 +483,15 @@
 
         // Delete selected shape
         deleteBtn.onclick = () => {
-            console.log('Delete button clicked');
-            console.log('Selected shape:', selectedShape);
-            console.log('Shapes array:', shapes);
-            
             if (selectedShape) {
                 const index = shapes.indexOf(selectedShape);
-                console.log('Shape index:', index);
                 
                 if (index > -1) {
                     shapes.splice(index, 1);
                     selectedShape = null;
                     redraw();
                     updateButtonStates();
-                    console.log('Shape deleted successfully');
-                } else {
-                    console.error('Shape not found in array');
                 }
-            } else {
-                console.log('No shape selected');
             }
         };
 
@@ -436,7 +522,7 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            console.log('File selected:', file.name, 'Type:', file.type);
+
             
             try {
                 let processedFile = file;
@@ -445,14 +531,12 @@
                 if (file.type === 'image/heic' || file.type === 'image/heif' || 
                     file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
                     
-                    console.log('HEIC file detected, converting with heic2any...');
                     loading.style.display = 'block';
                     loading.textContent = 'Converting HEIC to JPEG...';
                     
                     try {
                         // Convert HEIC to JPEG using heic2any
                         processedFile = await convertHeicToJpeg(file);
-                        console.log('HEIC conversion successful');
                         
                     } catch (heicError) {
                         loading.style.display = 'none';
@@ -681,12 +765,8 @@
                     redraw();
                 }
             } else if (tool === 'text') {
-                const text = prompt('Enter text:');
-                if (text) {
-                    shapes.push({ type: 'text', x, y, text, color, size, rotation: 0 });
-                    redraw();
-                    updateButtonStates();
-                }
+                startTextEditing(x, y);
+                return;
             } else {
                 drawing = true;
                 startX = x;
@@ -732,14 +812,12 @@
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedShape) {
-                    console.log('Delete key pressed - deleting selected shape');
                     const index = shapes.indexOf(selectedShape);
                     if (index > -1) {
                         shapes.splice(index, 1);
                         selectedShape = null;
                         redraw();
                         updateButtonStates();
-                        console.log('Shape deleted via keyboard');
                     }
                 }
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -750,7 +828,6 @@
                     selectedShape = null;
                     redraw();
                     updateButtonStates();
-                    console.log('Undo via Ctrl+Z');
                 }
             }
         });
@@ -770,8 +847,20 @@
                 }
             }
             
-            // Update cursor for handles
-            if (tool === 'select' && selectedShape) {
+                         // Update status line with mouse coordinates
+             const rect = canvas.getBoundingClientRect();
+             const containerRect = document.querySelector('.canvas-container').getBoundingClientRect();
+             const screenX = e.clientX;
+             const screenY = e.clientY;
+             const canvasX = (screenX - rect.left) * (canvas.width / rect.width);
+             const canvasY = (screenY - rect.top) * (canvas.height / rect.height);
+             const containerX = screenX - containerRect.left;
+             const containerY = screenY - containerRect.top;
+             
+             statusLine.textContent = `Mouse: Screen (${Math.round(screenX)}, ${Math.round(screenY)}) | Canvas (${Math.round(canvasX)}, ${Math.round(canvasY)}) | Container (${Math.round(containerX)}, ${Math.round(containerY)})`;
+             
+             // Update cursor for handles
+             if (tool === 'select' && selectedShape) {
                 if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse') {
                     const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                     if (resizeHandle) {
@@ -860,16 +949,36 @@
             }
         };
 
-        canvas.onclick = e => {
-            if (tool !== 'text') return;
+        // Handle text input events
+        canvasTextInput.addEventListener('blur', () => {
+            // Add a small delay to prevent immediate blur
+            setTimeout(() => {
+                if (isEditingText) {
+                    finishTextEditing();
+                }
+            }, 100);
+        });
+        canvasTextInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                finishTextEditing();
+            } else if (e.key === 'Escape') {
+                canvasTextInput.style.display = 'none';
+                canvasTextInput.value = '';
+                isEditingText = false;
+                editingTextShape = null;
+            }
+        });
+
+        // Handle double-click to edit existing text
+        canvas.ondblclick = e => {
+            if (tool !== 'select') return;
             const coords = screenToCanvas(e.clientX, e.clientY);
             const x = coords.x;
             const y = coords.y;
-            const text = prompt('Enter text:');
-            if (text) {
-                shapes.push({ type: 'text', x, y, text, color, size });
-                redraw();
-                updateButtonStates();
+            
+            const shapeInfo = getShapeAtPoint(x, y);
+            if (shapeInfo && shapeInfo.shape.type === 'text') {
+                startTextEditing(x, y, shapeInfo.shape.text);
             }
         };
 
