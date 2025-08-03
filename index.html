@@ -150,6 +150,10 @@
         let mouseDownPos = { x: 0, y: 0 };
         let hasMoved = false;
         let hadSelectionBeforeMouseDown = false;
+        let isResizing = false;
+        let resizeHandle = null;
+        let originalShape = null;
+        let hasEdited = false;
 
         // Convert HEIC to JPEG using heic2any
         async function convertHeicToJpeg(file) {
@@ -313,6 +317,40 @@
             
             const distance = Math.sqrt((x - handle.x) ** 2 + (y - handle.y) ** 2);
             return distance <= 10; // 10px radius for handle
+        }
+
+        // Get resize handles for a shape
+        function getResizeHandles(shape) {
+            if (shape.type !== 'rect' && shape.type !== 'ellipse') return [];
+            
+            const handles = [];
+            const size = 8;
+            
+            // Corner handles
+            handles.push({ x: shape.x, y: shape.y, type: 'nw', cursor: 'nw-resize' });
+            handles.push({ x: shape.x + shape.w, y: shape.y, type: 'ne', cursor: 'ne-resize' });
+            handles.push({ x: shape.x + shape.w, y: shape.y + shape.h, type: 'se', cursor: 'se-resize' });
+            handles.push({ x: shape.x, y: shape.y + shape.h, type: 'sw', cursor: 'sw-resize' });
+            
+            // Edge handles
+            handles.push({ x: shape.x + shape.w/2, y: shape.y, type: 'n', cursor: 'n-resize' });
+            handles.push({ x: shape.x + shape.w, y: shape.y + shape.h/2, type: 'e', cursor: 'e-resize' });
+            handles.push({ x: shape.x + shape.w/2, y: shape.y + shape.h, type: 's', cursor: 's-resize' });
+            handles.push({ x: shape.x, y: shape.y + shape.h/2, type: 'w', cursor: 'w-resize' });
+            
+            return handles;
+        }
+
+        // Check if point is near any resize handle
+        function isPointNearResizeHandle(x, y, shape) {
+            const handles = getResizeHandles(shape);
+            for (const handle of handles) {
+                const distance = Math.sqrt((x - handle.x) ** 2 + (y - handle.y) ** 2);
+                if (distance <= 8) {
+                    return handle;
+                }
+            }
+            return null;
         }
 
         // Calculate angle between two points
@@ -542,6 +580,23 @@
                     ctx.restore();
                 }
             }
+            
+            // Draw resize handles for selected shapes
+            if (s === selectedShape && !temp && (s.type === 'rect' || s.type === 'ellipse')) {
+                const handles = getResizeHandles(s);
+                ctx.save();
+                ctx.fillStyle = '#ff0000';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                
+                for (const handle of handles) {
+                    ctx.beginPath();
+                    ctx.arc(handle.x, handle.y, 6, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
         }
 
         function drawArrow(x1, y1, x2, y2, color, size) {
@@ -571,12 +626,31 @@
             // Store initial mouse position and reset movement flag
             mouseDownPos = { x, y };
             hasMoved = false;
+            hasEdited = false;
             hadSelectionBeforeMouseDown = selectedShape !== null;
             
             if (tool === 'select') {
+                // Check if clicking on resize handle
+                if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse')) {
+                    const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
+                                         if (resizeHandle) {
+                         isResizing = true;
+                         hasEdited = true;
+                         window.resizeHandle = resizeHandle;
+                         originalShape = {
+                             x: selectedShape.x,
+                             y: selectedShape.y,
+                             w: selectedShape.w,
+                             h: selectedShape.h
+                         };
+                         return;
+                     }
+                }
+                
                 // Check if clicking on rotation handle
                 if (selectedShape && isPointNearRotationHandle(x, y, selectedShape)) {
                     isRotating = true;
+                    hasEdited = true;
                     rotationCenter = getRotationHandle(selectedShape);
                     rotationStartAngle = calculateAngle(rotationCenter.centerX, rotationCenter.centerY, x, y);
                     return;
@@ -627,8 +701,8 @@
             const y = coords.y;
             
             if (tool === 'select') {
-                // Only cycle if user didn't move significantly AND had a selection before mouse down
-                if (!hasMoved && selectedShape && hadSelectionBeforeMouseDown) {
+                // Only cycle if user didn't move significantly AND had a selection before mouse down AND didn't perform any edit operations
+                if (!hasMoved && !hasEdited && selectedShape && hadSelectionBeforeMouseDown) {
                     const shapesAtPoint = getAllShapesAtPoint(x, y);
                     if (shapesAtPoint.length > 1) {
                         const currentIndex = shapesAtPoint.findIndex(item => item.shape === selectedShape);
@@ -649,6 +723,7 @@
             drawing = false;
             isDragging = false;
             isRotating = false;
+            isResizing = false;
             redraw();
             updateButtonStates();
         };
@@ -691,12 +766,26 @@
                 const distance = Math.sqrt((x - mouseDownPos.x) ** 2 + (y - mouseDownPos.y) ** 2);
                 if (distance > 5) { // 5px threshold for movement
                     hasMoved = true;
+                    hasEdited = true;
                 }
             }
             
-            // Update cursor for rotation handle
-            if (tool === 'select' && selectedShape && isPointNearRotationHandle(x, y, selectedShape)) {
-                canvas.style.cursor = 'grab';
+            // Update cursor for handles
+            if (tool === 'select' && selectedShape) {
+                if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse') {
+                    const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
+                    if (resizeHandle) {
+                        canvas.style.cursor = resizeHandle.cursor;
+                    } else if (isPointNearRotationHandle(x, y, selectedShape)) {
+                        canvas.style.cursor = 'grab';
+                    } else {
+                        canvas.style.cursor = 'move';
+                    }
+                } else if (isPointNearRotationHandle(x, y, selectedShape)) {
+                    canvas.style.cursor = 'grab';
+                } else {
+                    canvas.style.cursor = 'move';
+                }
             } else if (tool === 'select') {
                 canvas.style.cursor = 'crosshair';
             } else {
@@ -704,7 +793,53 @@
             }
             
             if (tool === 'select') {
-                if (isRotating && selectedShape && rotationCenter) {
+                if (isResizing && selectedShape && window.resizeHandle && originalShape) {
+                    const deltaX = x - mouseDownPos.x;
+                    const deltaY = y - mouseDownPos.y;
+                    
+                    switch (window.resizeHandle.type) {
+                        case 'nw':
+                            selectedShape.x = originalShape.x + deltaX;
+                            selectedShape.y = originalShape.y + deltaY;
+                            selectedShape.w = originalShape.w - deltaX;
+                            selectedShape.h = originalShape.h - deltaY;
+                            break;
+                        case 'ne':
+                            selectedShape.y = originalShape.y + deltaY;
+                            selectedShape.w = originalShape.w + deltaX;
+                            selectedShape.h = originalShape.h - deltaY;
+                            break;
+                        case 'se':
+                            selectedShape.w = originalShape.w + deltaX;
+                            selectedShape.h = originalShape.h + deltaY;
+                            break;
+                        case 'sw':
+                            selectedShape.x = originalShape.x + deltaX;
+                            selectedShape.w = originalShape.w - deltaX;
+                            selectedShape.h = originalShape.h + deltaY;
+                            break;
+                        case 'n':
+                            selectedShape.y = originalShape.y + deltaY;
+                            selectedShape.h = originalShape.h - deltaY;
+                            break;
+                        case 'e':
+                            selectedShape.w = originalShape.w + deltaX;
+                            break;
+                        case 's':
+                            selectedShape.h = originalShape.h + deltaY;
+                            break;
+                        case 'w':
+                            selectedShape.x = originalShape.x + deltaX;
+                            selectedShape.w = originalShape.w - deltaX;
+                            break;
+                    }
+                    
+                    // Ensure minimum size
+                    if (selectedShape.w < 10) selectedShape.w = 10;
+                    if (selectedShape.h < 10) selectedShape.h = 10;
+                    
+                    redraw();
+                } else if (isRotating && selectedShape && rotationCenter) {
                     const currentAngle = calculateAngle(rotationCenter.centerX, rotationCenter.centerY, x, y);
                     const deltaAngle = currentAngle - rotationStartAngle;
                     selectedShape.rotation = (selectedShape.rotation || 0) + deltaAngle;
