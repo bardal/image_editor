@@ -147,6 +147,9 @@
         let isRotating = false;
         let rotationCenter = { x: 0, y: 0 };
         let rotationStartAngle = 0;
+        let mouseDownPos = { x: 0, y: 0 };
+        let hasMoved = false;
+        let hadSelectionBeforeMouseDown = false;
 
         // Convert HEIC to JPEG using heic2any
         async function convertHeicToJpeg(file) {
@@ -238,6 +241,45 @@
                 }
             }
             return null;
+        }
+
+        // Find all shapes at point (for cycling through overlapping shapes)
+        function getAllShapesAtPoint(x, y) {
+            const shapesAtPoint = [];
+            for (let i = shapes.length - 1; i >= 0; i--) {
+                if (isPointInShape(x, y, shapes[i])) {
+                    shapesAtPoint.push({ shape: shapes[i], index: i });
+                }
+            }
+            return shapesAtPoint;
+        }
+
+        // Get next shape in cycle when clicking on overlapping shapes
+        function getNextShapeInCycle(x, y) {
+            const shapesAtPoint = getAllShapesAtPoint(x, y);
+            if (shapesAtPoint.length === 0) return null;
+            
+            // If no shape is currently selected, select the topmost one
+            if (!selectedShape) {
+                return shapesAtPoint[0];
+            }
+            
+            // Find the currently selected shape in the list
+            const currentIndex = shapesAtPoint.findIndex(item => item.shape === selectedShape);
+            
+            if (currentIndex === -1) {
+                // Selected shape is not at this point, select the topmost one
+                return shapesAtPoint[0];
+            }
+            
+            // If the user has moved the mouse (indicating a drag), keep the current selection
+            if (hasMoved) {
+                return { shape: selectedShape, index: shapes.indexOf(selectedShape) };
+            }
+            
+            // Cycle to the next shape in the list
+            const nextIndex = (currentIndex + 1) % shapesAtPoint.length;
+            return shapesAtPoint[nextIndex];
         }
 
         // Calculate rotation handle position
@@ -526,6 +568,11 @@
             const x = coords.x;
             const y = coords.y;
             
+            // Store initial mouse position and reset movement flag
+            mouseDownPos = { x, y };
+            hasMoved = false;
+            hadSelectionBeforeMouseDown = selectedShape !== null;
+            
             if (tool === 'select') {
                 // Check if clicking on rotation handle
                 if (selectedShape && isPointNearRotationHandle(x, y, selectedShape)) {
@@ -535,15 +582,26 @@
                     return;
                 }
                 
-                const shapeInfo = getShapeAtPoint(x, y);
-                if (shapeInfo) {
-                    selectedShape = shapeInfo.shape;
-                    dragOffset.x = x - selectedShape.x;
-                    dragOffset.y = y - selectedShape.y;
-                    isDragging = true;
-                    updateButtonStates();
-                    redraw();
+                // Only select a new shape if none is currently selected at this point
+                const shapesAtPoint = getAllShapesAtPoint(x, y);
+                if (shapesAtPoint.length > 0) {
+                    // If we have a selected shape at this point, keep it for potential drag
+                    if (selectedShape && shapesAtPoint.find(item => item.shape === selectedShape)) {
+                        // Keep current selection, just set up for drag
+                        dragOffset.x = x - selectedShape.x;
+                        dragOffset.y = y - selectedShape.y;
+                        isDragging = true;
+                    } else {
+                        // Select the topmost shape at this point
+                        selectedShape = shapesAtPoint[0].shape;
+                        dragOffset.x = x - selectedShape.x;
+                        dragOffset.y = y - selectedShape.y;
+                        isDragging = true;
+                        updateButtonStates();
+                        redraw();
+                    }
                 } else {
+                    // No shapes at this point, deselect
                     selectedShape = null;
                     updateButtonStates();
                     redraw();
@@ -568,7 +626,21 @@
             const x = coords.x;
             const y = coords.y;
             
-            if (tool === 'rect' || tool === 'ellipse') {
+            if (tool === 'select') {
+                // Only cycle if user didn't move significantly AND had a selection before mouse down
+                if (!hasMoved && selectedShape && hadSelectionBeforeMouseDown) {
+                    const shapesAtPoint = getAllShapesAtPoint(x, y);
+                    if (shapesAtPoint.length > 1) {
+                        const currentIndex = shapesAtPoint.findIndex(item => item.shape === selectedShape);
+                        if (currentIndex !== -1) {
+                            const nextIndex = (currentIndex + 1) % shapesAtPoint.length;
+                            selectedShape = shapesAtPoint[nextIndex].shape;
+                            redraw();
+                            updateButtonStates();
+                        }
+                    }
+                }
+            } else if (tool === 'rect' || tool === 'ellipse') {
                 shapes.push({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0 });
             } else if (tool === 'arrow') {
                 shapes.push({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size });
@@ -613,6 +685,14 @@
             const coords = screenToCanvas(e.clientX, e.clientY);
             const x = coords.x;
             const y = coords.y;
+            
+            // Check if mouse has moved significantly (indicating a drag)
+            if (isDragging && !hasMoved) {
+                const distance = Math.sqrt((x - mouseDownPos.x) ** 2 + (y - mouseDownPos.y) ** 2);
+                if (distance > 5) { // 5px threshold for movement
+                    hasMoved = true;
+                }
+            }
             
             // Update cursor for rotation handle
             if (tool === 'select' && selectedShape && isPointNearRotationHandle(x, y, selectedShape)) {
