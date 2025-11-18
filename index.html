@@ -309,6 +309,13 @@
             z-index: 1;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             min-height: 0;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        
+        .canvas-container.drag-over {
+            background: #e7f3ff;
+            border: 2px dashed #007bff;
+            box-shadow: 0 4px 20px rgba(0,123,255,0.3);
         }
         
         #canvas { 
@@ -514,7 +521,7 @@
                 </div>
                 <div class="status-item">
                     <span class="status-icon">ℹ️</span>
-                    <span class="heic-info">Supports: JPEG, PNG, GIF, WebP, HEIC</span>
+                    <span class="heic-info">Supports: JPEG, PNG, GIF, WebP, HEIC | Drag/Drop or Paste images</span>
                 </div>
             </div>
 
@@ -1330,8 +1337,7 @@
         }
 
         // ===== IMAGE LOADING =====
-        async function handleImageLoad(e) {
-            const file = e.target.files[0];
+        async function processImageFile(file) {
             if (!file) return;
             
             try {
@@ -1382,7 +1388,74 @@
                 alert('Error loading image: ' + error.message);
             }
         }
+        
+        async function handleImageLoad(e) {
+            const file = e.target.files[0];
+            await processImageFile(file);
+        }
 
+        // ===== DRAG AND DROP HANDLERS =====
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+            
+            const container = document.querySelector('.canvas-container');
+            container.classList.add('drag-over');
+        }
+        
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const container = document.querySelector('.canvas-container');
+            // Only remove the class if we're leaving the container itself
+            if (e.target === container) {
+                container.classList.remove('drag-over');
+            }
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const container = document.querySelector('.canvas-container');
+            container.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                // Check if it's an image file
+                if (file.type.startsWith('image/') || 
+                    file.name.toLowerCase().endsWith('.heic') || 
+                    file.name.toLowerCase().endsWith('.heif')) {
+                    processImageFile(file);
+                } else {
+                    alert('Please drop an image file (JPEG, PNG, GIF, WebP, or HEIC)');
+                }
+            }
+        }
+        
+        // ===== COPY/PASTE HANDLERS =====
+        function handlePaste(e) {
+            // Only handle paste when not editing text
+            if (isEditingText) return;
+            
+            const items = e.clipboardData.items;
+            
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                
+                // Check if the item is an image
+                if (item.type.indexOf('image') !== -1) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    processImageFile(file);
+                    break;
+                }
+            }
+        }
+        
         // ===== EVENT LISTENERS =====
         function setupEventListeners() {
             // Canvas events
@@ -1400,6 +1473,15 @@
             
             // Window events
             window.addEventListener('resize', resizeCanvas);
+            
+            // Drag and drop events
+            const container = document.querySelector('.canvas-container');
+            container.addEventListener('dragover', handleDragOver);
+            container.addEventListener('dragleave', handleDragLeave);
+            container.addEventListener('drop', handleDrop);
+            
+            // Paste events
+            window.addEventListener('paste', handlePaste);
             
             // Modal events
             window.onclick = function(event) {
