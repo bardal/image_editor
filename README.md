@@ -9,6 +9,7 @@ A simple, browser-based image editor with annotation tools, HEIC support, and in
 - **HEIC/HEIF support**: iPhone photos work seamlessly
 - **Automatic conversion**: HEIC files are converted to JPEG in your browser
 - **Privacy-focused**: No files uploaded to servers
+- **Flexible loading**: Open files, drag and drop, or paste from clipboard
 
 ### 🎨 **Drawing Tools**
 - **Rectangle**: Click and drag to draw rectangles
@@ -25,6 +26,7 @@ A simple, browser-based image editor with annotation tools, HEIC support, and in
 
 ### ⌨️ **Keyboard Shortcuts**
 - **Ctrl+Z (or Cmd+Z)**: Undo last action
+- **Ctrl+V (or Cmd+V)**: Paste image from clipboard
 - **Delete/Backspace**: Delete selected shape
 - **Escape**: Deselect current shape
 
@@ -39,10 +41,27 @@ A simple, browser-based image editor with annotation tools, HEIC support, and in
 ## 🚀 Getting Started
 
 ### **Loading Images**
-1. Click the file input button
+
+You can load images in three convenient ways:
+
+#### **Method 1: Click to Open**
+1. Click the "Open" button in the File section
 2. Select any image file (JPEG, PNG, GIF, WebP, HEIC)
 3. The image will load and scale to fit the canvas
-4. For HEIC files, conversion happens automatically
+
+#### **Method 2: Drag and Drop**
+1. Drag an image file from your file explorer
+2. Drop it anywhere on the canvas area
+3. The image will be loaded automatically
+4. Visual feedback shows a blue dashed border when dragging over the canvas
+
+#### **Method 3: Copy and Paste**
+1. Copy an image to your clipboard (from another application or file)
+2. Click on the editor window to focus it
+3. Press **Ctrl+V** (or **Cmd+V** on Mac) to paste
+4. The image will be loaded automatically
+
+**Note:** For HEIC files, conversion to JPEG happens automatically in all methods
 
 ### **Adding Annotations**
 1. **Select a tool** from the toolbar:
