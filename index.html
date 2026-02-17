@@ -431,6 +431,10 @@
                     <span class="tool-icon">&#8594;</span>
                     <span class="tool-text">Arrow</span>
                 </button>
+                <button class="tool-button" data-tool="polyline">
+                    <span class="tool-icon">&#9585;</span>
+                    <span class="tool-text">Line</span>
+                </button>
                 <button class="tool-button" data-tool="text">
                     <span class="tool-icon">T</span>
                     <span class="tool-text">Text</span>
@@ -440,7 +444,7 @@
 
             <!-- Properties -->
             <div class="toolbar-props">
-                <input type="color" id="color" value="#ff0000" class="color-picker" title="Stroke Color">
+                <input type="color" id="color" value="#333333" class="color-picker" title="Stroke Color">
                 <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Stroke Width">
                 <span class="size-value">3</span>
                 <label class="fill-toggle" title="Toggle Fill">
@@ -544,6 +548,10 @@
         let hasEdited = false;
         let hadSelectionBeforeMouseDown = false;
 
+        // ===== POLYLINE STATE =====
+        let polylinePoints = [];
+        let isDrawingPolyline = false;
+
         // ===== CANVAS TRANSFORM =====
         let canvasScale = { x: 1, y: 1 };
         let canvasOffset = { x: 0, y: 0 };
@@ -605,6 +613,23 @@
         }
 
         // ===== SHAPE DETECTION =====
+        function getRectCorners(shape) {
+            const cx = shape.x + shape.w / 2;
+            const cy = shape.y + shape.h / 2;
+            const cos = Math.cos(shape.rotation || 0);
+            const sin = Math.sin(shape.rotation || 0);
+            const corners = [
+                {x: shape.x, y: shape.y},
+                {x: shape.x + shape.w, y: shape.y},
+                {x: shape.x + shape.w, y: shape.y + shape.h},
+                {x: shape.x, y: shape.y + shape.h}
+            ];
+            return corners.map(c => ({
+                x: cx + (c.x - cx) * cos - (c.y - cy) * sin,
+                y: cy + (c.x - cx) * sin + (c.y - cy) * cos
+            }));
+        }
+
         function isPointInPolygon(px, py, corners) {
             let inside = false;
             for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
@@ -619,7 +644,7 @@
 
         function isPointInShape(x, y, shape) {
             if (shape.type === 'rect') {
-                return isPointInPolygon(x, y, shape.corners);
+                return isPointInPolygon(x, y, getRectCorners(shape));
             } else if (shape.type === 'ellipse') {
                 const left = Math.min(shape.x, shape.x + shape.w);
                 const right = Math.max(shape.x, shape.x + shape.w);
@@ -633,6 +658,21 @@
                        y >= shape.y - textHeight && y <= shape.y;
             } else if (shape.type === 'arrow') {
                 return isPointNearLine(x, y, shape.x, shape.y, shape.x2, shape.y2, shape.size || 3);
+            } else if (shape.type === 'polyline') {
+                if (shape.closed && isPointInPolygon(x, y, shape.points)) {
+                    return true;
+                }
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    if (isPointNearLine(x, y, shape.points[i].x, shape.points[i].y, shape.points[i+1].x, shape.points[i+1].y, shape.size || 3)) {
+                        return true;
+                    }
+                }
+                if (shape.closed && shape.points.length >= 3) {
+                    const last = shape.points[shape.points.length - 1];
+                    const first = shape.points[0];
+                    if (isPointNearLine(x, y, last.x, last.y, first.x, first.y, shape.size || 3)) return true;
+                }
+                return false;
             }
             return false;
         }
@@ -692,7 +732,17 @@
 
         // ===== SHAPE MANIPULATION =====
         function getRotationHandle(shape) {
-            if (shape.type === 'ellipse') {
+            if (shape.type === 'rect') {
+                const centerX = shape.x + shape.w / 2;
+                const centerY = shape.y + shape.h / 2;
+                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + 20;
+                return {
+                    x: centerX + handleDistance * Math.cos(shape.rotation || 0),
+                    y: centerY + handleDistance * Math.sin(shape.rotation || 0),
+                    centerX: centerX,
+                    centerY: centerY
+                };
+            } else if (shape.type === 'ellipse') {
                 const centerX = shape.x + shape.w / 2;
                 const centerY = shape.y + shape.h / 2;
                 const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + 20;
@@ -734,26 +784,43 @@
         }
 
         function getResizeHandles(shape) {
-            if (shape.type === 'rect') {
-                return shape.corners.map((c, i) => ({
-                    x: c.x, y: c.y, type: 'c' + i, cursor: 'move'
+            if (shape.type === 'polyline') {
+                return shape.points.map((p, i) => ({
+                    x: p.x, y: p.y, type: 'p' + i, cursor: 'move'
                 }));
             }
-            if (shape.type !== 'ellipse') return [];
+            if (shape.type !== 'rect' && shape.type !== 'ellipse') return [];
+
+            const rot = shape.rotation || 0;
+            const cx = shape.x + shape.w / 2;
+            const cy = shape.y + shape.h / 2;
+            const cos = Math.cos(rot);
+            const sin = Math.sin(rot);
+            function rp(px, py) {
+                return { x: cx + (px - cx) * cos - (py - cy) * sin, y: cy + (px - cx) * sin + (py - cy) * cos };
+            }
 
             const handles = [];
 
             // Corner handles
-            handles.push({ x: shape.x, y: shape.y, type: 'nw', cursor: 'nw-resize' });
-            handles.push({ x: shape.x + shape.w, y: shape.y, type: 'ne', cursor: 'ne-resize' });
-            handles.push({ x: shape.x + shape.w, y: shape.y + shape.h, type: 'se', cursor: 'se-resize' });
-            handles.push({ x: shape.x, y: shape.y + shape.h, type: 'sw', cursor: 'sw-resize' });
+            const nw = rp(shape.x, shape.y);
+            handles.push({ ...nw, type: 'nw', cursor: 'nw-resize' });
+            const ne = rp(shape.x + shape.w, shape.y);
+            handles.push({ ...ne, type: 'ne', cursor: 'ne-resize' });
+            const se = rp(shape.x + shape.w, shape.y + shape.h);
+            handles.push({ ...se, type: 'se', cursor: 'se-resize' });
+            const sw = rp(shape.x, shape.y + shape.h);
+            handles.push({ ...sw, type: 'sw', cursor: 'sw-resize' });
 
             // Edge handles
-            handles.push({ x: shape.x + shape.w/2, y: shape.y, type: 'n', cursor: 'n-resize' });
-            handles.push({ x: shape.x + shape.w, y: shape.y + shape.h/2, type: 'e', cursor: 'e-resize' });
-            handles.push({ x: shape.x + shape.w/2, y: shape.y + shape.h, type: 's', cursor: 's-resize' });
-            handles.push({ x: shape.x, y: shape.y + shape.h/2, type: 'w', cursor: 'w-resize' });
+            const n = rp(shape.x + shape.w/2, shape.y);
+            handles.push({ ...n, type: 'n', cursor: 'n-resize' });
+            const e = rp(shape.x + shape.w, shape.y + shape.h/2);
+            handles.push({ ...e, type: 'e', cursor: 'e-resize' });
+            const s = rp(shape.x + shape.w/2, shape.y + shape.h);
+            handles.push({ ...s, type: 's', cursor: 's-resize' });
+            const w = rp(shape.x, shape.y + shape.h/2);
+            handles.push({ ...w, type: 'w', cursor: 'w-resize' });
 
             return handles;
         }
@@ -840,10 +907,17 @@
             undoBtn.disabled = shapes.length === 0;
             deleteBtn.disabled = selectedShape === null;
             const fillToggle = document.getElementById('fillToggle');
-            if (selectedShape && selectedShape.type === 'rect') {
+            if (selectedShape && (selectedShape.type === 'rect' || (selectedShape.type === 'polyline' && selectedShape.closed))) {
                 fillToggle.checked = !!selectedShape.fill;
             } else {
                 fillToggle.checked = fillDefault;
+            }
+            if (selectedShape) {
+                document.getElementById('color').value = selectedShape.color;
+                color = selectedShape.color;
+                document.getElementById('size').value = selectedShape.size;
+                document.querySelector('.size-value').textContent = selectedShape.size;
+                size = selectedShape.size;
             }
         }
 
@@ -885,7 +959,7 @@
             ctx.lineWidth = s.size;
             ctx.fillStyle = s.color;
             
-            if (s.rotation && !temp && s.type !== 'rect') {
+            if (s.rotation && !temp) {
                 let centerX, centerY;
                 if (s.type === 'text') {
                     centerX = s.x;
@@ -903,18 +977,13 @@
             }
             
             if (s === selectedShape && !temp) {
-                ctx.strokeStyle = '#00ff00';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]);
+                ctx.shadowColor = 'rgba(59, 142, 237, 0.5)';
+                ctx.shadowBlur = 10;
             }
             
             if (s.type === 'rect') {
                 ctx.beginPath();
-                ctx.moveTo(s.corners[0].x, s.corners[0].y);
-                ctx.lineTo(s.corners[1].x, s.corners[1].y);
-                ctx.lineTo(s.corners[2].x, s.corners[2].y);
-                ctx.lineTo(s.corners[3].x, s.corners[3].y);
-                ctx.closePath();
+                ctx.rect(s.x, s.y, s.w, s.h);
                 ctx.stroke();
                 if (s.fill) {
                     ctx.save();
@@ -930,6 +999,24 @@
                 ctx.stroke();
             } else if (s.type === 'arrow') {
                 drawArrow(s.x, s.y, s.x2, s.y2, s.color, s.size);
+            } else if (s.type === 'polyline') {
+                if (s.points && s.points.length >= 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(s.points[0].x, s.points[0].y);
+                    for (let i = 1; i < s.points.length; i++) {
+                        ctx.lineTo(s.points[i].x, s.points[i].y);
+                    }
+                    if (s.closed) ctx.closePath();
+                    ctx.stroke();
+                    if (s.closed && s.fill) {
+                        ctx.save();
+                        ctx.globalAlpha = 0.3;
+                        ctx.fillStyle = s.color;
+                        ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                        ctx.restore();
+                    }
+                }
             } else if (s.type === 'text') {
                 ctx.font = `${Math.max(16, s.size*6)}px sans-serif`;
                 ctx.fillText(s.text, s.x, s.y);
@@ -945,19 +1032,19 @@
 
         function drawSelectionHandles(shape) {
             // Draw rotation handle
-            if (shape.type === 'ellipse' || shape.type === 'text' || shape.type === 'arrow') {
+            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'text' || shape.type === 'arrow') {
                 const handle = getRotationHandle(shape);
                 if (handle) {
                     ctx.save();
-                    ctx.fillStyle = '#00ff00';
+                    ctx.fillStyle = 'rgba(59, 142, 237, 0.85)';
                     ctx.strokeStyle = '#ffffff';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(handle.x, handle.y, 8, 0, 2 * Math.PI);
+                    ctx.arc(handle.x, handle.y, 6, 0, 2 * Math.PI);
                     ctx.fill();
                     ctx.stroke();
-                    
-                    ctx.strokeStyle = '#00ff00';
+
+                    ctx.strokeStyle = 'rgba(59, 142, 237, 0.4)';
                     ctx.setLineDash([3, 3]);
                     ctx.lineWidth = 1;
                     ctx.beginPath();
@@ -969,21 +1056,110 @@
             }
             
             // Draw resize handles
-            if (shape.type === 'rect' || shape.type === 'ellipse') {
+            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polyline') {
                 const handles = getResizeHandles(shape);
                 ctx.save();
-                ctx.fillStyle = '#ff0000';
-                ctx.strokeStyle = '#ffffff';
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = 'rgba(59, 142, 237, 0.85)';
                 ctx.lineWidth = 2;
-                
+
                 for (const handle of handles) {
                     ctx.beginPath();
-                    ctx.arc(handle.x, handle.y, 6, 0, 2 * Math.PI);
+                    ctx.arc(handle.x, handle.y, 5, 0, 2 * Math.PI);
                     ctx.fill();
                     ctx.stroke();
                 }
                 ctx.restore();
             }
+        }
+
+        // ===== POLYLINE FUNCTIONS =====
+        function handlePolylineClick(x, y) {
+            if (!isDrawingPolyline) {
+                isDrawingPolyline = true;
+                polylinePoints = [{x, y}];
+            } else {
+                // Auto-close if clicking near the first point (and have >= 3 points)
+                const first = polylinePoints[0];
+                if (polylinePoints.length >= 3 && Math.abs(x - first.x) < 10 && Math.abs(y - first.y) < 10) {
+                    finishPolyline(true);
+                    return;
+                }
+                polylinePoints.push({x, y});
+            }
+        }
+
+        function finishPolyline(closed) {
+            if (polylinePoints.length >= 2) {
+                // Deduplicate last point (double-click adds near-duplicate)
+                const last = polylinePoints[polylinePoints.length - 1];
+                const prev = polylinePoints[polylinePoints.length - 2];
+                if (Math.abs(last.x - prev.x) < 5 && Math.abs(last.y - prev.y) < 5) {
+                    polylinePoints.pop();
+                }
+            }
+            if (polylinePoints.length >= 2) {
+                shapes.push({
+                    type: 'polyline',
+                    points: polylinePoints.map(p => ({x: p.x, y: p.y})),
+                    color, size,
+                    closed: !!closed,
+                    fill: closed ? fillDefault : false
+                });
+                updateButtonStates();
+            }
+            polylinePoints = [];
+            isDrawingPolyline = false;
+            redraw();
+        }
+
+        function drawPolylinePreview(mouseX, mouseY) {
+            if (polylinePoints.length === 0) return;
+
+            ctx.save();
+            // Draw committed segments (solid)
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
+            ctx.setLineDash([]);
+            if (polylinePoints.length >= 2) {
+                ctx.beginPath();
+                ctx.moveTo(polylinePoints[0].x, polylinePoints[0].y);
+                for (let i = 1; i < polylinePoints.length; i++) {
+                    ctx.lineTo(polylinePoints[i].x, polylinePoints[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw cursor segment (dashed) — snap to first point if close
+            const lastPt = polylinePoints[polylinePoints.length - 1];
+            const first = polylinePoints[0];
+            const nearFirst = polylinePoints.length >= 3 && Math.abs(mouseX - first.x) < 10 && Math.abs(mouseY - first.y) < 10;
+            const targetX = nearFirst ? first.x : mouseX;
+            const targetY = nearFirst ? first.y : mouseY;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(lastPt.x, lastPt.y);
+            ctx.lineTo(targetX, targetY);
+            ctx.stroke();
+
+            // Draw dots at vertices
+            ctx.setLineDash([]);
+            ctx.fillStyle = color;
+            for (const p of polylinePoints) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Highlight first point when close (close-snap indicator)
+            if (nearFirst) {
+                ctx.strokeStyle = 'rgba(59, 142, 237, 0.85)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(first.x, first.y, 8, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+            ctx.restore();
         }
 
         function redraw() {
@@ -1029,6 +1205,8 @@
                 handleSelectMouseDown(x, y);
             } else if (tool === 'text') {
                 startTextEditing(x, y);
+            } else if (tool === 'polyline') {
+                handlePolylineClick(x, y);
             } else {
                 drawing = true;
                 startX = x;
@@ -1038,15 +1216,15 @@
 
         function handleSelectMouseDown(x, y) {
             // Check resize handle
-            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse')) {
+            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline')) {
                 const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                 if (resizeHandle) {
                     isResizing = true;
                     hasEdited = true;
                     window.resizeHandle = resizeHandle;
-                    if (selectedShape.type === 'rect') {
+                    if (selectedShape.type === 'polyline') {
                         originalShape = {
-                            corners: selectedShape.corners.map(c => ({x: c.x, y: c.y}))
+                            points: selectedShape.points.map(p => ({x: p.x, y: p.y}))
                         };
                     } else {
                         originalShape = {
@@ -1073,15 +1251,15 @@
             const shapesAtPoint = getAllShapesAtPoint(x, y);
             if (shapesAtPoint.length > 0) {
                 if (selectedShape && shapesAtPoint.find(item => item.shape === selectedShape)) {
-                    const refX = selectedShape.type === 'rect' ? selectedShape.corners[0].x : selectedShape.x;
-                    const refY = selectedShape.type === 'rect' ? selectedShape.corners[0].y : selectedShape.y;
+                    const refX = selectedShape.type === 'polyline' ? selectedShape.points[0].x : selectedShape.x;
+                    const refY = selectedShape.type === 'polyline' ? selectedShape.points[0].y : selectedShape.y;
                     dragOffset.x = x - refX;
                     dragOffset.y = y - refY;
                     isDragging = true;
                 } else {
                     selectedShape = shapesAtPoint[0].shape;
-                    const refX = selectedShape.type === 'rect' ? selectedShape.corners[0].x : selectedShape.x;
-                    const refY = selectedShape.type === 'rect' ? selectedShape.corners[0].y : selectedShape.y;
+                    const refX = selectedShape.type === 'polyline' ? selectedShape.points[0].x : selectedShape.x;
+                    const refY = selectedShape.type === 'polyline' ? selectedShape.points[0].y : selectedShape.y;
                     dragOffset.x = x - refX;
                     dragOffset.y = y - refY;
                     isDragging = true;
@@ -1096,6 +1274,7 @@
         }
 
         function handleMouseUp(e) {
+            if (tool === 'polyline') return;
             if (!drawing && tool !== 'select') return;
             
             const coords = screenToCanvas(e.clientX, e.clientY);
@@ -1107,12 +1286,11 @@
             } else if (tool === 'rect') {
                 shapes.push({
                     type: 'rect',
-                    corners: [
-                        {x: startX, y: startY},
-                        {x: x, y: startY},
-                        {x: x, y: y},
-                        {x: startX, y: y}
-                    ],
+                    x: Math.min(startX, x),
+                    y: Math.min(startY, y),
+                    w: Math.abs(x - startX),
+                    h: Math.abs(y - startY),
+                    rotation: 0,
                     color, size, fill: fillDefault
                 });
             } else if (tool === 'ellipse') {
@@ -1162,17 +1340,19 @@
             
             if (tool === 'select') {
                 handleSelectMouseMove(x, y);
+            } else if (tool === 'polyline' && isDrawingPolyline) {
+                redraw();
+                drawPolylinePreview(x, y);
             } else if (drawing && tool !== 'text') {
                 redraw();
                 if (tool === 'rect') {
                     drawShape({
                         type: 'rect',
-                        corners: [
-                            {x: startX, y: startY},
-                            {x: x, y: startY},
-                            {x: x, y: y},
-                            {x: startX, y: y}
-                        ],
+                        x: Math.min(startX, x),
+                        y: Math.min(startY, y),
+                        w: Math.abs(x - startX),
+                        h: Math.abs(y - startY),
+                        rotation: 0,
                         color, size, fill: fillDefault
                     }, true);
                 } else if (tool === 'ellipse') {
@@ -1189,14 +1369,14 @@
             } else if (isRotating && selectedShape && rotationCenter) {
                 handleRotation(x, y);
             } else if (isDragging && selectedShape) {
-                if (selectedShape.type === 'rect') {
+                if (selectedShape.type === 'polyline') {
                     const newX = x - dragOffset.x;
                     const newY = y - dragOffset.y;
-                    const dx = newX - selectedShape.corners[0].x;
-                    const dy = newY - selectedShape.corners[0].y;
-                    for (const c of selectedShape.corners) {
-                        c.x += dx;
-                        c.y += dy;
+                    const dx = newX - selectedShape.points[0].x;
+                    const dy = newY - selectedShape.points[0].y;
+                    for (const p of selectedShape.points) {
+                        p.x += dx;
+                        p.y += dy;
                     }
                 } else {
                     selectedShape.x = x - dragOffset.x;
@@ -1209,18 +1389,49 @@
         function handleResize(x, y) {
             const handleType = window.resizeHandle.type;
 
-            // Corner-based rect handles
-            if (handleType.startsWith('c') && selectedShape.type === 'rect') {
-                const cornerIndex = parseInt(handleType[1]);
-                selectedShape.corners[cornerIndex].x = x;
-                selectedShape.corners[cornerIndex].y = y;
+            // Polyline vertex handles
+            if (handleType.startsWith('p') && selectedShape.type === 'polyline') {
+                const pointIndex = parseInt(handleType.slice(1));
+                selectedShape.points[pointIndex].x = x;
+                selectedShape.points[pointIndex].y = y;
                 redraw();
                 return;
             }
 
-            const deltaX = x - mouseDownPos.x;
-            const deltaY = y - mouseDownPos.y;
+            const rawDX = x - mouseDownPos.x;
+            const rawDY = y - mouseDownPos.y;
 
+            // Rotate screen-space delta into shape's local coordinate system
+            const rot = selectedShape.rotation || 0;
+            const cosN = Math.cos(-rot);
+            const sinN = Math.sin(-rot);
+            const deltaX = rawDX * cosN - rawDY * sinN;
+            const deltaY = rawDX * sinN + rawDY * cosN;
+
+            // Anchor sign: the opposite corner/edge that should stay fixed
+            // (+1,+1) = SE corner, (-1,-1) = NW corner, etc.
+            let sx, sy;
+            switch (handleType) {
+                case 'nw': sx = 1;  sy = 1;  break;
+                case 'ne': sx = -1; sy = 1;  break;
+                case 'se': sx = -1; sy = -1; break;
+                case 'sw': sx = 1;  sy = -1; break;
+                case 'n':  sx = 0;  sy = 1;  break;
+                case 'e':  sx = -1; sy = 0;  break;
+                case 's':  sx = 0;  sy = -1; break;
+                case 'w':  sx = 1;  sy = 0;  break;
+            }
+
+            // Compute anchor world position BEFORE resize
+            const cosR = Math.cos(rot);
+            const sinR = Math.sin(rot);
+            const ow = originalShape.w, oh = originalShape.h;
+            const oldCX = originalShape.x + ow / 2;
+            const oldCY = originalShape.y + oh / 2;
+            const anchorWX = oldCX + (sx * ow / 2) * cosR - (sy * oh / 2) * sinR;
+            const anchorWY = oldCY + (sx * ow / 2) * sinR + (sy * oh / 2) * cosR;
+
+            // Apply resize in local space
             switch (handleType) {
                 case 'nw':
                     selectedShape.x = originalShape.x + deltaX;
@@ -1257,10 +1468,20 @@
                     selectedShape.w = originalShape.w - deltaX;
                     break;
             }
-            
+
             if (selectedShape.w < 10) selectedShape.w = 10;
             if (selectedShape.h < 10) selectedShape.h = 10;
-            
+
+            // Compute anchor world position AFTER resize and correct the drift
+            const nw = selectedShape.w, nh = selectedShape.h;
+            const newCX = selectedShape.x + nw / 2;
+            const newCY = selectedShape.y + nh / 2;
+            const anchorWXNew = newCX + (sx * nw / 2) * cosR - (sy * nh / 2) * sinR;
+            const anchorWYNew = newCY + (sx * nw / 2) * sinR + (sy * nh / 2) * cosR;
+
+            selectedShape.x -= (anchorWXNew - anchorWX);
+            selectedShape.y -= (anchorWYNew - anchorWY);
+
             redraw();
         }
 
@@ -1281,7 +1502,7 @@
 
         function updateCursor(x, y) {
             if (tool === 'select' && selectedShape) {
-                if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse') {
+                if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline') {
                     const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                     if (resizeHandle) {
                         canvas.style.cursor = resizeHandle.cursor;
@@ -1302,6 +1523,10 @@
 
         // ===== KEYBOARD HANDLERS =====
         function handleKeyDown(e) {
+            if (isDrawingPolyline && (e.key === 'Enter' || e.key === 'Escape')) {
+                finishPolyline();
+                return;
+            }
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 deleteSelectedShape();
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -1352,6 +1577,10 @@
         }
 
         function handleDoubleClick(e) {
+            if (tool === 'polyline' && isDrawingPolyline) {
+                finishPolyline();
+                return;
+            }
             if (tool !== 'select') return;
             
             const coords = screenToCanvas(e.clientX, e.clientY);
@@ -1528,17 +1757,25 @@
             document.getElementById('ribbonToggle').addEventListener('click', handleRibbonToggle);
             
             // Color and size events
-            document.getElementById('color').addEventListener('input', e => { 
-                color = e.target.value; 
+            document.getElementById('color').addEventListener('input', e => {
+                color = e.target.value;
+                if (selectedShape) {
+                    selectedShape.color = color;
+                    redraw();
+                }
             });
             document.getElementById('size').addEventListener('input', e => {
                 size = parseInt(e.target.value);
                 document.querySelector('.size-value').textContent = size;
+                if (selectedShape) {
+                    selectedShape.size = size;
+                    redraw();
+                }
             });
             document.getElementById('fillToggle').addEventListener('change', e => {
                 fillDefault = e.target.checked;
-                if (selectedShape && selectedShape.type === 'rect') {
-                    selectedShape.fill = fillDefault;
+                if (selectedShape && (selectedShape.type === 'rect' || (selectedShape.type === 'polyline' && selectedShape.closed))) {
+                    selectedShape.fill = e.target.checked;
                     redraw();
                 }
             });
@@ -1595,13 +1832,18 @@
         function handleToolButtonClick(e) {
             const clickedButton = e.currentTarget;
             const toolName = clickedButton.dataset.tool;
-            
+
+            // Finish any in-progress polyline before switching
+            if (isDrawingPolyline) {
+                finishPolyline();
+            }
+
             // Update active tool button
             document.querySelectorAll('.tool-button').forEach(button => {
                 button.classList.remove('active');
             });
             clickedButton.classList.add('active');
-            
+
             // Update tool
             tool = toolName;
             selectedShape = null;
