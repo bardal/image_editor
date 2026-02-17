@@ -1552,11 +1552,34 @@
                 redraw();
                 updateButtonStates();
             };
-            document.getElementById('download').onclick = () => {
-                const link = document.createElement('a');
-                link.download = 'edited-image.png';
-                link.href = canvas.toDataURL();
-                link.click();
+            document.getElementById('download').onclick = async () => {
+                canvas.toBlob(async (blob) => {
+                    if (window.showSaveFilePicker) {
+                        try {
+                            const handle = await showSaveFilePicker({
+                                suggestedName: 'edited-image.png',
+                                types: [{
+                                    description: 'PNG Image',
+                                    accept: { 'image/png': ['.png'] }
+                                }, {
+                                    description: 'JPEG Image',
+                                    accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                                }]
+                            });
+                            const writable = await handle.createWritable();
+                            await writable.write(blob);
+                            await writable.close();
+                        } catch (e) {
+                            if (e.name !== 'AbortError') throw e;
+                        }
+                    } else {
+                        const link = document.createElement('a');
+                        link.download = 'edited-image.png';
+                        link.href = URL.createObjectURL(blob);
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                    }
+                }, 'image/png');
             };
             
             // File open button
