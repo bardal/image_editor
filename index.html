@@ -8,306 +8,279 @@
     
     <!-- ===== STYLES ===== -->
     <style>
-        /* ===== LAYOUT ===== */
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 0; 
-            padding: 0; 
-            background: #f0f0f0; 
-            color: #333;
+        /* ===== RESET & LAYOUT ===== */
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            color: #e0e0e0;
         }
-        
-        .container { 
+
+        .container {
             height: 100vh;
             display: flex;
             flex-direction: column;
-            background: #fff;
             overflow: hidden;
         }
-        
-        /* ===== RIBBON ===== */
-        .ribbon {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+        /* ===== TOOLBAR ===== */
+        .toolbar {
+            background: #252540;
+            border-bottom: 1px solid #3a3a5c;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            position: relative;
+            padding: 0 8px;
+            height: 44px;
+            gap: 2px;
+            flex-shrink: 0;
             z-index: 20;
         }
-        
-        .ribbon-title {
+
+        .toolbar-brand {
+            font-weight: 600;
+            font-size: 13px;
+            color: #a78bfa;
+            padding: 0 10px 0 4px;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+
+        .toolbar-divider {
+            width: 1px;
+            height: 24px;
+            background: #3a3a5c;
+            margin: 0 6px;
+            flex-shrink: 0;
+        }
+
+        /* ===== TOOLBAR BUTTONS ===== */
+        .tb-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 5px 10px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            color: #b0b0cc;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            height: 32px;
+        }
+
+        .tb-btn:hover {
+            background: #3a3a5c;
+            color: #e0e0f0;
+        }
+
+        .tb-btn:active {
+            background: #4a4a6c;
+        }
+
+        .tb-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .tb-btn:disabled:hover {
+            background: transparent;
+            color: #b0b0cc;
+        }
+
+        .tb-btn .btn-icon {
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        /* ===== TOOL STRIP ===== */
+        .tool-strip {
+            display: flex;
+            background: #1e1e36;
+            border-radius: 8px;
+            padding: 2px;
+            gap: 1px;
+        }
+
+        .tool-button {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 10px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            color: #8888aa;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            height: 28px;
+        }
+
+        .tool-button:hover {
+            color: #c0c0e0;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .tool-button.active {
+            background: #a78bfa;
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(167,139,250,0.3);
+        }
+
+        .tool-button .tool-icon {
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .tool-button .tool-text {
+            font-size: 11px;
+        }
+
+        /* ===== PROPERTIES (inline in toolbar) ===== */
+        .toolbar-props {
             display: flex;
             align-items: center;
             gap: 8px;
-            color: white;
-            font-weight: 600;
-            font-size: 16px;
         }
-        
-        .title-icon {
-            font-size: 20px;
-        }
-        
-        .title-text {
-            font-size: 16px;
-        }
-        
-        .ribbon-toggle {
-            background: rgba(255,255,255,0.1);
-            border: none;
-            color: white;
-            padding: 8px 12px;
-            cursor: pointer;
-            border-radius: 4px;
-            margin-right: 10px;
-            transition: all 0.3s ease;
-        }
-        
-        .ribbon-toggle:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        
-        .toggle-icon {
-            font-size: 16px;
-            transition: transform 0.3s ease;
-        }
-        
-        .ribbon-toggle.collapsed .toggle-icon {
-            transform: rotate(180deg);
-        }
-        
-        /* ===== TOASTER ANIMATION ===== */
-        .ribbon-content {
-            transform-origin: top;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .ribbon-content.collapsed {
-            transform: scaleY(0);
-            opacity: 0;
-            max-height: 0;
-            min-height: 0;
-            padding: 0;
-        }
-        
-        /* ===== RIBBON CONTENT ===== */
-        .ribbon-content {
-            background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            padding: 8px 12px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
-            display: flex;
-            gap: 15px;
-            align-items: flex-start;
-            transform-origin: top;
-            position: relative;
-            z-index: 15;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .ribbon-content.collapsed {
-            max-height: 0;
-            padding: 0;
-            border-bottom: none;
-            opacity: 0;
-        }
-        
-        .ribbon-group {
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 6px 8px;
-            min-width: 140px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .group-title {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 4px;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .group-content {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        /* ===== BUTTONS ===== */
-        .ribbon-button {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 8px;
-            border: 1px solid #dee2e6;
-            background: white;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 11px;
-            color: #495057;
-        }
-        
-        .ribbon-button:hover {
-            background: #e9ecef;
-            border-color: #adb5bd;
-        }
-        
-        .ribbon-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .ribbon-button:disabled:hover {
-            background: white;
-        }
-        
-        .button-icon {
-            font-size: 12px;
-        }
-        
-        .button-text {
-            font-weight: 500;
-        }
-        
-        /* ===== TOOL BUTTONS ===== */
-        .tool-buttons {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 3px;
-        }
-        
-        .tool-button {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1px;
-            padding: 4px 2px;
-            border: 2px solid #dee2e6;
-            background: white;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 10px;
-            color: #495057;
-        }
-        
-        .tool-button:hover {
-            border-color: #007bff;
-            background: #f8f9ff;
-        }
-        
-        .tool-button.active {
-            border-color: #007bff;
-            background: #e7f3ff;
-            color: #007bff;
-        }
-        
-        .tool-icon {
-            font-size: 14px;
-            font-weight: bold;
-        }
-        
-        .tool-text {
-            font-weight: 500;
-        }
-        
-        /* ===== PROPERTIES ===== */
-        .property-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-bottom: 4px;
-        }
-        
-        .property-label {
-            font-size: 10px;
-            font-weight: 500;
-            color: #6c757d;
-            min-width: 35px;
-        }
-        
+
         .color-picker {
-            width: 30px;
-            height: 20px;
-            border: 1px solid #dee2e6;
-            border-radius: 3px;
+            width: 28px;
+            height: 28px;
+            border: 2px solid #3a3a5c;
+            border-radius: 6px;
             cursor: pointer;
+            padding: 0;
+            background: none;
+            transition: border-color 0.15s;
         }
-        
+
+        .color-picker:hover {
+            border-color: #a78bfa;
+        }
+
         .size-slider {
-            flex: 1;
-            height: 3px;
-            background: #dee2e6;
+            width: 80px;
+            height: 4px;
+            background: #3a3a5c;
             border-radius: 2px;
             outline: none;
             cursor: pointer;
+            -webkit-appearance: none;
         }
-        
+
         .size-slider::-webkit-slider-thumb {
-            appearance: none;
-            width: 12px;
-            height: 12px;
-            background: #007bff;
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #a78bfa;
             border-radius: 50%;
             cursor: pointer;
+            box-shadow: 0 0 4px rgba(167,139,250,0.4);
         }
-        
+
         .size-value {
-            font-size: 10px;
-            font-weight: 500;
-            color: #495057;
+            font-size: 11px;
+            font-weight: 600;
+            color: #8888aa;
             min-width: 16px;
             text-align: center;
         }
-        
-        /* ===== STATUS BAR ===== */
-        .status-bar {
-            background: #f8f9fa;
-            border-top: 1px solid #dee2e6;
-            padding: 4px 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 10px;
-            color: #6c757d;
-        }
-        
-        .status-item {
+
+        .fill-toggle {
             display: flex;
             align-items: center;
-            gap: 3px;
-        }
-        
-        .status-icon {
+            gap: 5px;
+            cursor: pointer;
             font-size: 11px;
+            font-weight: 500;
+            color: #8888aa;
+            user-select: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s;
         }
-        
+
+        .fill-toggle:hover {
+            color: #c0c0e0;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .fill-toggle input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 32px;
+            height: 18px;
+            background: #3a3a5c;
+            border-radius: 9px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .fill-toggle input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #666;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.2s;
+        }
+
+        .fill-toggle input[type="checkbox"]:checked {
+            background: #a78bfa;
+        }
+
+        .fill-toggle input[type="checkbox"]:checked::after {
+            background: #fff;
+            left: 16px;
+        }
+
+        /* ===== TOOLBAR SPACER ===== */
+        .toolbar-spacer {
+            flex: 1;
+        }
+
+        /* ===== RIBBON TOGGLE (kept for collapse) ===== */
+        .ribbon-toggle {
+            display: none;
+        }
+
+        /* Legacy ribbon-content kept for JS compatibility */
+        .ribbon-content {
+            display: none;
+        }
+
         /* ===== MAIN CONTENT ===== */
         .main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
             min-height: 0;
+            background: #1a1a2e;
         }
-        
+
         /* ===== CANVAS ===== */
-        .canvas-container { 
+        .canvas-container {
             flex: 1;
-            background: #f8f9fa; 
-            border: 1px solid #dee2e6;
-            margin: 10px;
+            background: #12122a;
+            margin: 6px 8px;
             border-radius: 8px;
             overflow: hidden;
             position: relative;
             z-index: 1;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 1px solid #2a2a4a;
             min-height: 0;
             transition: background-color 0.3s ease, border-color 0.3s ease;
         }
@@ -317,219 +290,230 @@
             border: 2px dashed #007bff;
             box-shadow: 0 4px 20px rgba(0,123,255,0.3);
         }
-        
-        #canvas { 
-            width: 100%; 
-            height: 100%; 
-            display: block; 
-            cursor: crosshair; 
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
             background: #fff;
         }
-        
+
         /* ===== TEXT INPUT ===== */
-        .canvas-text-input { 
-            position: absolute; 
-            border: 2px solid #007bff; 
-            outline: none; 
-            background: rgba(255, 255, 255, 0.95); 
-            color: #000; 
-            font-family: 'Segoe UI', sans-serif; 
-            font-size: 16px; 
-            padding: 8px 12px; 
-            margin: 0; 
-            min-width: 50px; 
+        .canvas-text-input {
+            position: absolute;
+            border: 2px solid #a78bfa;
+            outline: none;
+            background: rgba(255, 255, 255, 0.97);
+            color: #000;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 16px;
+            padding: 6px 10px;
+            margin: 0;
+            min-width: 50px;
             display: none;
             z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
             border-radius: 4px;
         }
-        
+
         /* ===== LOADING ===== */
-        .loading { 
-            display: none; 
-            color: #6c757d; 
-            font-style: italic; 
+        .loading {
+            display: none;
+            color: #a78bfa;
+            font-style: italic;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.9);
-            padding: 10px 20px;
-            border-radius: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: rgba(30,30,54,0.95);
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            border: 1px solid #3a3a5c;
         }
-        
+
+        /* ===== STATUS BAR ===== */
+        .status-bar {
+            background: #1e1e36;
+            border-top: 1px solid #2a2a4a;
+            padding: 3px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            color: #666688;
+            flex-shrink: 0;
+            height: 24px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .status-icon {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
         /* ===== MODAL ===== */
-        .modal { 
-            display: none; 
-            position: fixed; 
-            z-index: 1000; 
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            height: 100%; 
-            background-color: rgba(0,0,0,0.5); 
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
         }
-        
-        .modal-content { 
-            background-color: #fff; 
-            margin: 15% auto; 
-            padding: 30px; 
-            border-radius: 8px; 
-            width: 80%; 
-            max-width: 500px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+
+        .modal-content {
+            background-color: #252540;
+            color: #e0e0e0;
+            margin: 12% auto;
+            padding: 28px;
+            border-radius: 12px;
+            width: 80%;
+            max-width: 480px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border: 1px solid #3a3a5c;
         }
-        
-        .close { 
-            color: #6c757d; 
-            float: right; 
-            font-size: 28px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            transition: color 0.2s ease;
+
+        .modal-content h3 { color: #a78bfa; margin-top: 0; }
+        .modal-content strong { color: #c0c0e0; }
+
+        .close {
+            color: #666688;
+            float: right;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.15s;
         }
-        
-        .close:hover { color: #495057; }
-        
+
+        .close:hover { color: #a78bfa; }
+
         /* ===== RESPONSIVE ===== */
-        @media (max-width: 768px) {
-            .ribbon-content {
-                padding: 8px;
-                gap: 10px;
+        @media (max-width: 900px) {
+            .toolbar {
+                gap: 1px;
+                padding: 0 4px;
             }
-            
-            .ribbon-group {
-                min-width: auto;
-            }
-            
-            .tool-buttons {
-                grid-template-columns: repeat(3, 1fr);
-            }
-            
-            .status-bar {
-                flex-direction: column;
-                gap: 5px;
-                align-items: flex-start;
-            }
+            .tool-button .tool-text { display: none; }
+            .tool-button .tool-icon { font-size: 14px; }
+            .tool-button { padding: 5px 8px; }
+            .tb-btn .btn-label { display: none; }
+            .toolbar-brand { display: none; }
+            .size-slider { width: 50px; }
+        }
+
+        @media (max-width: 600px) {
+            .toolbar { flex-wrap: wrap; height: auto; padding: 4px; }
+            .toolbar-divider { display: none; }
+            .status-bar { flex-wrap: wrap; gap: 4px; height: auto; padding: 4px 8px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- ===== RIBBON HEADER ===== -->
-        <div class="ribbon">
-            <div class="ribbon-title">
-                <span class="title-icon">🎨</span>
-                <span class="title-text">Image Editor</span>
-            </div>
-            <button class="ribbon-toggle" id="ribbonToggle">
-                <span class="toggle-icon">⌄</span>
+        <!-- Hidden elements for JS compatibility -->
+        <button class="ribbon-toggle" id="ribbonToggle" style="display:none"><span class="toggle-icon"></span></button>
+        <div class="ribbon-content"></div>
+
+        <!-- ===== TOOLBAR ===== -->
+        <div class="toolbar">
+            <div class="toolbar-brand">Image Editor</div>
+            <div class="toolbar-divider"></div>
+
+            <!-- File -->
+            <button class="tb-btn" id="openFile" title="Open Image">
+                <span class="btn-icon">&#128194;</span>
+                <span class="btn-label">Open</span>
             </button>
-        </div>
+            <input type="file" id="imgLoader" accept="image/*,.heic,.heif" style="display: none;">
+            <button class="tb-btn" id="download" title="Save Image">
+                <span class="btn-icon">&#128190;</span>
+                <span class="btn-label">Save</span>
+            </button>
+            <div class="toolbar-divider"></div>
 
-        <!-- ===== RIBBON CONTENT ===== -->
-        <div class="ribbon-content">
-            <div class="ribbon-group">
-                <div class="group-title">File</div>
-                <div class="group-content">
-                    <button class="ribbon-button" id="openFile">
-                        <span class="button-icon">📁</span>
-                        <span class="button-text">Open</span>
-                    </button>
-                    <input type="file" id="imgLoader" accept="image/*,.heic,.heif" style="display: none;">
-                    <button class="ribbon-button" id="download">
-                        <span class="button-icon">💾</span>
-                        <span class="button-text">Save</span>
-                    </button>
-                </div>
+            <!-- Edit -->
+            <button class="tb-btn" id="undo" disabled title="Undo (Ctrl+Z)">
+                <span class="btn-icon">&#8630;</span>
+                <span class="btn-label">Undo</span>
+            </button>
+            <button class="tb-btn" id="delete" disabled title="Delete Selected">
+                <span class="btn-icon">&#10005;</span>
+                <span class="btn-label">Delete</span>
+            </button>
+            <button class="tb-btn" id="clear" title="Clear All Shapes">
+                <span class="btn-icon">&#9249;</span>
+                <span class="btn-label">Clear</span>
+            </button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Tools -->
+            <div class="tool-strip">
+                <button class="tool-button active" data-tool="select">
+                    <span class="tool-icon">&#9650;</span>
+                    <span class="tool-text">Select</span>
+                </button>
+                <button class="tool-button" data-tool="rect">
+                    <span class="tool-icon">&#9645;</span>
+                    <span class="tool-text">Rect</span>
+                </button>
+                <button class="tool-button" data-tool="ellipse">
+                    <span class="tool-icon">&#9711;</span>
+                    <span class="tool-text">Ellipse</span>
+                </button>
+                <button class="tool-button" data-tool="arrow">
+                    <span class="tool-icon">&#8594;</span>
+                    <span class="tool-text">Arrow</span>
+                </button>
+                <button class="tool-button" data-tool="text">
+                    <span class="tool-icon">T</span>
+                    <span class="tool-text">Text</span>
+                </button>
+            </div>
+            <div class="toolbar-divider"></div>
+
+            <!-- Properties -->
+            <div class="toolbar-props">
+                <input type="color" id="color" value="#ff0000" class="color-picker" title="Stroke Color">
+                <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Stroke Width">
+                <span class="size-value">3</span>
+                <label class="fill-toggle" title="Toggle Fill">
+                    <input type="checkbox" id="fillToggle">
+                    Fill
+                </label>
             </div>
 
-            <div class="ribbon-group">
-                <div class="group-title">Edit</div>
-                <div class="group-content">
-                    <button class="ribbon-button" id="undo" disabled>
-                        <span class="button-icon">↶</span>
-                        <span class="button-text">Undo</span>
-                    </button>
-                    <button class="ribbon-button" id="delete" disabled>
-                        <span class="button-icon">🗑️</span>
-                        <span class="button-text">Delete</span>
-                    </button>
-                    <button class="ribbon-button" id="clear">
-                        <span class="button-icon">🗑️</span>
-                        <span class="button-text">Clear All</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="ribbon-group">
-                <div class="group-title">Tools</div>
-                <div class="group-content">
-                    <div class="tool-buttons">
-                        <button class="tool-button active" data-tool="select">
-                            <span class="tool-icon">👆</span>
-                            <span class="tool-text">Select</span>
-                        </button>
-                        <button class="tool-button" data-tool="rect">
-                            <span class="tool-icon">⬜</span>
-                            <span class="tool-text">Rectangle</span>
-                        </button>
-                        <button class="tool-button" data-tool="ellipse">
-                            <span class="tool-icon">⭕</span>
-                            <span class="tool-text">Ellipse</span>
-                        </button>
-                        <button class="tool-button" data-tool="arrow">
-                            <span class="tool-icon">➡️</span>
-                            <span class="tool-text">Arrow</span>
-                        </button>
-                        <button class="tool-button" data-tool="text">
-                            <span class="tool-icon">T</span>
-                            <span class="tool-text">Text</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="ribbon-group">
-                <div class="group-title">Properties</div>
-                <div class="group-content">
-                    <div class="property-item">
-                        <label class="property-label">Color:</label>
-                        <input type="color" id="color" value="#ff0000" class="color-picker">
-                    </div>
-                    <div class="property-item">
-                        <label class="property-label">Size:</label>
-                        <input type="range" id="size" value="3" min="1" max="20" class="size-slider">
-                        <span class="size-value">3</span>
-                    </div>
-                </div>
-            </div>
+            <div class="toolbar-spacer"></div>
         </div>
 
         <!-- ===== MAIN CONTENT AREA ===== -->
         <div class="main-content">
-            <!-- ===== STATUS BAR ===== -->
-            <div class="status-bar">
-                <div class="status-item">
-                    <span class="status-icon">📊</span>
-                    <span id="imageInfo">No image loaded</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-icon">🖱️</span>
-                    <span id="statusLine">Mouse: Screen (0, 0) | Canvas (0, 0)</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-icon">ℹ️</span>
-                    <span class="heic-info">Supports: JPEG, PNG, GIF, WebP, HEIC | Drag/Drop or Paste images</span>
-                </div>
-            </div>
-
             <!-- ===== CANVAS AREA ===== -->
             <div class="canvas-container">
                 <canvas id="canvas" width="800" height="600"></canvas>
                 <input type="text" id="canvasTextInput" class="canvas-text-input" placeholder="Type here...">
                 <div class="loading" id="loading">Processing image...</div>
+            </div>
+
+            <!-- ===== STATUS BAR ===== -->
+            <div class="status-bar">
+                <div class="status-item">
+                    <span id="imageInfo">No image loaded</span>
+                </div>
+                <div class="status-item">
+                    <span id="statusLine">Canvas (0, 0)</span>
+                </div>
+                <div class="status-item">
+                    <span class="heic-info">JPEG / PNG / GIF / WebP / HEIC | Drag/Drop or Paste</span>
+                </div>
             </div>
         </div>
     </div>
@@ -581,6 +565,7 @@
         let tool = 'select';
         let color = document.getElementById('color').value;
         let size = parseInt(document.getElementById('size').value);
+        let fillDefault = false;
 
         // ===== DRAWING STATE =====
         let drawing = false;
@@ -663,8 +648,22 @@
         }
 
         // ===== SHAPE DETECTION =====
+        function isPointInPolygon(px, py, corners) {
+            let inside = false;
+            for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+                const xi = corners[i].x, yi = corners[i].y;
+                const xj = corners[j].x, yj = corners[j].y;
+                const intersect = ((yi > py) !== (yj > py)) &&
+                    (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
         function isPointInShape(x, y, shape) {
-            if (shape.type === 'rect' || shape.type === 'ellipse') {
+            if (shape.type === 'rect') {
+                return isPointInPolygon(x, y, shape.corners);
+            } else if (shape.type === 'ellipse') {
                 const left = Math.min(shape.x, shape.x + shape.w);
                 const right = Math.max(shape.x, shape.x + shape.w);
                 const top = Math.min(shape.y, shape.y + shape.h);
@@ -736,7 +735,7 @@
 
         // ===== SHAPE MANIPULATION =====
         function getRotationHandle(shape) {
-            if (shape.type === 'rect' || shape.type === 'ellipse') {
+            if (shape.type === 'ellipse') {
                 const centerX = shape.x + shape.w / 2;
                 const centerY = shape.y + shape.h / 2;
                 const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + 20;
@@ -778,23 +777,27 @@
         }
 
         function getResizeHandles(shape) {
-            if (shape.type !== 'rect' && shape.type !== 'ellipse') return [];
-            
+            if (shape.type === 'rect') {
+                return shape.corners.map((c, i) => ({
+                    x: c.x, y: c.y, type: 'c' + i, cursor: 'move'
+                }));
+            }
+            if (shape.type !== 'ellipse') return [];
+
             const handles = [];
-            const size = 8;
-            
+
             // Corner handles
             handles.push({ x: shape.x, y: shape.y, type: 'nw', cursor: 'nw-resize' });
             handles.push({ x: shape.x + shape.w, y: shape.y, type: 'ne', cursor: 'ne-resize' });
             handles.push({ x: shape.x + shape.w, y: shape.y + shape.h, type: 'se', cursor: 'se-resize' });
             handles.push({ x: shape.x, y: shape.y + shape.h, type: 'sw', cursor: 'sw-resize' });
-            
+
             // Edge handles
             handles.push({ x: shape.x + shape.w/2, y: shape.y, type: 'n', cursor: 'n-resize' });
             handles.push({ x: shape.x + shape.w, y: shape.y + shape.h/2, type: 'e', cursor: 'e-resize' });
             handles.push({ x: shape.x + shape.w/2, y: shape.y + shape.h, type: 's', cursor: 's-resize' });
             handles.push({ x: shape.x, y: shape.y + shape.h/2, type: 'w', cursor: 'w-resize' });
-            
+
             return handles;
         }
 
@@ -879,6 +882,12 @@
         function updateButtonStates() {
             undoBtn.disabled = shapes.length === 0;
             deleteBtn.disabled = selectedShape === null;
+            const fillToggle = document.getElementById('fillToggle');
+            if (selectedShape && selectedShape.type === 'rect') {
+                fillToggle.checked = !!selectedShape.fill;
+            } else {
+                fillToggle.checked = fillDefault;
+            }
         }
 
         function updateImageInfo() {
@@ -919,7 +928,7 @@
             ctx.lineWidth = s.size;
             ctx.fillStyle = s.color;
             
-            if (s.rotation && !temp) {
+            if (s.rotation && !temp && s.type !== 'rect') {
                 let centerX, centerY;
                 if (s.type === 'text') {
                     centerX = s.x;
@@ -943,7 +952,21 @@
             }
             
             if (s.type === 'rect') {
-                ctx.strokeRect(s.x, s.y, s.w, s.h);
+                ctx.beginPath();
+                ctx.moveTo(s.corners[0].x, s.corners[0].y);
+                ctx.lineTo(s.corners[1].x, s.corners[1].y);
+                ctx.lineTo(s.corners[2].x, s.corners[2].y);
+                ctx.lineTo(s.corners[3].x, s.corners[3].y);
+                ctx.closePath();
+                ctx.stroke();
+                if (s.fill) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = s.color;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                    ctx.restore();
+                }
             } else if (s.type === 'ellipse') {
                 ctx.beginPath();
                 ctx.ellipse(s.x + s.w/2, s.y + s.h/2, Math.abs(s.w/2), Math.abs(s.h/2), 0, 0, 2*Math.PI);
@@ -965,7 +988,7 @@
 
         function drawSelectionHandles(shape) {
             // Draw rotation handle
-            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'text' || shape.type === 'arrow') {
+            if (shape.type === 'ellipse' || shape.type === 'text' || shape.type === 'arrow') {
                 const handle = getRotationHandle(shape);
                 if (handle) {
                     ctx.save();
@@ -1064,12 +1087,18 @@
                     isResizing = true;
                     hasEdited = true;
                     window.resizeHandle = resizeHandle;
-                    originalShape = {
-                        x: selectedShape.x,
-                        y: selectedShape.y,
-                        w: selectedShape.w,
-                        h: selectedShape.h
-                    };
+                    if (selectedShape.type === 'rect') {
+                        originalShape = {
+                            corners: selectedShape.corners.map(c => ({x: c.x, y: c.y}))
+                        };
+                    } else {
+                        originalShape = {
+                            x: selectedShape.x,
+                            y: selectedShape.y,
+                            w: selectedShape.w,
+                            h: selectedShape.h
+                        };
+                    }
                     return;
                 }
             }
@@ -1087,13 +1116,17 @@
             const shapesAtPoint = getAllShapesAtPoint(x, y);
             if (shapesAtPoint.length > 0) {
                 if (selectedShape && shapesAtPoint.find(item => item.shape === selectedShape)) {
-                    dragOffset.x = x - selectedShape.x;
-                    dragOffset.y = y - selectedShape.y;
+                    const refX = selectedShape.type === 'rect' ? selectedShape.corners[0].x : selectedShape.x;
+                    const refY = selectedShape.type === 'rect' ? selectedShape.corners[0].y : selectedShape.y;
+                    dragOffset.x = x - refX;
+                    dragOffset.y = y - refY;
                     isDragging = true;
                 } else {
                     selectedShape = shapesAtPoint[0].shape;
-                    dragOffset.x = x - selectedShape.x;
-                    dragOffset.y = y - selectedShape.y;
+                    const refX = selectedShape.type === 'rect' ? selectedShape.corners[0].x : selectedShape.x;
+                    const refY = selectedShape.type === 'rect' ? selectedShape.corners[0].y : selectedShape.y;
+                    dragOffset.x = x - refX;
+                    dragOffset.y = y - refY;
                     isDragging = true;
                     updateButtonStates();
                     redraw();
@@ -1114,8 +1147,19 @@
             
             if (tool === 'select') {
                 handleSelectMouseUp(x, y);
-            } else if (tool === 'rect' || tool === 'ellipse') {
-                shapes.push({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0 });
+            } else if (tool === 'rect') {
+                shapes.push({
+                    type: 'rect',
+                    corners: [
+                        {x: startX, y: startY},
+                        {x: x, y: startY},
+                        {x: x, y: y},
+                        {x: startX, y: y}
+                    ],
+                    color, size, fill: fillDefault
+                });
+            } else if (tool === 'ellipse') {
+                shapes.push({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0 });
             } else if (tool === 'arrow') {
                 shapes.push({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size });
             }
@@ -1163,8 +1207,19 @@
                 handleSelectMouseMove(x, y);
             } else if (drawing && tool !== 'text') {
                 redraw();
-                if (tool === 'rect' || tool === 'ellipse') {
-                    drawShape({ type: tool, x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
+                if (tool === 'rect') {
+                    drawShape({
+                        type: 'rect',
+                        corners: [
+                            {x: startX, y: startY},
+                            {x: x, y: startY},
+                            {x: x, y: y},
+                            {x: startX, y: y}
+                        ],
+                        color, size, fill: fillDefault
+                    }, true);
+                } else if (tool === 'ellipse') {
+                    drawShape({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
                 } else if (tool === 'arrow') {
                     drawShape({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size }, true);
                 }
@@ -1177,17 +1232,39 @@
             } else if (isRotating && selectedShape && rotationCenter) {
                 handleRotation(x, y);
             } else if (isDragging && selectedShape) {
-                selectedShape.x = x - dragOffset.x;
-                selectedShape.y = y - dragOffset.y;
+                if (selectedShape.type === 'rect') {
+                    const newX = x - dragOffset.x;
+                    const newY = y - dragOffset.y;
+                    const dx = newX - selectedShape.corners[0].x;
+                    const dy = newY - selectedShape.corners[0].y;
+                    for (const c of selectedShape.corners) {
+                        c.x += dx;
+                        c.y += dy;
+                    }
+                } else {
+                    selectedShape.x = x - dragOffset.x;
+                    selectedShape.y = y - dragOffset.y;
+                }
                 redraw();
             }
         }
 
         function handleResize(x, y) {
+            const handleType = window.resizeHandle.type;
+
+            // Corner-based rect handles
+            if (handleType.startsWith('c') && selectedShape.type === 'rect') {
+                const cornerIndex = parseInt(handleType[1]);
+                selectedShape.corners[cornerIndex].x = x;
+                selectedShape.corners[cornerIndex].y = y;
+                redraw();
+                return;
+            }
+
             const deltaX = x - mouseDownPos.x;
             const deltaY = y - mouseDownPos.y;
-            
-            switch (window.resizeHandle.type) {
+
+            switch (handleType) {
                 case 'nw':
                     selectedShape.x = originalShape.x + deltaX;
                     selectedShape.y = originalShape.y + deltaY;
@@ -1240,15 +1317,9 @@
 
         function updateStatusLine(e) {
             const rect = canvas.getBoundingClientRect();
-            const containerRect = document.querySelector('.canvas-container').getBoundingClientRect();
-            const screenX = e.clientX;
-            const screenY = e.clientY;
-            const canvasX = (screenX - rect.left) * (canvas.width / rect.width);
-            const canvasY = (screenY - rect.top) * (canvas.height / rect.height);
-            const containerX = screenX - containerRect.left;
-            const containerY = screenY - containerRect.top;
-            
-            statusLine.textContent = `Mouse: Screen (${Math.round(screenX)}, ${Math.round(screenY)}) | Canvas (${Math.round(canvasX)}, ${Math.round(canvasY)}) | Container (${Math.round(containerX)}, ${Math.round(containerY)})`;
+            const canvasX = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const canvasY = (e.clientY - rect.top) * (canvas.height / rect.height);
+            statusLine.textContent = `${Math.round(canvasX)}, ${Math.round(canvasY)}`;
         }
 
         function updateCursor(x, y) {
@@ -1503,9 +1574,16 @@
             document.getElementById('color').addEventListener('input', e => { 
                 color = e.target.value; 
             });
-            document.getElementById('size').addEventListener('input', e => { 
+            document.getElementById('size').addEventListener('input', e => {
                 size = parseInt(e.target.value);
                 document.querySelector('.size-value').textContent = size;
+            });
+            document.getElementById('fillToggle').addEventListener('change', e => {
+                fillDefault = e.target.checked;
+                if (selectedShape && selectedShape.type === 'rect') {
+                    selectedShape.fill = fillDefault;
+                    redraw();
+                }
             });
             
             // Button events
