@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b \"C:\\\\Users\\\\barne\\\\code\\\\image_editor\")",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git rebase:*)",
+      "Bash(git commit:*)",
+      "Bash(nslookup:*)",
+      "Bash(timeout 5 bash -c 'echo | curl -s -o /dev/null -w \"\"%{http_code}\"\" --connect-timeout 3 http://barney.daltons.net/ 2>/dev/null || echo \"\"no-http\"\"')",
+      "Bash(timeout 5 curl:*)",
+      "Bash(curl:*)",
+      "Bash(bash:*)"
+    ]
+  }
+}

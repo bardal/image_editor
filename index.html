@@ -239,6 +239,43 @@
             transform: translateX(12px);
         }
 
+        .arrow-style-select {
+            height: 24px;
+            background: rgba(255,255,255,0.08);
+            color: #c8c8cc;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            font-size: 11px;
+            padding: 0 4px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.12s;
+        }
+
+        .arrow-style-select:hover {
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .arrow-style-select:focus {
+            border-color: #3b8eed;
+        }
+
+        .arrow-style-label {
+            font-size: 11px;
+            color: #adadb2;
+            font-weight: 500;
+        }
+
+        .arrow-style-group {
+            display: none;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .arrow-style-group.visible {
+            display: flex;
+        }
+
         /* ===== MAIN CONTENT ===== */
         .main-content {
             flex: 1;
@@ -455,6 +492,20 @@
                     <input type="checkbox" id="fillToggle">
                     Fill
                 </label>
+                <div class="arrow-style-group" id="arrowStyleGroup">
+                    <span class="arrow-style-label">Start:</span>
+                    <select id="startStyleSelect" class="arrow-style-select">
+                        <option value="none">None</option>
+                        <option value="openArrow">Open Arrow</option>
+                        <option value="closedArrow">Closed Arrow</option>
+                    </select>
+                    <span class="arrow-style-label">End:</span>
+                    <select id="endStyleSelect" class="arrow-style-select">
+                        <option value="none">None</option>
+                        <option value="openArrow">Open Arrow</option>
+                        <option value="closedArrow" selected>Closed Arrow</option>
+                    </select>
+                </div>
             </div>
 
         </div>
@@ -531,6 +582,8 @@
         let color = document.getElementById('color').value;
         let size = parseInt(document.getElementById('size').value);
         let fillDefault = false;
+        let defaultStartStyle = 'none';
+        let defaultEndStyle = 'closedArrow';
 
         // ===== DRAWING STATE =====
         let drawing = false;
@@ -560,9 +613,17 @@
         let canvasScale = { x: 1, y: 1 };
         let canvasOffset = { x: 0, y: 0 };
 
+        // ===== SHAPE IDS =====
+        let nextShapeId = 1;
+        function newShapeId() { return nextShapeId++; }
+
+        // ===== CONNECTOR STATE =====
+        let arrowSnapFrom = null;
+
         // ===== TEXT EDITING =====
         let isEditingText = false;
         let editingTextShape = null;
+        let editingLabelShape = null;
 
         // ===== HEIC CONVERSION =====
         async function convertHeicToJpeg(file) {
@@ -886,14 +947,15 @@
                         shapes[index].text = text;
                     }
                 } else {
-                    shapes.push({ 
-                        type: 'text', 
-                        x: editingTextShape.x, 
-                        y: editingTextShape.y, 
-                        text, 
-                        color, 
-                        size, 
-                        rotation: 0 
+                    shapes.push({
+                        type: 'text',
+                        x: editingTextShape.x,
+                        y: editingTextShape.y,
+                        text,
+                        color,
+                        size,
+                        rotation: 0,
+                        id: newShapeId()
                     });
                 }
                 redraw();
@@ -904,6 +966,138 @@
             canvasTextInput.value = '';
             isEditingText = false;
             editingTextShape = null;
+        }
+
+        // ===== LABEL EDITING =====
+        function startLabelEditing(shape, initialChar) {
+            const center = getShapeCenter(shape);
+            isEditingText = true;
+            editingLabelShape = shape;
+
+            const container = document.querySelector('.canvas-container');
+            const rect = canvas.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            const inputX = center.x * (rect.width / canvas.width);
+            const inputY = center.y * (rect.height / canvas.height) - 15;
+
+            const maxX = containerRect.width - 50;
+            const maxY = containerRect.height - 30;
+            const minX = Math.max(0, Math.min(inputX, maxX));
+            const minY = Math.max(0, Math.min(inputY, maxY));
+
+            canvasTextInput.style.left = minX + 'px';
+            canvasTextInput.style.top = minY + 'px';
+            canvasTextInput.style.fontSize = Math.max(14, shape.size * 4) + 'px';
+            canvasTextInput.style.color = shape.color;
+            canvasTextInput.style.display = 'block';
+            canvasTextInput.value = (shape.label || '') + (initialChar || '');
+
+            setTimeout(() => {
+                canvasTextInput.focus();
+                // Place cursor at end
+                canvasTextInput.selectionStart = canvasTextInput.selectionEnd = canvasTextInput.value.length;
+            }, 10);
+        }
+
+        function finishLabelEditing() {
+            if (!editingLabelShape) return;
+            const text = canvasTextInput.value.trim();
+            if (text) {
+                editingLabelShape.label = text;
+            } else {
+                delete editingLabelShape.label;
+            }
+            canvasTextInput.style.display = 'none';
+            canvasTextInput.value = '';
+            editingLabelShape = null;
+            isEditingText = false;
+            redraw();
+        }
+
+        // ===== CONNECTOR HELPERS =====
+        function getShapeCenter(shape) {
+            if (shape.type === 'rect' || shape.type === 'ellipse') {
+                return { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 };
+            } else if (shape.type === 'arrow') {
+                return { x: (shape.x + shape.x2) / 2, y: (shape.y + shape.y2) / 2 };
+            } else if (shape.type === 'polyline') {
+                const sum = shape.points.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 });
+                return { x: sum.x / shape.points.length, y: sum.y / shape.points.length };
+            } else if (shape.type === 'text') {
+                return { x: shape.x, y: shape.y };
+            }
+            return { x: 0, y: 0 };
+        }
+
+        function getShapePorts(shape) {
+            const c = getShapeCenter(shape);
+            if (shape.type === 'rect') {
+                const rot = shape.rotation || 0;
+                const cos = Math.cos(rot), sin = Math.sin(rot);
+                const hw = shape.w / 2, hh = shape.h / 2;
+                function rp(lx, ly) {
+                    return { x: c.x + lx * cos - ly * sin, y: c.y + lx * sin + ly * cos };
+                }
+                return [
+                    { name: 'top', ...rp(0, -hh) },
+                    { name: 'right', ...rp(hw, 0) },
+                    { name: 'bottom', ...rp(0, hh) },
+                    { name: 'left', ...rp(-hw, 0) }
+                ];
+            } else if (shape.type === 'ellipse') {
+                const rot = shape.rotation || 0;
+                const cos = Math.cos(rot), sin = Math.sin(rot);
+                const hw = Math.abs(shape.w / 2), hh = Math.abs(shape.h / 2);
+                function rpe(lx, ly) {
+                    return { x: c.x + lx * cos - ly * sin, y: c.y + lx * sin + ly * cos };
+                }
+                return [
+                    { name: 'top', ...rpe(0, -hh) },
+                    { name: 'right', ...rpe(hw, 0) },
+                    { name: 'bottom', ...rpe(0, hh) },
+                    { name: 'left', ...rpe(-hw, 0) }
+                ];
+            }
+            // For polyline, text, arrow — just use center
+            return [{ name: 'center', x: c.x, y: c.y }];
+        }
+
+        function getShapePort(shape, portName, otherCenter) {
+            const ports = getShapePorts(shape);
+            if (portName && portName !== 'auto') {
+                const found = ports.find(p => p.name === portName);
+                if (found) return found;
+            }
+            // Auto: pick closest port to otherCenter
+            let best = ports[0], bestDist = Infinity;
+            for (const p of ports) {
+                const d = (p.x - otherCenter.x) ** 2 + (p.y - otherCenter.y) ** 2;
+                if (d < bestDist) { bestDist = d; best = p; }
+            }
+            return best;
+        }
+
+        function findShapeById(id) {
+            return shapes.find(s => s.id === id) || null;
+        }
+
+        function getConnectorEndpoints(arrow) {
+            let x1 = arrow.x, y1 = arrow.y, x2 = arrow.x2, y2 = arrow.y2;
+            const fromShape = arrow.fromId ? findShapeById(arrow.fromId) : null;
+            const toShape = arrow.toId ? findShapeById(arrow.toId) : null;
+            // Compute centers for auto port selection
+            const fromCenter = fromShape ? getShapeCenter(fromShape) : { x: x1, y: y1 };
+            const toCenter = toShape ? getShapeCenter(toShape) : { x: x2, y: y2 };
+            if (fromShape) {
+                const port = getShapePort(fromShape, arrow.fromPort || 'auto', toCenter);
+                x1 = port.x; y1 = port.y;
+            }
+            if (toShape) {
+                const port = getShapePort(toShape, arrow.toPort || 'auto', fromCenter);
+                x2 = port.x; y2 = port.y;
+            }
+            return { x1, y1, x2, y2 };
         }
 
         // ===== UI UPDATES =====
@@ -923,6 +1117,17 @@
                 document.querySelector('.size-value').textContent = selectedShape.size;
                 size = selectedShape.size;
             }
+            // Arrow style dropdowns visibility
+            const arrowStyleGroup = document.getElementById('arrowStyleGroup');
+            const showArrowStyles = tool === 'arrow' || (selectedShape && selectedShape.type === 'arrow');
+            arrowStyleGroup.classList.toggle('visible', showArrowStyles);
+            if (selectedShape && selectedShape.type === 'arrow') {
+                document.getElementById('startStyleSelect').value = selectedShape.startStyle || 'none';
+                document.getElementById('endStyleSelect').value = selectedShape.endStyle || 'closedArrow';
+            } else if (tool === 'arrow') {
+                document.getElementById('startStyleSelect').value = defaultStartStyle;
+                document.getElementById('endStyleSelect').value = defaultEndStyle;
+            }
         }
 
         function updateImageInfo() {
@@ -936,25 +1141,53 @@
         }
 
         // ===== DRAWING FUNCTIONS =====
-        function drawArrow(x1, y1, x2, y2, color, size) {
-            const headlen = 10 + size*2;
+        function drawLineEnding(x1, y1, x2, y2, style, lineSize, lineColor, which) {
+            if (style === 'none') return;
             const dx = x2 - x1, dy = y2 - y1;
-            const angle = Math.atan2(dy, dx);
-            
+            const lineLength = Math.sqrt(dx * dx + dy * dy);
+            if (lineLength === 0) return;
+            const headlen = Math.min(10 + lineSize * 2, lineLength * 0.4);
+            // For 'start', the arrowhead points from x2 toward x1; for 'end', from x1 toward x2
+            let angle, tipX, tipY;
+            if (which === 'end') {
+                angle = Math.atan2(dy, dx);
+                tipX = x2; tipY = y2;
+            } else {
+                angle = Math.atan2(-dy, -dx);
+                tipX = x1; tipY = y1;
+            }
+            const ax = tipX - headlen * Math.cos(angle - Math.PI / 6);
+            const ay = tipY - headlen * Math.sin(angle - Math.PI / 6);
+            const bx = tipX - headlen * Math.cos(angle + Math.PI / 6);
+            const by = tipY - headlen * Math.sin(angle + Math.PI / 6);
+            if (style === 'openArrow') {
+                ctx.beginPath();
+                ctx.moveTo(ax, ay);
+                ctx.lineTo(tipX, tipY);
+                ctx.lineTo(bx, by);
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = lineSize;
+                ctx.stroke();
+            } else if (style === 'closedArrow') {
+                ctx.beginPath();
+                ctx.moveTo(tipX, tipY);
+                ctx.lineTo(ax, ay);
+                ctx.lineTo(bx, by);
+                ctx.closePath();
+                ctx.fillStyle = lineColor;
+                ctx.fill();
+            }
+        }
+
+        function drawArrow(x1, y1, x2, y2, color, size, startStyle, endStyle) {
             ctx.beginPath();
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.moveTo(x2, y2);
-            ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI/6), y2 - headlen * Math.sin(angle - Math.PI/6));
-            ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI/6), y2 - headlen * Math.sin(angle + Math.PI/6));
-            ctx.lineTo(x2, y2);
-            ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI/6), y2 - headlen * Math.sin(angle - Math.PI/6));
-            ctx.stroke();
+            drawLineEnding(x1, y1, x2, y2, startStyle || 'none', size, color, 'start');
+            drawLineEnding(x1, y1, x2, y2, endStyle || 'closedArrow', size, color, 'end');
         }
 
         function drawShape(s, temp) {
@@ -1002,7 +1235,13 @@
                 ctx.ellipse(s.x + s.w/2, s.y + s.h/2, Math.abs(s.w/2), Math.abs(s.h/2), 0, 0, 2*Math.PI);
                 ctx.stroke();
             } else if (s.type === 'arrow') {
-                drawArrow(s.x, s.y, s.x2, s.y2, s.color, s.size);
+                let ax1 = s.x, ay1 = s.y, ax2 = s.x2, ay2 = s.y2;
+                if (s.fromId || s.toId) {
+                    const endpoints = getConnectorEndpoints(s);
+                    ax1 = endpoints.x1; ay1 = endpoints.y1;
+                    ax2 = endpoints.x2; ay2 = endpoints.y2;
+                }
+                drawArrow(ax1, ay1, ax2, ay2, s.color, s.size, s.startStyle, s.endStyle);
             } else if (s.type === 'polyline') {
                 if (s.points && s.points.length >= 2) {
                     ctx.beginPath();
@@ -1025,7 +1264,19 @@
                 ctx.font = `${Math.max(16, s.size*6)}px sans-serif`;
                 ctx.fillText(s.text, s.x, s.y);
             }
-            
+
+            // Draw label if present (for non-text shapes)
+            if (s.label && s.type !== 'text') {
+                const center = getShapeCenter(s);
+                ctx.font = `${Math.max(14, s.size * 4)}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = s.color;
+                ctx.fillText(s.label, center.x, center.y);
+                ctx.textAlign = 'start';
+                ctx.textBaseline = 'alphabetic';
+            }
+
             ctx.restore();
             
             // Draw handles for selected shapes
@@ -1108,7 +1359,8 @@
                     points: polylinePoints.map(p => ({x: p.x, y: p.y})),
                     color, size,
                     closed: !!closed,
-                    fill: closed ? fillDefault : false
+                    fill: closed ? fillDefault : false,
+                    id: newShapeId()
                 });
                 updateButtonStates();
             }
@@ -1211,6 +1463,20 @@
                 startTextEditing(x, y);
             } else if (tool === 'polyline') {
                 handlePolylineClick(x, y);
+            } else if (tool === 'arrow') {
+                drawing = true;
+                // Check if starting on a shape for connector snap
+                const snapResult = getShapeAtPoint(x, y);
+                if (snapResult) {
+                    arrowSnapFrom = snapResult.shape;
+                    const port = getShapePort(arrowSnapFrom, 'auto', { x, y });
+                    startX = port.x;
+                    startY = port.y;
+                } else {
+                    arrowSnapFrom = null;
+                    startX = x;
+                    startY = y;
+                }
             } else {
                 drawing = true;
                 startX = x;
@@ -1295,12 +1561,29 @@
                     w: Math.abs(x - startX),
                     h: Math.abs(y - startY),
                     rotation: 0,
-                    color, size, fill: fillDefault
+                    color, size, fill: fillDefault,
+                    id: newShapeId()
                 });
             } else if (tool === 'ellipse') {
-                shapes.push({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0 });
+                shapes.push({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0, id: newShapeId() });
             } else if (tool === 'arrow') {
-                shapes.push({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size });
+                const snapEndResult = getShapeAtPoint(x, y);
+                const toShape = (snapEndResult && (!arrowSnapFrom || snapEndResult.shape !== arrowSnapFrom)) ? snapEndResult.shape : null;
+                let ax2 = x, ay2 = y;
+                if (toShape) {
+                    const port = getShapePort(toShape, 'auto', { x: startX, y: startY });
+                    ax2 = port.x; ay2 = port.y;
+                }
+                const newArrow = {
+                    type: 'arrow', x: startX, y: startY, x2: ax2, y2: ay2,
+                    color, size, startStyle: defaultStartStyle, endStyle: defaultEndStyle,
+                    id: newShapeId(),
+                    fromId: arrowSnapFrom ? arrowSnapFrom.id : null,
+                    toId: toShape ? toShape.id : null,
+                    fromPort: 'auto', toPort: 'auto'
+                };
+                shapes.push(newArrow);
+                arrowSnapFrom = null;
             }
             
             drawing = false;
@@ -1362,7 +1645,31 @@
                 } else if (tool === 'ellipse') {
                     drawShape({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
                 } else if (tool === 'arrow') {
-                    drawShape({ type: 'arrow', x: startX, y: startY, x2: x, y2: y, color, size }, true);
+                    let previewX2 = x, previewY2 = y;
+                    const snapEnd = getShapeAtPoint(x, y);
+                    const hoveredShape = (snapEnd && (!arrowSnapFrom || snapEnd.shape !== arrowSnapFrom)) ? snapEnd.shape : null;
+                    if (hoveredShape) {
+                        const port = getShapePort(hoveredShape, 'auto', { x: startX, y: startY });
+                        previewX2 = port.x; previewY2 = port.y;
+                    }
+                    drawShape({ type: 'arrow', x: startX, y: startY, x2: previewX2, y2: previewY2, color, size, startStyle: defaultStartStyle, endStyle: defaultEndStyle }, true);
+                    // Draw snap indicators
+                    if (arrowSnapFrom) {
+                        ctx.save();
+                        ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
+                        ctx.beginPath();
+                        ctx.arc(startX, startY, 6, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    if (hoveredShape) {
+                        ctx.save();
+                        ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
+                        ctx.beginPath();
+                        ctx.arc(previewX2, previewY2, 6, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.restore();
+                    }
                 }
             }
         }
@@ -1373,6 +1680,10 @@
             } else if (isRotating && selectedShape && rotationCenter) {
                 handleRotation(x, y);
             } else if (isDragging && selectedShape) {
+                // Skip drag for fully connected arrows
+                if (selectedShape.type === 'arrow' && selectedShape.fromId && selectedShape.toId) {
+                    return;
+                }
                 if (selectedShape.type === 'polyline') {
                     const newX = x - dragOffset.x;
                     const newY = y - dragOffset.y;
@@ -1527,6 +1838,7 @@
 
         // ===== KEYBOARD HANDLERS =====
         function handleKeyDown(e) {
+            if (isEditingText) return; // Let the text input handle it
             if (isDrawingPolyline && (e.key === 'Enter' || e.key === 'Escape')) {
                 finishPolyline();
                 return;
@@ -1536,6 +1848,10 @@
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();
                 undoLastAction();
+            } else if (selectedShape && tool === 'select' && selectedShape.type !== 'text' && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+                // Start label editing on printable character
+                e.preventDefault();
+                startLabelEditing(selectedShape, e.key);
             }
         }
 
@@ -1543,7 +1859,17 @@
             if (selectedShape) {
                 const index = shapes.indexOf(selectedShape);
                 if (index > -1) {
+                    const deletedId = selectedShape.id;
                     shapes.splice(index, 1);
+                    // Remove arrows connected to the deleted shape
+                    if (deletedId) {
+                        shapes = shapes.filter(s => {
+                            if (s.type === 'arrow' && (s.fromId === deletedId || s.toId === deletedId)) {
+                                return false;
+                            }
+                            return true;
+                        });
+                    }
                     selectedShape = null;
                     redraw();
                     updateButtonStates();
@@ -1564,19 +1890,29 @@
         function handleTextInputBlur() {
             setTimeout(() => {
                 if (isEditingText) {
-                    finishTextEditing();
+                    if (editingLabelShape) {
+                        finishLabelEditing();
+                    } else {
+                        finishTextEditing();
+                    }
                 }
             }, 100);
         }
 
         function handleTextInputKeyDown(e) {
+            e.stopPropagation();
             if (e.key === 'Enter') {
-                finishTextEditing();
+                if (editingLabelShape) {
+                    finishLabelEditing();
+                } else {
+                    finishTextEditing();
+                }
             } else if (e.key === 'Escape') {
                 canvasTextInput.style.display = 'none';
                 canvasTextInput.value = '';
                 isEditingText = false;
                 editingTextShape = null;
+                editingLabelShape = null;
             }
         }
 
@@ -1586,14 +1922,19 @@
                 return;
             }
             if (tool !== 'select') return;
-            
+
             const coords = screenToCanvas(e.clientX, e.clientY);
             const x = coords.x;
             const y = coords.y;
-            
+
             const shapeInfo = getShapeAtPoint(x, y);
-            if (shapeInfo && shapeInfo.shape.type === 'text') {
-                startTextEditing(x, y, shapeInfo.shape.text);
+            if (shapeInfo) {
+                if (shapeInfo.shape.type === 'text') {
+                    startTextEditing(x, y, shapeInfo.shape.text);
+                } else {
+                    // Edit label on non-text shapes
+                    startLabelEditing(shapeInfo.shape, '');
+                }
             }
         }
 
@@ -1780,6 +2121,20 @@
                 fillDefault = e.target.checked;
                 if (selectedShape && (selectedShape.type === 'rect' || (selectedShape.type === 'polyline' && selectedShape.closed))) {
                     selectedShape.fill = e.target.checked;
+                    redraw();
+                }
+            });
+            document.getElementById('startStyleSelect').addEventListener('change', e => {
+                defaultStartStyle = e.target.value;
+                if (selectedShape && selectedShape.type === 'arrow') {
+                    selectedShape.startStyle = e.target.value;
+                    redraw();
+                }
+            });
+            document.getElementById('endStyleSelect').addEventListener('change', e => {
+                defaultEndStyle = e.target.value;
+                if (selectedShape && selectedShape.type === 'arrow') {
+                    selectedShape.endStyle = e.target.value;
                     redraw();
                 }
             });
