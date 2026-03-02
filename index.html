@@ -1630,6 +1630,24 @@
             } else if (tool === 'polyline' && isDrawingPolyline) {
                 redraw();
                 drawPolylinePreview(x, y);
+            } else if (tool === 'arrow' && !drawing) {
+                // Pre-draw hover: show snap indicator on nearest port
+                redraw();
+                const hoverSnap = getShapeAtPoint(x, y);
+                if (hoverSnap) {
+                    const port = getShapePort(hoverSnap.shape, 'auto', { x, y });
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
+                    ctx.beginPath();
+                    ctx.arc(port.x, port.y, 6, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(59, 142, 237, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(port.x, port.y, 12, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.restore();
+                }
             } else if (drawing && tool !== 'text') {
                 redraw();
                 if (tool === 'rect') {
@@ -1831,6 +1849,9 @@
                 } else {
                     canvas.style.cursor = 'move';
                 }
+            } else if (tool === 'arrow' && !drawing) {
+                const hoverSnap = getShapeAtPoint(x, y);
+                canvas.style.cursor = hoverSnap ? 'pointer' : 'crosshair';
             } else {
                 canvas.style.cursor = 'crosshair';
             }
