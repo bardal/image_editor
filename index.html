@@ -854,6 +854,17 @@
                     x: p.x, y: p.y, type: 'p' + i, cursor: 'move'
                 }));
             }
+            if (shape.type === 'arrow') {
+                let ax1 = shape.x, ay1 = shape.y, ax2 = shape.x2, ay2 = shape.y2;
+                if (shape.fromId || shape.toId) {
+                    const ep = getConnectorEndpoints(shape);
+                    ax1 = ep.x1; ay1 = ep.y1; ax2 = ep.x2; ay2 = ep.y2;
+                }
+                return [
+                    { x: ax1, y: ay1, type: 'arrow-start', cursor: 'move' },
+                    { x: ax2, y: ay2, type: 'arrow-end', cursor: 'move' }
+                ];
+            }
             if (shape.type !== 'rect' && shape.type !== 'ellipse') return [];
 
             const rot = shape.rotation || 0;
@@ -1311,7 +1322,7 @@
             }
             
             // Draw resize handles
-            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polyline') {
+            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polyline' || shape.type === 'arrow') {
                 const handles = getResizeHandles(shape);
                 ctx.save();
                 ctx.fillStyle = '#ffffff';
@@ -1486,7 +1497,7 @@
 
         function handleSelectMouseDown(x, y) {
             // Check resize handle
-            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline')) {
+            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow')) {
                 const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                 if (resizeHandle) {
                     isResizing = true;
@@ -1495,6 +1506,12 @@
                     if (selectedShape.type === 'polyline') {
                         originalShape = {
                             points: selectedShape.points.map(p => ({x: p.x, y: p.y}))
+                        };
+                    } else if (selectedShape.type === 'arrow') {
+                        originalShape = {
+                            x: selectedShape.x, y: selectedShape.y,
+                            x2: selectedShape.x2, y2: selectedShape.y2,
+                            fromId: selectedShape.fromId, toId: selectedShape.toId
                         };
                     } else {
                         originalShape = {
@@ -1731,6 +1748,46 @@
                 return;
             }
 
+            // Arrow endpoint handles
+            if (selectedShape.type === 'arrow' && (handleType === 'arrow-start' || handleType === 'arrow-end')) {
+                const snapResult = getShapeAtPoint(x, y);
+                const otherEnd = handleType === 'arrow-start'
+                    ? { x: selectedShape.x2, y: selectedShape.y2 }
+                    : { x: selectedShape.x, y: selectedShape.y };
+                // Don't snap to self (the arrow itself)
+                const snapShape = (snapResult && snapResult.shape !== selectedShape) ? snapResult.shape : null;
+                let targetX = x, targetY = y;
+                if (snapShape) {
+                    const port = getShapePort(snapShape, 'auto', otherEnd);
+                    targetX = port.x; targetY = port.y;
+                }
+                if (handleType === 'arrow-start') {
+                    selectedShape.x = targetX;
+                    selectedShape.y = targetY;
+                    selectedShape.fromId = snapShape ? snapShape.id : null;
+                } else {
+                    selectedShape.x2 = targetX;
+                    selectedShape.y2 = targetY;
+                    selectedShape.toId = snapShape ? snapShape.id : null;
+                }
+                redraw();
+                // Draw snap indicator
+                if (snapShape) {
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
+                    ctx.beginPath();
+                    ctx.arc(targetX, targetY, 6, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(59, 142, 237, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(targetX, targetY, 12, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                return;
+            }
+
             const rawDX = x - mouseDownPos.x;
             const rawDY = y - mouseDownPos.y;
 
@@ -1835,7 +1892,7 @@
 
         function updateCursor(x, y) {
             if (tool === 'select' && selectedShape) {
-                if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline') {
+                if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow') {
                     const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                     if (resizeHandle) {
                         canvas.style.cursor = resizeHandle.cursor;
