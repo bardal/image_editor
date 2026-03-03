@@ -722,7 +722,8 @@
                 return x >= shape.x && x <= shape.x + textWidth && 
                        y >= shape.y - textHeight && y <= shape.y;
             } else if (shape.type === 'arrow') {
-                return isPointNearLine(x, y, shape.x, shape.y, shape.x2, shape.y2, shape.size || 3);
+                const ep = (shape.fromId || shape.toId) ? getConnectorEndpoints(shape) : { x1: shape.x, y1: shape.y, x2: shape.x2, y2: shape.y2 };
+                return isPointNearLine(x, y, ep.x1, ep.y1, ep.x2, ep.y2, Math.max(shape.size || 3, 10));
             } else if (shape.type === 'polyline') {
                 if (shape.closed && isPointInPolygon(x, y, shape.points)) {
                     return true;
@@ -1054,7 +1055,11 @@
                     { name: 'top', ...rp(0, -hh) },
                     { name: 'right', ...rp(hw, 0) },
                     { name: 'bottom', ...rp(0, hh) },
-                    { name: 'left', ...rp(-hw, 0) }
+                    { name: 'left', ...rp(-hw, 0) },
+                    { name: 'tl', ...rp(-hw, -hh) },
+                    { name: 'tr', ...rp(hw, -hh) },
+                    { name: 'br', ...rp(hw, hh) },
+                    { name: 'bl', ...rp(-hw, hh) }
                 ];
             } else if (shape.type === 'ellipse') {
                 const rot = shape.rotation || 0;
@@ -1063,14 +1068,35 @@
                 function rpe(lx, ly) {
                     return { x: c.x + lx * cos - ly * sin, y: c.y + lx * sin + ly * cos };
                 }
-                return [
-                    { name: 'top', ...rpe(0, -hh) },
-                    { name: 'right', ...rpe(hw, 0) },
-                    { name: 'bottom', ...rpe(0, hh) },
-                    { name: 'left', ...rpe(-hw, 0) }
-                ];
+                // 12 ports around the ellipse perimeter (every 30 degrees)
+                const ports = [];
+                for (let i = 0; i < 12; i++) {
+                    const angle = (i * Math.PI * 2) / 12;
+                    const lx = hw * Math.cos(angle);
+                    const ly = hh * Math.sin(angle);
+                    ports.push({ name: 'e' + i, ...rpe(lx, ly) });
+                }
+                return ports;
             }
-            // For polyline, text, arrow — just use center
+            if (shape.type === 'polyline' && shape.points && shape.points.length >= 2) {
+                const ports = [];
+                // Add each vertex as a port
+                for (let i = 0; i < shape.points.length; i++) {
+                    ports.push({ name: 'v' + i, x: shape.points[i].x, y: shape.points[i].y });
+                }
+                // Add edge midpoints
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    const p1 = shape.points[i], p2 = shape.points[i + 1];
+                    ports.push({ name: 'm' + i, x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
+                }
+                // Close edge midpoint if closed polygon
+                if (shape.closed && shape.points.length >= 3) {
+                    const last = shape.points[shape.points.length - 1], first = shape.points[0];
+                    ports.push({ name: 'mclose', x: (last.x + first.x) / 2, y: (last.y + first.y) / 2 });
+                }
+                return ports;
+            }
+            // For text, arrow — just use center
             return [{ name: 'center', x: c.x, y: c.y }];
         }
 
