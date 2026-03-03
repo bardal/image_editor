@@ -1068,10 +1068,10 @@
                 function rpe(lx, ly) {
                     return { x: c.x + lx * cos - ly * sin, y: c.y + lx * sin + ly * cos };
                 }
-                // 12 ports around the ellipse perimeter (every 30 degrees)
+                // 8 ports around the ellipse perimeter (every 45 degrees)
                 const ports = [];
-                for (let i = 0; i < 12; i++) {
-                    const angle = (i * Math.PI * 2) / 12;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i * Math.PI * 2) / 8;
                     const lx = hw * Math.cos(angle);
                     const ly = hh * Math.sin(angle);
                     ports.push({ name: 'e' + i, ...rpe(lx, ly) });
@@ -1098,6 +1098,26 @@
             }
             // For text, arrow — just use center
             return [{ name: 'center', x: c.x, y: c.y }];
+        }
+
+        function drawShapePorts(shape, activePort) {
+            const ports = getShapePorts(shape);
+            ctx.save();
+            for (const p of ports) {
+                const isActive = activePort && p.name === activePort.name;
+                ctx.fillStyle = isActive ? 'rgba(59, 142, 237, 0.9)' : 'rgba(59, 142, 237, 0.35)';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, isActive ? 6 : 4, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            if (activePort) {
+                ctx.strokeStyle = 'rgba(59, 142, 237, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(activePort.x, activePort.y, 12, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+            ctx.restore();
         }
 
         function getShapePort(shape, portName, otherCenter) {
@@ -1674,22 +1694,12 @@
                 redraw();
                 drawPolylinePreview(x, y);
             } else if (tool === 'arrow' && !drawing) {
-                // Pre-draw hover: show snap indicator on nearest port
+                // Pre-draw hover: show all ports with nearest highlighted
                 redraw();
                 const hoverSnap = getShapeAtPoint(x, y);
                 if (hoverSnap) {
                     const port = getShapePort(hoverSnap.shape, 'auto', { x, y });
-                    ctx.save();
-                    ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
-                    ctx.beginPath();
-                    ctx.arc(port.x, port.y, 6, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.strokeStyle = 'rgba(59, 142, 237, 0.4)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(port.x, port.y, 12, 0, 2 * Math.PI);
-                    ctx.stroke();
-                    ctx.restore();
+                    drawShapePorts(hoverSnap.shape, port);
                 }
             } else if (drawing && tool !== 'text') {
                 redraw();
@@ -1710,26 +1720,18 @@
                     const snapEnd = getShapeAtPoint(x, y);
                     const hoveredShape = (snapEnd && (!arrowSnapFrom || snapEnd.shape !== arrowSnapFrom)) ? snapEnd.shape : null;
                     if (hoveredShape) {
-                        const port = getShapePort(hoveredShape, 'auto', { x: startX, y: startY });
+                        const port = getShapePort(hoveredShape, 'auto', { x, y });
                         previewX2 = port.x; previewY2 = port.y;
                     }
                     drawShape({ type: 'arrow', x: startX, y: startY, x2: previewX2, y2: previewY2, color, size, startStyle: defaultStartStyle, endStyle: defaultEndStyle }, true);
-                    // Draw snap indicators
+                    // Draw snap indicators - show all ports on connected shapes
                     if (arrowSnapFrom) {
-                        ctx.save();
-                        ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
-                        ctx.beginPath();
-                        ctx.arc(startX, startY, 6, 0, 2 * Math.PI);
-                        ctx.fill();
-                        ctx.restore();
+                        const startPort = getShapePort(arrowSnapFrom, 'auto', { x: previewX2, y: previewY2 });
+                        drawShapePorts(arrowSnapFrom, startPort);
                     }
                     if (hoveredShape) {
-                        ctx.save();
-                        ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
-                        ctx.beginPath();
-                        ctx.arc(previewX2, previewY2, 6, 0, 2 * Math.PI);
-                        ctx.fill();
-                        ctx.restore();
+                        const endPort = getShapePort(hoveredShape, 'auto', { x, y });
+                        drawShapePorts(hoveredShape, endPort);
                     }
                 }
             }
@@ -1777,14 +1779,11 @@
             // Arrow endpoint handles
             if (selectedShape.type === 'arrow' && (handleType === 'arrow-start' || handleType === 'arrow-end')) {
                 const snapResult = getShapeAtPoint(x, y);
-                const otherEnd = handleType === 'arrow-start'
-                    ? { x: selectedShape.x2, y: selectedShape.y2 }
-                    : { x: selectedShape.x, y: selectedShape.y };
                 // Don't snap to self (the arrow itself)
                 const snapShape = (snapResult && snapResult.shape !== selectedShape) ? snapResult.shape : null;
                 let targetX = x, targetY = y;
                 if (snapShape) {
-                    const port = getShapePort(snapShape, 'auto', otherEnd);
+                    const port = getShapePort(snapShape, 'auto', { x, y });
                     targetX = port.x; targetY = port.y;
                 }
                 if (handleType === 'arrow-start') {
@@ -1797,19 +1796,10 @@
                     selectedShape.toId = snapShape ? snapShape.id : null;
                 }
                 redraw();
-                // Draw snap indicator
+                // Show all ports with nearest highlighted
                 if (snapShape) {
-                    ctx.save();
-                    ctx.fillStyle = 'rgba(59, 142, 237, 0.7)';
-                    ctx.beginPath();
-                    ctx.arc(targetX, targetY, 6, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.strokeStyle = 'rgba(59, 142, 237, 0.4)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(targetX, targetY, 12, 0, 2 * Math.PI);
-                    ctx.stroke();
-                    ctx.restore();
+                    const port = getShapePort(snapShape, 'auto', { x, y });
+                    drawShapePorts(snapShape, port);
                 }
                 return;
             }
