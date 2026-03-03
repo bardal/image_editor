@@ -787,6 +787,31 @@
             return null;
         }
 
+        function getSnapTargetAtPoint(x, y, excludeShape) {
+            // For arrow snapping: find nearest shape within proximity,
+            // not just shapes the cursor is inside
+            const margin = 30;
+            let best = null, bestDist = Infinity;
+            for (let i = shapes.length - 1; i >= 0; i--) {
+                const s = shapes[i];
+                if (s === excludeShape || s.type === 'arrow') continue;
+                // Check if inside shape first (always a match)
+                if (isPointInShape(x, y, s)) {
+                    return { shape: s, index: i };
+                }
+                // Check proximity to nearest port
+                const ports = getShapePorts(s);
+                for (const p of ports) {
+                    const d = Math.sqrt((x - p.x) ** 2 + (y - p.y) ** 2);
+                    if (d < margin && d < bestDist) {
+                        bestDist = d;
+                        best = { shape: s, index: i };
+                    }
+                }
+            }
+            return best;
+        }
+
         function getAllShapesAtPoint(x, y) {
             const shapesAtPoint = [];
             for (let i = shapes.length - 1; i >= 0; i--) {
@@ -1523,8 +1548,8 @@
                 handlePolylineClick(x, y);
             } else if (tool === 'arrow') {
                 drawing = true;
-                // Check if starting on a shape for connector snap
-                const snapResult = getShapeAtPoint(x, y);
+                // Check if starting on/near a shape for connector snap
+                const snapResult = getSnapTargetAtPoint(x, y);
                 if (snapResult) {
                     arrowSnapFrom = snapResult.shape;
                     const port = getShapePort(arrowSnapFrom, 'auto', { x, y });
@@ -1633,8 +1658,8 @@
             } else if (tool === 'ellipse') {
                 shapes.push({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0, id: newShapeId() });
             } else if (tool === 'arrow') {
-                const snapEndResult = getShapeAtPoint(x, y);
-                const toShape = (snapEndResult && (!arrowSnapFrom || snapEndResult.shape !== arrowSnapFrom)) ? snapEndResult.shape : null;
+                const snapEndResult = getSnapTargetAtPoint(x, y, arrowSnapFrom);
+                const toShape = snapEndResult ? snapEndResult.shape : null;
                 let ax2 = x, ay2 = y;
                 let toPortName = null;
                 if (toShape) {
@@ -1702,7 +1727,7 @@
             } else if (tool === 'arrow' && !drawing) {
                 // Pre-draw hover: show all ports with nearest highlighted
                 redraw();
-                const hoverSnap = getShapeAtPoint(x, y);
+                const hoverSnap = getSnapTargetAtPoint(x, y);
                 if (hoverSnap) {
                     const port = getShapePort(hoverSnap.shape, 'auto', { x, y });
                     drawShapePorts(hoverSnap.shape, port);
@@ -1723,8 +1748,8 @@
                     drawShape({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
                 } else if (tool === 'arrow') {
                     let previewX2 = x, previewY2 = y;
-                    const snapEnd = getShapeAtPoint(x, y);
-                    const hoveredShape = (snapEnd && (!arrowSnapFrom || snapEnd.shape !== arrowSnapFrom)) ? snapEnd.shape : null;
+                    const snapEnd = getSnapTargetAtPoint(x, y, arrowSnapFrom);
+                    const hoveredShape = snapEnd ? snapEnd.shape : null;
                     if (hoveredShape) {
                         const port = getShapePort(hoveredShape, 'auto', { x, y });
                         previewX2 = port.x; previewY2 = port.y;
@@ -1784,9 +1809,8 @@
 
             // Arrow endpoint handles
             if (selectedShape.type === 'arrow' && (handleType === 'arrow-start' || handleType === 'arrow-end')) {
-                const snapResult = getShapeAtPoint(x, y);
-                // Don't snap to self (the arrow itself)
-                const snapShape = (snapResult && snapResult.shape !== selectedShape) ? snapResult.shape : null;
+                const snapResult = getSnapTargetAtPoint(x, y, selectedShape);
+                const snapShape = snapResult ? snapResult.shape : null;
                 let targetX = x, targetY = y;
                 let snapPortName = null;
                 if (snapShape) {
@@ -1933,7 +1957,7 @@
                     canvas.style.cursor = 'move';
                 }
             } else if (tool === 'arrow' && !drawing) {
-                const hoverSnap = getShapeAtPoint(x, y);
+                const hoverSnap = getSnapTargetAtPoint(x, y);
                 canvas.style.cursor = hoverSnap ? 'pointer' : 'crosshair';
             } else {
                 canvas.style.cursor = 'crosshair';
