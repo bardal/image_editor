@@ -619,6 +619,7 @@
 
         // ===== CONNECTOR STATE =====
         let arrowSnapFrom = null;
+        let arrowSnapFromPort = null;
 
         // ===== TEXT EDITING =====
         let isEditingText = false;
@@ -1527,10 +1528,12 @@
                 if (snapResult) {
                     arrowSnapFrom = snapResult.shape;
                     const port = getShapePort(arrowSnapFrom, 'auto', { x, y });
+                    arrowSnapFromPort = port.name;
                     startX = port.x;
                     startY = port.y;
                 } else {
                     arrowSnapFrom = null;
+                    arrowSnapFromPort = null;
                     startX = x;
                     startY = y;
                 }
@@ -1633,9 +1636,11 @@
                 const snapEndResult = getShapeAtPoint(x, y);
                 const toShape = (snapEndResult && (!arrowSnapFrom || snapEndResult.shape !== arrowSnapFrom)) ? snapEndResult.shape : null;
                 let ax2 = x, ay2 = y;
+                let toPortName = null;
                 if (toShape) {
-                    const port = getShapePort(toShape, 'auto', { x: startX, y: startY });
+                    const port = getShapePort(toShape, 'auto', { x, y });
                     ax2 = port.x; ay2 = port.y;
+                    toPortName = port.name;
                 }
                 const newArrow = {
                     type: 'arrow', x: startX, y: startY, x2: ax2, y2: ay2,
@@ -1643,10 +1648,11 @@
                     id: newShapeId(),
                     fromId: arrowSnapFrom ? arrowSnapFrom.id : null,
                     toId: toShape ? toShape.id : null,
-                    fromPort: 'auto', toPort: 'auto'
+                    fromPort: arrowSnapFromPort || null, toPort: toPortName || null
                 };
                 shapes.push(newArrow);
                 arrowSnapFrom = null;
+                arrowSnapFromPort = null;
             }
             
             drawing = false;
@@ -1782,18 +1788,22 @@
                 // Don't snap to self (the arrow itself)
                 const snapShape = (snapResult && snapResult.shape !== selectedShape) ? snapResult.shape : null;
                 let targetX = x, targetY = y;
+                let snapPortName = null;
                 if (snapShape) {
                     const port = getShapePort(snapShape, 'auto', { x, y });
                     targetX = port.x; targetY = port.y;
+                    snapPortName = port.name;
                 }
                 if (handleType === 'arrow-start') {
                     selectedShape.x = targetX;
                     selectedShape.y = targetY;
                     selectedShape.fromId = snapShape ? snapShape.id : null;
+                    selectedShape.fromPort = snapPortName;
                 } else {
                     selectedShape.x2 = targetX;
                     selectedShape.y2 = targetY;
                     selectedShape.toId = snapShape ? snapShape.id : null;
+                    selectedShape.toPort = snapPortName;
                 }
                 redraw();
                 // Show all ports with nearest highlighted
