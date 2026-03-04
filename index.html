@@ -276,6 +276,52 @@
             display: flex;
         }
 
+        .text-format-group {
+            display: none;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .text-format-group.visible {
+            display: flex;
+        }
+
+        .text-format-group select,
+        .text-format-group input[type="number"] {
+            height: 24px;
+            background: rgba(255,255,255,0.08);
+            color: #c8c8cc;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            font-size: 11px;
+            padding: 0 4px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.12s;
+        }
+
+        .text-format-group select:hover,
+        .text-format-group input[type="number"]:hover {
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .text-format-group select:focus,
+        .text-format-group input[type="number"]:focus {
+            border-color: #3b8eed;
+        }
+
+        .format-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            font-size: 12px;
+        }
+
+        .format-btn.active {
+            background: #3b8eed;
+            color: #fff;
+        }
+
         /* ===== MAIN CONTENT ===== */
         .main-content {
             flex: 1;
@@ -506,6 +552,20 @@
                         <option value="closedArrow" selected>Closed Arrow</option>
                     </select>
                 </div>
+                <div id="textFormatGroup" class="text-format-group">
+                    <select id="fontFamily" title="Font family">
+                        <option value="sans-serif">Sans-serif</option>
+                        <option value="serif">Serif</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="cursive">Cursive</option>
+                    </select>
+                    <input type="number" id="fontSize" title="Font size" min="8" max="120" value="24" style="width:50px">
+                    <button id="boldToggle" class="tb-btn format-btn" title="Bold"><b>B</b></button>
+                    <button id="italicToggle" class="tb-btn format-btn" title="Italic"><i>I</i></button>
+                    <button id="alignLeft" class="tb-btn format-btn active" title="Align left">&#9776;</button>
+                    <button id="alignCenter" class="tb-btn format-btn" title="Align center">&#9778;</button>
+                    <button id="alignRight" class="tb-btn format-btn" title="Align right">&#9782;</button>
+                </div>
             </div>
 
         </div>
@@ -584,6 +644,11 @@
         let fillDefault = false;
         let defaultStartStyle = 'none';
         let defaultEndStyle = 'closedArrow';
+        let defaultFontSize = 24;
+        let defaultFontFamily = 'sans-serif';
+        let defaultFontWeight = 'normal';
+        let defaultFontStyle = 'normal';
+        let defaultTextAlign = 'left';
 
         // ===== DRAWING STATE =====
         let drawing = false;
@@ -678,6 +743,15 @@
             document.getElementById('heicModal').style.display = 'none';
         }
 
+        // ===== FONT HELPER =====
+        function buildFont(s) {
+            const style = s.fontStyle || 'normal';
+            const weight = s.fontWeight || 'normal';
+            const size = s.fontSize || Math.max(16, s.size * 6);
+            const family = s.fontFamily || 'sans-serif';
+            return `${style} ${weight} ${size}px ${family}`;
+        }
+
         // ===== SHAPE DETECTION =====
         function getRectCorners(shape) {
             const cx = shape.x + shape.w / 2;
@@ -718,10 +792,12 @@
                 const bottom = Math.max(shape.y, shape.y + shape.h);
                 return x >= left && x <= right && y >= top && y <= bottom;
             } else if (shape.type === 'text') {
-                const textWidth = shape.text.length * 8;
-                const textHeight = 16;
-                return x >= shape.x && x <= shape.x + textWidth && 
-                       y >= shape.y - textHeight && y <= shape.y;
+                ctx.font = buildFont(shape);
+                const metrics = ctx.measureText(shape.text);
+                const textWidth = metrics.width;
+                const textHeight = shape.fontSize || Math.max(16, shape.size * 6);
+                return x >= shape.x && x <= shape.x + textWidth &&
+                       y >= shape.y && y <= shape.y + textHeight;
             } else if (shape.type === 'arrow') {
                 const ep = (shape.fromId || shape.toId) ? getConnectorEndpoints(shape) : { x1: shape.x, y1: shape.y, x2: shape.x2, y2: shape.y2 };
                 return isPointNearLine(x, y, ep.x1, ep.y1, ep.x2, ep.y2, Math.max(shape.size || 3, 10));
@@ -845,12 +921,14 @@
                     centerY: centerY
                 };
             } else if (shape.type === 'text') {
-                const handleDistance = 30;
+                const textHeight = shape.fontSize || Math.max(16, shape.size * 6);
+                const centerY = shape.y + textHeight / 2;
+                const handleDistance = textHeight / 2 + 20;
                 return {
                     x: shape.x + handleDistance * Math.cos(shape.rotation || 0),
-                    y: shape.y - 10 + handleDistance * Math.sin(shape.rotation || 0),
+                    y: centerY + handleDistance * Math.sin(shape.rotation || 0),
                     centerX: shape.x,
-                    centerY: shape.y
+                    centerY: centerY
                 };
             } else if (shape.type === 'arrow') {
                 const centerX = (shape.x + shape.x2) / 2;
@@ -944,29 +1022,43 @@
         }
 
         // ===== TEXT EDITING =====
-        function startTextEditing(x, y, existingText = '') {
+        function startTextEditing(x, y, existingShape = null) {
             isEditingText = true;
-            editingTextShape = { x, y, text: existingText, color, size, rotation: 0 };
-            
+            if (existingShape && typeof existingShape === 'object' && existingShape.type === 'text') {
+                editingTextShape = existingShape;
+            } else {
+                editingTextShape = { x, y, text: (typeof existingShape === 'string' ? existingShape : ''), color, size, rotation: 0 };
+            }
+
             const container = document.querySelector('.canvas-container');
             const rect = canvas.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
-            
+
             const inputX = x * (rect.width / canvas.width);
             const inputY = y * (rect.height / canvas.height) - 15;
-            
+
             const maxX = containerRect.width - 50;
             const maxY = containerRect.height - 30;
             const minX = Math.max(0, Math.min(inputX, maxX));
             const minY = Math.max(0, Math.min(inputY, maxY));
-            
+
+            const fs = editingTextShape.fontSize || defaultFontSize;
+            const ff = editingTextShape.fontFamily || defaultFontFamily;
+            const fw = editingTextShape.fontWeight || defaultFontWeight;
+            const fst = editingTextShape.fontStyle || defaultFontStyle;
+            const ta = editingTextShape.textAlign || defaultTextAlign;
+
             canvasTextInput.style.left = minX + 'px';
             canvasTextInput.style.top = minY + 'px';
-            canvasTextInput.style.fontSize = Math.max(16, size * 6) + 'px';
-            canvasTextInput.style.color = color;
+            canvasTextInput.style.fontSize = fs + 'px';
+            canvasTextInput.style.fontFamily = ff;
+            canvasTextInput.style.fontWeight = fw;
+            canvasTextInput.style.fontStyle = fst;
+            canvasTextInput.style.textAlign = ta;
+            canvasTextInput.style.color = editingTextShape.color || color;
             canvasTextInput.style.display = 'block';
-            canvasTextInput.value = existingText || 'Type here...';
-            
+            canvasTextInput.value = editingTextShape.text || 'Type here...';
+
             setTimeout(() => {
                 canvasTextInput.focus();
                 canvasTextInput.select();
@@ -975,15 +1067,14 @@
 
         function finishTextEditing() {
             if (!isEditingText) return;
-            
+
             const text = canvasTextInput.value.trim();
-            
+
             if (text) {
-                if (editingTextShape && editingTextShape.text) {
-                    const index = shapes.findIndex(s => s === editingTextShape);
-                    if (index !== -1) {
-                        shapes[index].text = text;
-                    }
+                // Check if editing an existing shape in the shapes array
+                const existingIndex = shapes.findIndex(s => s === editingTextShape);
+                if (existingIndex !== -1) {
+                    shapes[existingIndex].text = text;
                 } else {
                     shapes.push({
                         type: 'text',
@@ -993,13 +1084,18 @@
                         color,
                         size,
                         rotation: 0,
+                        fontSize: defaultFontSize,
+                        fontFamily: defaultFontFamily,
+                        fontWeight: defaultFontWeight,
+                        fontStyle: defaultFontStyle,
+                        textAlign: defaultTextAlign,
                         id: newShapeId()
                     });
                 }
                 redraw();
                 updateButtonStates();
             }
-            
+
             canvasTextInput.style.display = 'none';
             canvasTextInput.value = '';
             isEditingText = false;
@@ -1211,6 +1307,29 @@
                 document.getElementById('startStyleSelect').value = defaultStartStyle;
                 document.getElementById('endStyleSelect').value = defaultEndStyle;
             }
+
+            // Text format controls visibility
+            const textFormatGroup = document.getElementById('textFormatGroup');
+            const showTextFormat = tool === 'text' || (selectedShape && selectedShape.type === 'text');
+            textFormatGroup.classList.toggle('visible', showTextFormat);
+            if (selectedShape && selectedShape.type === 'text') {
+                document.getElementById('fontFamily').value = selectedShape.fontFamily || 'sans-serif';
+                document.getElementById('fontSize').value = selectedShape.fontSize || Math.max(16, selectedShape.size * 6);
+                document.getElementById('boldToggle').classList.toggle('active', selectedShape.fontWeight === 'bold');
+                document.getElementById('italicToggle').classList.toggle('active', selectedShape.fontStyle === 'italic');
+                const align = selectedShape.textAlign || 'left';
+                document.getElementById('alignLeft').classList.toggle('active', align === 'left');
+                document.getElementById('alignCenter').classList.toggle('active', align === 'center');
+                document.getElementById('alignRight').classList.toggle('active', align === 'right');
+            } else if (tool === 'text') {
+                document.getElementById('fontFamily').value = defaultFontFamily;
+                document.getElementById('fontSize').value = defaultFontSize;
+                document.getElementById('boldToggle').classList.toggle('active', defaultFontWeight === 'bold');
+                document.getElementById('italicToggle').classList.toggle('active', defaultFontStyle === 'italic');
+                document.getElementById('alignLeft').classList.toggle('active', defaultTextAlign === 'left');
+                document.getElementById('alignCenter').classList.toggle('active', defaultTextAlign === 'center');
+                document.getElementById('alignRight').classList.toggle('active', defaultTextAlign === 'right');
+            }
         }
 
         function updateImageInfo() {
@@ -1283,7 +1402,7 @@
                 let centerX, centerY;
                 if (s.type === 'text') {
                     centerX = s.x;
-                    centerY = s.y;
+                    centerY = s.y + (s.fontSize || Math.max(16, s.size * 6)) / 2;
                 } else if (s.type === 'arrow') {
                     centerX = (s.x + s.x2) / 2;
                     centerY = (s.y + s.y2) / 2;
@@ -1344,14 +1463,18 @@
                     }
                 }
             } else if (s.type === 'text') {
-                ctx.font = `${Math.max(16, s.size*6)}px sans-serif`;
+                ctx.font = buildFont(s);
+                ctx.textAlign = s.textAlign || 'left';
+                ctx.textBaseline = 'top';
                 ctx.fillText(s.text, s.x, s.y);
+                ctx.textAlign = 'start';
+                ctx.textBaseline = 'alphabetic';
             }
 
             // Draw label if present (for non-text shapes)
             if (s.label && s.type !== 'text') {
                 const center = getShapeCenter(s);
-                ctx.font = `${Math.max(14, s.size * 4)}px sans-serif`;
+                ctx.font = buildFont(s);
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = s.color;
@@ -2058,7 +2181,7 @@
             const shapeInfo = getShapeAtPoint(x, y);
             if (shapeInfo) {
                 if (shapeInfo.shape.type === 'text') {
-                    startTextEditing(x, y, shapeInfo.shape.text);
+                    startTextEditing(shapeInfo.shape.x, shapeInfo.shape.y, shapeInfo.shape);
                 } else {
                     // Edit label on non-text shapes
                     startLabelEditing(shapeInfo.shape, '');
@@ -2266,6 +2389,56 @@
                     redraw();
                 }
             });
+
+            // Text format controls
+            document.getElementById('fontFamily').addEventListener('change', e => {
+                defaultFontFamily = e.target.value;
+                if (selectedShape && selectedShape.type === 'text') {
+                    selectedShape.fontFamily = e.target.value;
+                    redraw();
+                }
+            });
+            document.getElementById('fontSize').addEventListener('input', e => {
+                const val = parseInt(e.target.value);
+                if (val >= 8 && val <= 120) {
+                    defaultFontSize = val;
+                    if (selectedShape && selectedShape.type === 'text') {
+                        selectedShape.fontSize = val;
+                        redraw();
+                    }
+                }
+            });
+            document.getElementById('boldToggle').addEventListener('click', () => {
+                defaultFontWeight = defaultFontWeight === 'bold' ? 'normal' : 'bold';
+                document.getElementById('boldToggle').classList.toggle('active', defaultFontWeight === 'bold');
+                if (selectedShape && selectedShape.type === 'text') {
+                    selectedShape.fontWeight = selectedShape.fontWeight === 'bold' ? 'normal' : 'bold';
+                    document.getElementById('boldToggle').classList.toggle('active', selectedShape.fontWeight === 'bold');
+                    redraw();
+                }
+            });
+            document.getElementById('italicToggle').addEventListener('click', () => {
+                defaultFontStyle = defaultFontStyle === 'italic' ? 'normal' : 'italic';
+                document.getElementById('italicToggle').classList.toggle('active', defaultFontStyle === 'italic');
+                if (selectedShape && selectedShape.type === 'text') {
+                    selectedShape.fontStyle = selectedShape.fontStyle === 'italic' ? 'normal' : 'italic';
+                    document.getElementById('italicToggle').classList.toggle('active', selectedShape.fontStyle === 'italic');
+                    redraw();
+                }
+            });
+            function setTextAlign(align) {
+                defaultTextAlign = align;
+                document.getElementById('alignLeft').classList.toggle('active', align === 'left');
+                document.getElementById('alignCenter').classList.toggle('active', align === 'center');
+                document.getElementById('alignRight').classList.toggle('active', align === 'right');
+                if (selectedShape && selectedShape.type === 'text') {
+                    selectedShape.textAlign = align;
+                    redraw();
+                }
+            }
+            document.getElementById('alignLeft').addEventListener('click', () => setTextAlign('left'));
+            document.getElementById('alignCenter').addEventListener('click', () => setTextAlign('center'));
+            document.getElementById('alignRight').addEventListener('click', () => setTextAlign('right'));
             
             // Button events
             undoBtn.onclick = undoLastAction;
