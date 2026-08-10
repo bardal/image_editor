@@ -488,6 +488,10 @@
                 <span class="btn-icon">&#128190;</span>
                 <span class="btn-label">Save</span>
             </button>
+            <button class="tb-btn" id="copyImage" title="Copy Image to Clipboard (Ctrl+C)">
+                <span class="btn-icon">&#128203;</span>
+                <span class="btn-label">Copy</span>
+            </button>
             <div class="toolbar-divider"></div>
 
             <!-- Edit -->
@@ -2114,6 +2118,12 @@
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();
                 undoLastAction();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') &&
+                       img && (window.getSelection().toString() === '')) {
+                // Copy the canvas image to the clipboard (unless the user is
+                // copying selected text on the page).
+                e.preventDefault();
+                copyImageToClipboard();
             } else if (selectedShape && tool === 'select' && selectedShape.type !== 'text' && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
                 // Start label editing on printable character
                 e.preventDefault();
@@ -2305,6 +2315,36 @@
         }
         
         // ===== COPY/PASTE HANDLERS =====
+        async function copyImageToClipboard() {
+            if (!img) {
+                alert('Load an image first.');
+                return;
+            }
+            const copyBtn = document.getElementById('copyImage');
+            const label = copyBtn.querySelector('.btn-label');
+            const originalLabel = label.textContent;
+            const flash = (text) => {
+                label.textContent = text;
+                setTimeout(() => { label.textContent = originalLabel; }, 1200);
+            };
+
+            try {
+                if (!navigator.clipboard || !window.ClipboardItem) {
+                    throw new Error('Clipboard image copy is not supported in this browser.');
+                }
+                const blob = await new Promise((resolve, reject) => {
+                    canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not read canvas.')), 'image/png');
+                });
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                flash('Copied!');
+            } catch (err) {
+                console.error('Copy to clipboard failed:', err);
+                flash('Failed');
+                alert('Could not copy image to clipboard: ' + err.message +
+                    '\n\nThis usually requires a secure (https) context and a supported browser. You can use Save instead.');
+            }
+        }
+
         function handlePaste(e) {
             // Only handle paste when not editing text
             if (isEditingText) return;
@@ -2493,7 +2533,8 @@
                     }
                 }, 'image/png');
             };
-            
+            document.getElementById('copyImage').onclick = copyImageToClipboard;
+
             // File open button
             document.getElementById('openFile').onclick = () => {
                 document.getElementById('imgLoader').click();
