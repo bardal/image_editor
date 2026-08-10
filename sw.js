@@ -1,14 +1,27 @@
-const CACHE_NAME = 'image-editor-v1';
+const CACHE_NAME = 'image-editor-v2';
 const ASSETS = [
   './',
   './index.html',
+  './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://lib.arvancloud.ir/heic2any/0.0.3/heic2any.min.js'
+  './icon.svg'
+];
+// Third-party asset: must match the CDN URL loaded by index.html. Cached
+// opportunistically because addAll() rejects as a whole if any single
+// request fails, which would abort the entire service worker install.
+const OPTIONAL_ASSETS = [
+  'https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js'
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(c =>
+      c.addAll(ASSETS).then(() =>
+        Promise.all(OPTIONAL_ASSETS.map(url => c.add(url).catch(() => {})))
+      )
+    )
+  );
   self.skipWaiting();
 });
 
