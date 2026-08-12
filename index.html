@@ -595,9 +595,38 @@
         }
 
         @media (max-width: 600px) {
-            .toolbar { flex-wrap: wrap; height: auto; padding: 4px 8px; gap: 2px; }
-            .toolbar-divider { display: none; }
+            .toolbar { flex-wrap: wrap; height: auto; padding: 4px 6px; gap: 2px; }
             .status-bar { font-size: 10px; }
+
+            /* Vertical hairlines, tightened up. They must not be full-width
+               rules: that forces every group onto its own row and the toolbar
+               swallows half the screen. */
+            .toolbar-divider {
+                height: 22px;
+                margin: 0 4px;
+            }
+
+            /* These groups were rigid flex rows, so once the text or arrow
+               controls appeared they ran off the side of the screen and could
+               not be reached at all. They must wrap. */
+            .toolbar-props,
+            .text-format-group,
+            .arrow-style-group,
+            .tool-strip {
+                flex-wrap: wrap;
+                justify-content: flex-start;
+            }
+
+            .toolbar-props { gap: 4px; }
+
+            /* Stop the wide dropdowns from forcing an overflow on their own. */
+            #fontFamily { max-width: 104px; }
+            .arrow-style-select { max-width: 108px; }
+            .size-slider { width: 84px; }
+
+            /* Least useful thing in the status bar, and it crowds out the
+               build chip and wraps the bar onto two lines. */
+            .heic-info { display: none; }
         }
 
         /* Touch devices: meet the ~44px minimum tap target, and stop the
@@ -1436,10 +1465,11 @@
             canvasTextInput.style.display = 'block';
             canvasTextInput.value = editingTextShape.text || 'Type here...';
 
-            setTimeout(() => {
-                canvasTextInput.focus();
-                canvasTextInput.select();
-            }, 10);
+            // Must be synchronous. iOS only raises the keyboard when focus()
+            // runs inside the user gesture that triggered it - deferring even
+            // by a timer focuses the field but leaves the keyboard shut.
+            canvasTextInput.focus();
+            canvasTextInput.select();
         }
 
         function finishTextEditing() {
@@ -1504,11 +1534,11 @@
             canvasTextInput.style.display = 'block';
             canvasTextInput.value = (shape.label || '') + (initialChar || '');
 
-            setTimeout(() => {
-                canvasTextInput.focus();
-                // Place cursor at end
-                canvasTextInput.selectionStart = canvasTextInput.selectionEnd = canvasTextInput.value.length;
-            }, 10);
+            // Synchronous for the same reason as startTextEditing - a deferred
+            // focus does not open the iOS keyboard.
+            canvasTextInput.focus();
+            // Place cursor at end
+            canvasTextInput.selectionStart = canvasTextInput.selectionEnd = canvasTextInput.value.length;
         }
 
         function finishLabelEditing() {
