@@ -188,31 +188,33 @@
             transition: opacity 0.12s;
         }
 
-        /* Stroke: a hollow ring, so it reads as an outline colour. */
+        /* Line: an actual stroke of the current colour, its thickness tracking
+           the width slider. A hollow ring read as an empty box, and next to a
+           slashed fill swatch the two looked like each other's icon. */
         .swatch-stroke .swatch-preview {
-            background: transparent;
-            border: 4px solid #333333;
+            width: 22px;
+            height: 4px;
+            border-radius: 2px;
+            background-color: var(--stroke-color, #333333);
         }
 
-        /* Fill: a solid block. */
+        /* Fill: a solid block of the current colour. */
         .swatch-fill .swatch-preview {
-            background: #ffffff;
+            background-color: var(--fill-color, #ffffff);
         }
 
-        /* Dimmed with a diagonal bar when fill is switched off. */
+        /* Switched off shows the standard transparency chequerboard rather
+           than a diagonal slash, which read as a line. */
         .swatch-fill.is-off .swatch-preview {
-            opacity: 0.35;
-        }
-
-        .swatch-fill.is-off::after {
-            content: '';
-            position: absolute;
-            width: 24px;
-            height: 2px;
-            background: #e05c5c;
-            transform: rotate(-45deg);
-            border-radius: 1px;
-            pointer-events: none;
+            background-color: #f4f4f4;
+            background-image:
+                linear-gradient(45deg, #9a9a9e 25%, transparent 25%),
+                linear-gradient(-45deg, #9a9a9e 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #9a9a9e 75%),
+                linear-gradient(-45deg, transparent 75%, #9a9a9e 75%);
+            background-size: 8px 8px;
+            background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+            opacity: 0.75;
         }
 
         .swatch-label {
@@ -1036,8 +1038,14 @@
         function updateSwatches() {
             const strokeVal = document.getElementById('color').value;
             const fillVal = document.getElementById('fillColor').value;
-            document.getElementById('strokePreview').style.borderColor = strokeVal;
-            document.getElementById('fillPreview').style.background = fillVal;
+
+            const strokePreview = document.getElementById('strokePreview');
+            strokePreview.style.setProperty('--stroke-color', strokeVal);
+            // The bar doubles as a thickness preview, clamped so it stays a
+            // line rather than growing into a block at the top of the range.
+            strokePreview.style.height = Math.max(2, Math.min(12, size || 3)) + 'px';
+
+            document.getElementById('fillPreview').style.setProperty('--fill-color', fillVal);
 
             const fillOn = document.getElementById('fillToggle').checked;
             document.getElementById('fillSwatch').classList.toggle('is-off', !fillOn);
@@ -2881,6 +2889,7 @@
                     selectedShape.size = size;
                     redraw();
                 }
+                updateSwatches();
             });
             document.getElementById('fillToggle').addEventListener('change', e => {
                 fillDefault = e.target.checked;
@@ -2892,14 +2901,16 @@
             });
             document.getElementById('fillColor').addEventListener('input', e => {
                 fillColorDefault = e.target.value;
+                // Picking a fill colour implies wanting fill on, whether or not
+                // a shape happens to be selected - otherwise the swatch stays
+                // showing 'off' right after you have chosen a colour for it.
+                if (!fillDefault) {
+                    fillDefault = true;
+                    document.getElementById('fillToggle').checked = true;
+                }
                 if (canFill(selectedShape)) {
                     selectedShape.fillColor = fillColorDefault;
-                    // Picking a fill colour implies wanting fill on.
-                    if (!selectedShape.fill) {
-                        selectedShape.fill = true;
-                        fillDefault = true;
-                        document.getElementById('fillToggle').checked = true;
-                    }
+                    selectedShape.fill = true;
                     redraw();
                 }
                 updateSwatches();
