@@ -31,6 +31,19 @@ jobs:
           # Turn Pages on via the API if it isn't already enabled.
           enablement: true
 
+      # Stamps the commit into the page and the service worker cache name, so
+      # the running app can report exactly which build it is and each deploy
+      # invalidates the previous offline copy.
+      - name: Stamp build version
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          BUILD_TIME="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          echo "Stamping build $SHORT_SHA ($BUILD_TIME)"
+          sed -i "s|__BUILD_ID__|${SHORT_SHA}|g" index.html sw.js
+          sed -i "s|__BUILD_TIME__|${BUILD_TIME}|g" index.html
+          grep -q "__BUILD_ID__" index.html sw.js && { echo "::error::build id not substituted"; exit 1; }
+          echo "Stamped OK"
+
       # No build step - the app is static HTML, so publish the repo root.
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

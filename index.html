@@ -52,9 +52,9 @@
 
         .toolbar-divider {
             width: 1px;
-            height: 20px;
-            background: rgba(255,255,255,0.08);
-            margin: 0 8px;
+            height: 26px;
+            background: rgba(255,255,255,0.22);
+            margin: 0 12px;
             flex-shrink: 0;
         }
 
@@ -150,19 +150,78 @@
             gap: 8px;
         }
 
-        .color-picker {
-            width: 24px;
-            height: 24px;
-            border: 2px solid rgba(255,255,255,0.1);
+        /* Colour swatches. The native colour input is hidden behind a preview
+           so stroke can read as an outline and fill as a solid block - a plain
+           filled square for both made the stroke control look like a fill. */
+        .swatch {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
             border-radius: 4px;
             cursor: pointer;
-            padding: 0;
-            background: none;
-            transition: border-color 0.12s;
+            flex-shrink: 0;
+            transition: background 0.12s;
         }
 
-        .color-picker:hover {
-            border-color: rgba(255,255,255,0.25);
+        .swatch:hover { background: rgba(255,255,255,0.08); }
+
+        .swatch input[type="color"] {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            padding: 0;
+            border: none;
+            cursor: pointer;
+        }
+
+        .swatch-preview {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+            pointer-events: none;
+            transition: opacity 0.12s;
+        }
+
+        /* Stroke: a hollow ring, so it reads as an outline colour. */
+        .swatch-stroke .swatch-preview {
+            background: transparent;
+            border: 4px solid #333333;
+        }
+
+        /* Fill: a solid block. */
+        .swatch-fill .swatch-preview {
+            background: #ffffff;
+        }
+
+        /* Dimmed with a diagonal bar when fill is switched off. */
+        .swatch-fill.is-off .swatch-preview {
+            opacity: 0.35;
+        }
+
+        .swatch-fill.is-off::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 2px;
+            background: #e05c5c;
+            transform: rotate(-45deg);
+            border-radius: 1px;
+            pointer-events: none;
+        }
+
+        .swatch-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #8a8a90;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            user-select: none;
         }
 
         .size-slider {
@@ -430,6 +489,65 @@
             letter-spacing: 0.02em;
         }
 
+        .version-chip {
+            font-family: inherit;
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.04em;
+            color: #9a9a9e;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 3px;
+            padding: 2px 7px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.12s, color 0.12s;
+        }
+
+        .version-chip:hover {
+            background: rgba(255,255,255,0.1);
+            color: #d0d0d4;
+        }
+
+        .about-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .about-row span:first-child { color: #9a9a9e; }
+        .about-row span:last-child,
+        .about-row a {
+            font-variant-numeric: tabular-nums;
+            color: #d0d0d4;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .about-actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .about-actions button {
+            font-family: inherit;
+            font-size: 13px;
+            color: #d0d0d4;
+            background: #3a3a40;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 10px 14px;
+            min-height: 44px;
+            cursor: pointer;
+        }
+
+        .about-actions button:hover { background: #45454c; }
+        .about-hint { font-size: 12px; color: #9a9a9e; margin-top: 12px; }
+
         /* ===== MODAL ===== */
         .modal {
             display: none;
@@ -490,9 +608,13 @@
                 min-width: 44px;
                 min-height: 44px;
             }
-            .color-picker {
+            .swatch {
                 width: 44px;
-                height: 36px;
+                height: 44px;
+            }
+            .swatch-preview {
+                width: 26px;
+                height: 26px;
             }
             .size-slider {
                 height: 32px;
@@ -585,12 +707,22 @@
 
             <!-- Properties -->
             <div class="toolbar-props">
-                <input type="color" id="color" value="#333333" class="color-picker" title="Stroke Color">
-                <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Stroke Width">
+                <span class="swatch-label">Line</span>
+                <label class="swatch swatch-stroke" id="strokeSwatch" title="Line colour">
+                    <input type="color" id="color" value="#333333">
+                    <span class="swatch-preview" id="strokePreview"></span>
+                </label>
+                <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Line thickness">
                 <span class="size-value">3</span>
-                <label class="fill-toggle" title="Toggle Fill">
+                <div class="toolbar-divider"></div>
+                <span class="swatch-label">Fill</span>
+                <label class="swatch swatch-fill is-off" id="fillSwatch" title="Fill colour">
+                    <input type="color" id="fillColor" value="#ffffff">
+                    <span class="swatch-preview" id="fillPreview"></span>
+                </label>
+                <label class="fill-toggle" title="Turn fill on or off">
                     <input type="checkbox" id="fillToggle">
-                    Fill
+                    On
                 </label>
                 <div class="arrow-style-group" id="arrowStyleGroup">
                     <span class="arrow-style-label">Start:</span>
@@ -643,8 +775,41 @@
                 </div>
                 <div class="status-item">
                     <span class="heic-info">JPEG / PNG / GIF / WebP / HEIC | Drag/Drop or Paste</span>
+                    <button type="button" id="aboutBtn" class="version-chip" title="About this build">dev</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- About / Build Info Modal -->
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAbout()">&times;</span>
+            <h3>Image Editor</h3>
+            <p>Annotate images in the browser. Nothing is uploaded &mdash; everything stays on your device.</p>
+            <div class="about-row">
+                <span>Build</span>
+                <span id="aboutBuild">dev</span>
+            </div>
+            <div class="about-row">
+                <span>Deployed</span>
+                <span id="aboutTime">not a deployed build</span>
+            </div>
+            <div class="about-row">
+                <span>Commit</span>
+                <a id="aboutCommit" href="https://github.com/bardal/image_editor" target="_blank" rel="noopener">bardal/image_editor</a>
+            </div>
+            <div class="about-row">
+                <span>Offline copy</span>
+                <span id="aboutSw">checking&hellip;</span>
+            </div>
+            <div class="about-actions">
+                <button type="button" id="forceRefreshBtn">Clear cache &amp; reload</button>
+            </div>
+            <p class="about-hint">
+                If the build shown here is older than the one you just deployed, you are seeing a
+                cached copy. Clear cache &amp; reload fetches the latest version.
+            </p>
         </div>
     </div>
 
@@ -696,6 +861,7 @@
         let color = document.getElementById('color').value;
         let size = parseInt(document.getElementById('size').value);
         let fillDefault = false;
+        let fillColorDefault = document.getElementById('fillColor').value;
         let defaultStartStyle = 'none';
         let defaultEndStyle = 'closedArrow';
         let defaultFontSize = 24;
@@ -834,6 +1000,98 @@
             get hairline() { return screenPxToCanvas(1); },
             get outline() { return screenPxToCanvas(2); }
         };
+
+        // ===== COLOUR SWATCHES =====
+        // Keeps the visible previews in step with the hidden colour inputs and
+        // with whether fill is currently switched on.
+        function updateSwatches() {
+            const strokeVal = document.getElementById('color').value;
+            const fillVal = document.getElementById('fillColor').value;
+            document.getElementById('strokePreview').style.borderColor = strokeVal;
+            document.getElementById('fillPreview').style.background = fillVal;
+
+            const fillOn = document.getElementById('fillToggle').checked;
+            document.getElementById('fillSwatch').classList.toggle('is-off', !fillOn);
+        }
+
+        // Fill colour for a shape, falling back to the stroke colour for shapes
+        // created before fill had its own colour.
+        function fillColorOf(s) {
+            return s.fillColor || s.color;
+        }
+
+        // Shapes that enclose an area, and so can be filled.
+        function canFill(s) {
+            return !!s && (s.type === 'rect' || s.type === 'ellipse' ||
+                          (s.type === 'polyline' && s.closed));
+        }
+
+        // ===== BUILD INFO =====
+        // These placeholders are substituted by the Pages deploy workflow. When
+        // the file is opened directly they stay as written, which is how the app
+        // knows it is an unstamped local copy rather than a deployed build.
+        const BUILD_ID = '__BUILD_ID__';
+        const BUILD_TIME = '__BUILD_TIME__';
+        const IS_DEPLOYED_BUILD = !BUILD_ID.startsWith('__');
+        const BUILD_LABEL = IS_DEPLOYED_BUILD ? BUILD_ID : 'dev';
+
+        function initBuildInfo() {
+            document.getElementById('aboutBtn').textContent = BUILD_LABEL;
+            document.getElementById('aboutBuild').textContent = BUILD_LABEL;
+            document.getElementById('aboutTime').textContent =
+                IS_DEPLOYED_BUILD ? BUILD_TIME : 'not a deployed build';
+
+            const commitLink = document.getElementById('aboutCommit');
+            if (IS_DEPLOYED_BUILD) {
+                commitLink.href = 'https://github.com/bardal/image_editor/commit/' + BUILD_ID;
+                commitLink.textContent = BUILD_ID;
+            }
+        }
+
+        async function describeOfflineCopy() {
+            const el = document.getElementById('aboutSw');
+            if (!('serviceWorker' in navigator)) {
+                el.textContent = 'not supported';
+                return;
+            }
+            try {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                const names = window.caches ? await caches.keys() : [];
+                el.textContent = regs.length
+                    ? (names.length ? names.join(', ') : 'active, nothing cached')
+                    : 'none';
+            } catch (e) {
+                el.textContent = 'unavailable';
+            }
+        }
+
+        // Drops every cached copy and the service worker, then reloads from the
+        // network. Hard-refresh is awkward on iOS, so this gives a reliable way
+        // to confirm a deploy actually landed.
+        async function forceRefresh() {
+            try {
+                if (window.caches) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                }
+            } catch (e) {
+                console.error('Cache clear failed:', e);
+            }
+            location.reload();
+        }
+
+        function showAbout() {
+            describeOfflineCopy();
+            document.getElementById('aboutModal').style.display = 'block';
+        }
+
+        function closeAbout() {
+            document.getElementById('aboutModal').style.display = 'none';
+        }
 
         // ===== MODAL UTILITIES =====
         function showHeicHelp() {
@@ -1403,7 +1661,7 @@
             undoBtn.disabled = shapes.length === 0;
             deleteBtn.disabled = selectedShape === null;
             const fillToggle = document.getElementById('fillToggle');
-            if (selectedShape && (selectedShape.type === 'rect' || (selectedShape.type === 'polyline' && selectedShape.closed))) {
+            if (canFill(selectedShape)) {
                 fillToggle.checked = !!selectedShape.fill;
             } else {
                 fillToggle.checked = fillDefault;
@@ -1414,7 +1672,11 @@
                 document.getElementById('size').value = selectedShape.size;
                 document.querySelector('.size-value').textContent = selectedShape.size;
                 size = selectedShape.size;
+                if (canFill(selectedShape)) {
+                    document.getElementById('fillColor').value = fillColorOf(selectedShape);
+                }
             }
+            updateSwatches();
             // Arrow style dropdowns visibility
             const arrowStyleGroup = document.getElementById('arrowStyleGroup');
             const showArrowStyles = tool === 'arrow' || (selectedShape && selectedShape.type === 'arrow');
@@ -1543,18 +1805,23 @@
             if (s.type === 'rect') {
                 ctx.beginPath();
                 ctx.rect(s.x, s.y, s.w, s.h);
-                ctx.stroke();
+                // Fill first so the stroke sits cleanly on top of it.
                 if (s.fill) {
                     ctx.save();
-                    ctx.globalAlpha = 0.3;
-                    ctx.fillStyle = s.color;
+                    ctx.fillStyle = fillColorOf(s);
                     ctx.fill();
-                    ctx.globalAlpha = 1.0;
                     ctx.restore();
                 }
+                ctx.stroke();
             } else if (s.type === 'ellipse') {
                 ctx.beginPath();
                 ctx.ellipse(s.x + s.w/2, s.y + s.h/2, Math.abs(s.w/2), Math.abs(s.h/2), 0, 0, 2*Math.PI);
+                if (s.fill) {
+                    ctx.save();
+                    ctx.fillStyle = fillColorOf(s);
+                    ctx.fill();
+                    ctx.restore();
+                }
                 ctx.stroke();
             } else if (s.type === 'arrow') {
                 let ax1 = s.x, ay1 = s.y, ax2 = s.x2, ay2 = s.y2;
@@ -1572,15 +1839,13 @@
                         ctx.lineTo(s.points[i].x, s.points[i].y);
                     }
                     if (s.closed) ctx.closePath();
-                    ctx.stroke();
                     if (s.closed && s.fill) {
                         ctx.save();
-                        ctx.globalAlpha = 0.3;
-                        ctx.fillStyle = s.color;
+                        ctx.fillStyle = fillColorOf(s);
                         ctx.fill();
-                        ctx.globalAlpha = 1.0;
                         ctx.restore();
                     }
+                    ctx.stroke();
                 }
             } else if (s.type === 'text') {
                 ctx.font = buildFont(s);
@@ -1689,6 +1954,7 @@
                     color, size,
                     closed: !!closed,
                     fill: closed ? fillDefault : false,
+                    fillColor: fillColorDefault,
                     id: newShapeId()
                 });
                 updateButtonStates();
@@ -1899,7 +2165,7 @@
                     w: Math.abs(x - startX),
                     h: Math.abs(y - startY),
                     rotation: 0,
-                    color, size, fill: fillDefault,
+                    color, size, fill: fillDefault, fillColor: fillColorDefault,
                     id: newShapeId()
                 });
             } else if (tool === 'ellipse') {
@@ -1989,7 +2255,7 @@
                         w: Math.abs(x - startX),
                         h: Math.abs(y - startY),
                         rotation: 0,
-                        color, size, fill: fillDefault
+                        color, size, fill: fillDefault, fillColor: fillColorDefault
                     }, true);
                 } else if (tool === 'ellipse') {
                     drawShape({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
@@ -2527,7 +2793,11 @@
                 handleMouseUp(e);
             });
             canvas.addEventListener('dblclick', handleDoubleClick);
-            
+
+            // About / build info
+            document.getElementById('aboutBtn').addEventListener('click', showAbout);
+            document.getElementById('forceRefreshBtn').addEventListener('click', forceRefresh);
+
             // Keyboard events
             window.addEventListener('keydown', handleKeyDown);
             
@@ -2547,11 +2817,13 @@
             // Paste events
             window.addEventListener('paste', handlePaste);
             
-            // Modal events
+            // Modal events - tapping the backdrop closes whichever modal is open
             window.onclick = function(event) {
-                const modal = document.getElementById('heicModal');
-                if (event.target === modal) {
-                    modal.style.display = 'none';
+                for (const id of ['heicModal', 'aboutModal']) {
+                    const modal = document.getElementById(id);
+                    if (event.target === modal) {
+                        modal.style.display = 'none';
+                    }
                 }
             };
             
@@ -2570,6 +2842,7 @@
                     selectedShape.color = color;
                     redraw();
                 }
+                updateSwatches();
             });
             document.getElementById('size').addEventListener('input', e => {
                 size = parseInt(e.target.value);
@@ -2581,10 +2854,25 @@
             });
             document.getElementById('fillToggle').addEventListener('change', e => {
                 fillDefault = e.target.checked;
-                if (selectedShape && (selectedShape.type === 'rect' || (selectedShape.type === 'polyline' && selectedShape.closed))) {
+                if (canFill(selectedShape)) {
                     selectedShape.fill = e.target.checked;
                     redraw();
                 }
+                updateSwatches();
+            });
+            document.getElementById('fillColor').addEventListener('input', e => {
+                fillColorDefault = e.target.value;
+                if (canFill(selectedShape)) {
+                    selectedShape.fillColor = fillColorDefault;
+                    // Picking a fill colour implies wanting fill on.
+                    if (!selectedShape.fill) {
+                        selectedShape.fill = true;
+                        fillDefault = true;
+                        document.getElementById('fillToggle').checked = true;
+                    }
+                    redraw();
+                }
+                updateSwatches();
             });
             document.getElementById('startStyleSelect').addEventListener('change', e => {
                 defaultStartStyle = e.target.value;
@@ -2742,6 +3030,8 @@
 
         // ===== INITIALIZATION =====
         function initialize() {
+            initBuildInfo();
+            updateSwatches();
             setupEventListeners();
             resizeCanvas();
             updateButtonStates();

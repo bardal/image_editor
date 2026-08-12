@@ -1,4 +1,8 @@
-const CACHE_NAME = 'image-editor-v2';
+// __BUILD_ID__ is substituted by the Pages deploy workflow, so every deploy
+// gets its own cache and the activate handler drops the previous one. Without
+// this a stale cached copy can survive a deploy and make it look like the
+// deploy never landed.
+const CACHE_NAME = 'image-editor-__BUILD_ID__';
 const ASSETS = [
   './',
   './index.html',
