@@ -985,6 +985,10 @@
                 <span>Offline copy</span>
                 <span id="aboutSw">checking&hellip;</span>
             </div>
+            <div class="about-row">
+                <span>Build on server</span>
+                <span id="aboutServerBuild">checking&hellip;</span>
+            </div>
             <div class="about-actions">
                 <button type="button" id="forceRefreshBtn">Clear cache &amp; reload</button>
             </div>
@@ -1272,8 +1276,37 @@
             location.reload();
         }
 
+        // Fetches the page from the network, bypassing every cache, and reports
+        // the build baked into it. If this differs from the running build the
+        // page came from a cache; if it reads 'unstamped' the deploy itself did
+        // not substitute the placeholder.
+        async function checkServerBuild() {
+            const el = document.getElementById('aboutServerBuild');
+            el.textContent = 'checking…';
+            try {
+                const res = await fetch('./index.html?nocache=' + Date.now(), { cache: 'no-store' });
+                const text = await res.text();
+                const match = text.match(/const BUILD_ID = '([^']*)'/);
+                if (!match) {
+                    el.textContent = 'not found';
+                    return;
+                }
+                const serverId = match[1];
+                if (serverId.startsWith('__')) {
+                    el.textContent = 'unstamped — deploy issue';
+                } else if (serverId === BUILD_LABEL) {
+                    el.textContent = serverId + ' — up to date';
+                } else {
+                    el.textContent = serverId + ' — you are on a cached copy';
+                }
+            } catch (e) {
+                el.textContent = 'could not check';
+            }
+        }
+
         function showAbout() {
             describeOfflineCopy();
+            checkServerBuild();
             document.getElementById('aboutModal').style.display = 'block';
         }
 
@@ -3235,7 +3268,13 @@
 
         // Register service worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            // updateViaCache: 'none' stops the browser serving sw.js from its
+            // own HTTP cache. Safari caches it aggressively, which can pin an
+            // old worker - and its old precached page - in place across
+            // deploys. The explicit update() forces a check on every load.
+            navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+                .then(reg => reg.update())
+                .catch(err => console.error('Service worker registration failed:', err));
         }
     </script>
 </body>
