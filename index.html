@@ -811,7 +811,7 @@
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10a5 5 0 0 1 0 10H8"/><path d="M4 10l5-5"/><path d="M4 10l5 5"/></symbol>
         <symbol id="i-delete" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
         <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></symbol>
-        <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3l13 7-5.5 1.8L10 18z"/></symbol>
+        <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 4.5l13 7-5.5 1.8L10 19.5z"/></symbol>
         <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
         <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
         <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h14"/><path d="M13 7l5 5-5 5"/></symbol>
@@ -2142,21 +2142,36 @@
         }
 
         // ===== POLYLINE FUNCTIONS =====
+        // Pressing only ever starts a line. Whether a gesture extends the line
+        // or ends it is decided on release, so a drag can add a segment and a
+        // plain tap can finish - see handlePolylineUp.
         function handlePolylineClick(x, y) {
             if (!isDrawingPolyline) {
                 isDrawingPolyline = true;
                 polylinePoints = [{x, y}];
-            } else {
-                // Auto-close if clicking near the first point (and have >= 3 points)
-                const first = polylinePoints[0];
-                // Must match the close-snap radius drawn in drawPolylinePreview.
-                const closeSnap = screenPxToCanvas(isCoarsePointer() ? 22 : 10);
-                if (polylinePoints.length >= 3 && Math.abs(x - first.x) < closeSnap && Math.abs(y - first.y) < closeSnap) {
-                    finishPolyline(true);
-                    return;
-                }
-                polylinePoints.push({x, y});
             }
+        }
+
+        // Drag = another segment. Tap = end the line.
+        function handlePolylineUp(x, y) {
+            if (!isDrawingPolyline) return;
+
+            const moved = Math.sqrt((x - mouseDownPos.x) ** 2 + (y - mouseDownPos.y) ** 2);
+            if (moved > dragThreshold()) {
+                polylinePoints.push({ x, y });
+                redraw();
+                drawPolylinePreview(x, y);
+                return;
+            }
+
+            // A tap on the first point closes the shape; anywhere else just
+            // ends it. A tap before any segment exists leaves nothing to keep.
+            const first = polylinePoints[0];
+            // Must match the close-snap radius drawn in drawPolylinePreview.
+            const closeSnap = screenPxToCanvas(isCoarsePointer() ? 22 : 10);
+            const onFirst = polylinePoints.length >= 3 &&
+                Math.abs(x - first.x) < closeSnap && Math.abs(y - first.y) < closeSnap;
+            finishPolyline(onFirst);
         }
 
         function finishPolyline(closed) {
@@ -2370,7 +2385,11 @@
         }
 
         function handleMouseUp(e) {
-            if (tool === 'polyline') return;
+            if (tool === 'polyline') {
+                const c = screenToCanvas(e.clientX, e.clientY);
+                handlePolylineUp(c.x, c.y);
+                return;
+            }
             if (!drawing && tool !== 'select') return;
             
             const coords = screenToCanvas(e.clientX, e.clientY);
@@ -2792,6 +2811,10 @@
         let lastTapPos = null;
         function handleTouchDoubleTap(e) {
             if (e.pointerType === 'mouse') return false;
+            // Only the select tool acts on a double tap. Consuming it for other
+            // tools would swallow a legitimate second tap - notably the one that
+            // starts a new line right after a tap finished the previous one.
+            if (tool !== 'select') return false;
             const pos = { x: e.clientX, y: e.clientY };
             const slop = 30;
             const isDouble = lastTapPos &&
