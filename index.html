@@ -58,6 +58,27 @@
             flex-shrink: 0;
         }
 
+        /* ===== ICONS ===== */
+        .icon-sprite { display: none; }
+
+        .btn-icon svg,
+        .tool-icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* The pointer reads as a solid arrow rather than an outline. */
+        .tool-icon svg use[href="#i-select"],
+        [data-tool="select"] .tool-icon svg {
+            fill: currentColor;
+        }
+
         /* ===== TOOLBAR BUTTONS ===== */
         .tb-btn {
             display: flex;
@@ -596,8 +617,90 @@
             .toolbar-divider { margin: 0 4px; }
         }
 
+        /* ===== PHONE LAYOUT =====
+           Tools move to the bottom, within thumb reach, with the properties
+           they need directly above them; the top bar keeps only file actions.
+           Previously everything stacked at the top, which put the controls in
+           the least reachable part of the screen and cost ~30% of it. */
         @media (max-width: 600px) {
-            .toolbar { flex-wrap: wrap; height: auto; padding: 4px 6px; gap: 2px; }
+            .toolbar {
+                height: 46px;
+                padding: 0 4px;
+                gap: 0;
+                justify-content: space-around;
+                flex-wrap: nowrap;
+            }
+
+            /* Top bar is file actions only - the tool and property groups are
+               lifted out of the flow and pinned to the bottom. */
+            .toolbar .toolbar-divider { display: none; }
+
+            .tool-strip,
+            .toolbar-props {
+                position: fixed;
+                left: 0;
+                right: 0;
+                z-index: 30;
+                background: #232326;
+                border-radius: 0;
+                padding: 0;
+                margin: 0;
+            }
+
+            .tool-strip {
+                bottom: 0;
+                height: 56px;
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                border-top: 1px solid rgba(255,255,255,0.1);
+                /* Clear of the home indicator on gesture-nav phones. */
+                padding-bottom: env(safe-area-inset-bottom, 0px);
+                height: calc(56px + env(safe-area-inset-bottom, 0px));
+            }
+
+            .toolbar-props {
+                bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+                height: 48px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 10px;
+                border-top: 1px solid rgba(255,255,255,0.07);
+                /* Contextual controls can exceed the width; scrolling keeps
+                   them reachable without stacking more rows. */
+                overflow-x: auto;
+                overflow-y: hidden;
+                flex-wrap: nowrap;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+
+            .toolbar-props::-webkit-scrollbar { display: none; }
+            .toolbar-props > * { flex-shrink: 0; }
+
+            .tool-button {
+                flex-direction: column;
+                gap: 2px;
+                min-width: 52px;
+                min-height: 52px;
+                background: none;
+                border-radius: 8px;
+            }
+
+            .tool-button .tool-text {
+                display: block;
+                font-size: 9px;
+                letter-spacing: 0.02em;
+            }
+
+            .tool-button .tool-icon svg { width: 22px; height: 22px; }
+
+            /* Keep the canvas clear of the two pinned bars. */
+            .main-content {
+                padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+            }
+
             .status-bar { font-size: 10px; }
 
             /* Vertical hairlines, tightened up. They must not be full-width
@@ -608,23 +711,27 @@
                 margin: 0 4px;
             }
 
-            /* These groups were rigid flex rows, so once the text or arrow
-               controls appeared they ran off the side of the screen and could
-               not be reached at all. They must wrap. */
-            .toolbar-props,
-            .text-format-group,
-            .arrow-style-group,
-            .tool-strip {
-                flex-wrap: wrap;
-                justify-content: flex-start;
+            /* The contextual groups stay on one line and ride the property
+               bar's horizontal scroll rather than wrapping into extra rows. */
+            .text-format-group.visible,
+            .arrow-style-group.visible {
+                display: flex;
+                flex-wrap: nowrap;
+                gap: 6px;
             }
 
-            .toolbar-props { gap: 4px; }
-
-            /* Stop the wide dropdowns from forcing an overflow on their own. */
+            /* Keep the wide dropdowns from eating the whole bar. */
             #fontFamily { max-width: 104px; }
-            .arrow-style-select { max-width: 108px; }
-            .size-slider { width: 84px; }
+            .arrow-style-select { max-width: 104px; }
+            .size-slider { width: 92px; }
+
+            /* Separator between the persistent controls and the contextual
+               ones, now that they share a single scrolling row. */
+            .toolbar-props .toolbar-divider {
+                display: block;
+                height: 24px;
+                margin: 0 2px;
+            }
 
             /* Least useful thing in the status bar, and it crowds out the
                build chip and wraps the bar onto two lines. */
@@ -647,8 +754,34 @@
                 width: 26px;
                 height: 26px;
             }
+            /* A tall hit area for the finger, but the visible track stays a
+               thin rail - setting height on the input alone inflates the track
+               itself into a large empty box. */
             .size-slider {
-                height: 32px;
+                height: 36px;
+                background: transparent;
+            }
+            .size-slider::-webkit-slider-runnable-track {
+                height: 4px;
+                background: rgba(255,255,255,0.18);
+                border-radius: 2px;
+            }
+            .size-slider::-moz-range-track {
+                height: 4px;
+                background: rgba(255,255,255,0.18);
+                border-radius: 2px;
+            }
+            .size-slider::-webkit-slider-thumb {
+                width: 20px;
+                height: 20px;
+                margin-top: -8px;
+            }
+            .size-slider::-moz-range-thumb {
+                width: 20px;
+                height: 20px;
+                border: none;
+                background: #3b8eed;
+                border-radius: 50%;
             }
             .fill-toggle input[type="checkbox"] {
                 width: 20px;
@@ -669,6 +802,24 @@
     </style>
 </head>
 <body>
+    <!-- Icon set. One stroke-drawn family at a single weight; the emoji this
+         replaced rendered at different weights and colours on every platform. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+        <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+        <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 12l4 4 4-4"/><path d="M5 20h14"/></symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+        <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10a5 5 0 0 1 0 10H8"/><path d="M4 10l5-5"/><path d="M4 10l5 5"/></symbol>
+        <symbol id="i-delete" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
+        <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></symbol>
+        <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 3l13 7-5.5 1.8L10 18z"/></symbol>
+        <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
+        <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h14"/><path d="M13 7l5 5-5 5"/></symbol>
+        <symbol id="i-line" viewBox="0 0 24 24"><path d="M5 19L19 5"/></symbol>
+        <symbol id="i-text" viewBox="0 0 24 24"><path d="M6 6V5h12v1"/><path d="M12 5v14"/><path d="M9 19h6"/></symbol>
+        <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+    </svg>
+
     <div class="container">
         <!-- Hidden elements for JS compatibility -->
         <button class="ribbon-toggle" id="ribbonToggle" style="display:none"><span class="toggle-icon"></span></button>
@@ -678,31 +829,31 @@
         <div class="toolbar">
             <!-- File -->
             <button class="tb-btn" id="openFile" title="Open Image">
-                <span class="btn-icon">&#128194;</span>
+                <span class="btn-icon"><svg><use href="#i-open"/></svg></span>
                 <span class="btn-label">Open</span>
             </button>
             <input type="file" id="imgLoader" accept="image/*,.heic,.heif" style="display: none;">
             <button class="tb-btn" id="download" title="Save Image">
-                <span class="btn-icon">&#128190;</span>
+                <span class="btn-icon"><svg><use href="#i-save"/></svg></span>
                 <span class="btn-label">Save</span>
             </button>
             <button class="tb-btn" id="copyImage" title="Copy Image to Clipboard (Ctrl+C)">
-                <span class="btn-icon">&#128203;</span>
+                <span class="btn-icon"><svg><use href="#i-copy"/></svg></span>
                 <span class="btn-label">Copy</span>
             </button>
             <div class="toolbar-divider"></div>
 
             <!-- Edit -->
             <button class="tb-btn" id="undo" disabled title="Undo (Ctrl+Z)">
-                <span class="btn-icon">&#8630;</span>
+                <span class="btn-icon"><svg><use href="#i-undo"/></svg></span>
                 <span class="btn-label">Undo</span>
             </button>
             <button class="tb-btn" id="delete" disabled title="Delete Selected">
-                <span class="btn-icon">&#10005;</span>
+                <span class="btn-icon"><svg><use href="#i-delete"/></svg></span>
                 <span class="btn-label">Delete</span>
             </button>
             <button class="tb-btn" id="clear" title="Clear All Shapes">
-                <span class="btn-icon">&#9249;</span>
+                <span class="btn-icon"><svg><use href="#i-clear"/></svg></span>
                 <span class="btn-label">Clear</span>
             </button>
             <div class="toolbar-divider"></div>
@@ -710,27 +861,27 @@
             <!-- Tools -->
             <div class="tool-strip">
                 <button class="tool-button active" data-tool="select">
-                    <span class="tool-icon">&#9650;</span>
+                    <span class="tool-icon"><svg><use href="#i-select"/></svg></span>
                     <span class="tool-text">Select</span>
                 </button>
                 <button class="tool-button" data-tool="rect">
-                    <span class="tool-icon">&#9645;</span>
+                    <span class="tool-icon"><svg><use href="#i-rect"/></svg></span>
                     <span class="tool-text">Rect</span>
                 </button>
                 <button class="tool-button" data-tool="ellipse">
-                    <span class="tool-icon">&#9711;</span>
+                    <span class="tool-icon"><svg><use href="#i-ellipse"/></svg></span>
                     <span class="tool-text">Ellipse</span>
                 </button>
                 <button class="tool-button" data-tool="arrow">
-                    <span class="tool-icon">&#8594;</span>
+                    <span class="tool-icon"><svg><use href="#i-arrow"/></svg></span>
                     <span class="tool-text">Arrow</span>
                 </button>
                 <button class="tool-button" data-tool="polyline">
-                    <span class="tool-icon">&#9585;</span>
+                    <span class="tool-icon"><svg><use href="#i-line"/></svg></span>
                     <span class="tool-text">Line</span>
                 </button>
                 <button class="tool-button" data-tool="text">
-                    <span class="tool-icon">T</span>
+                    <span class="tool-icon"><svg><use href="#i-text"/></svg></span>
                     <span class="tool-text">Text</span>
                 </button>
             </div>
