@@ -586,6 +586,29 @@
             letter-spacing: 0.02em;
         }
 
+        .zoom-chip {
+            font-family: inherit;
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+            color: #9a9a9e;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 3px;
+            padding: 2px 7px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.12s, color 0.12s;
+        }
+
+        .zoom-chip:hover { background: rgba(255,255,255,0.1); color: #d0d0d4; }
+
+        /* Made obvious while zoomed, since it is then also the way back. */
+        .zoom-chip.zoomed {
+            color: #fff;
+            background: #3b8eed;
+            border-color: #3b8eed;
+        }
+
         .version-chip {
             font-family: inherit;
             font-size: 10px;
@@ -1212,6 +1235,7 @@
                 </div>
                 <div class="status-item">
                     <span class="heic-info">JPEG / PNG / GIF / WebP / HEIC | Drag/Drop or Paste</span>
+                    <button type="button" id="zoomLevel" class="zoom-chip" title="Tap to fit the picture on screen">100%</button>
                     <button type="button" id="aboutBtn" class="version-chip" title="About this build">dev</button>
                 </div>
             </div>
@@ -1363,6 +1387,70 @@
         let canvasScale = { x: 1, y: 1 };
         let canvasOffset = { x: 0, y: 0 };
 
+        // ===== VIEW (ZOOM / PAN) =====
+        // Applied as a transform on the canvas element rather than by redrawing
+        // at a scale, so the toolbars stay put and screenToCanvas keeps working
+        // unchanged - getBoundingClientRect already reports the transformed box.
+        let viewScale = 1;
+        let viewOffset = { x: 0, y: 0 };
+        const MAX_ZOOM = 8;
+
+        function applyView() {
+            canvas.style.transformOrigin = '0 0';
+            canvas.style.transform = viewScale === 1 && !viewOffset.x && !viewOffset.y
+                ? ''
+                : `translate(${viewOffset.x}px, ${viewOffset.y}px) scale(${viewScale})`;
+            updateZoomReadout();
+        }
+
+        // Keeps the picture from being panned entirely off screen.
+        function clampView() {
+            viewScale = Math.max(1, Math.min(MAX_ZOOM, viewScale));
+            if (viewScale === 1) {
+                viewOffset = { x: 0, y: 0 };
+                return;
+            }
+            const container = document.querySelector('.canvas-container');
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            // Unscaled on-screen size of the canvas at fit.
+            const baseW = canvas.getBoundingClientRect().width / viewScale;
+            const baseH = canvas.getBoundingClientRect().height / viewScale;
+            const scaledW = baseW * viewScale;
+            const scaledH = baseH * viewScale;
+            viewOffset.x = Math.min(0, Math.max(viewOffset.x, cw - scaledW - (cw - baseW) / 2 * 2));
+            viewOffset.y = Math.min(0, Math.max(viewOffset.y, ch - scaledH));
+        }
+
+        function setZoom(scale, centreClientX, centreClientY) {
+            const rect = canvas.getBoundingClientRect();
+            const prev = viewScale;
+            const next = Math.max(1, Math.min(MAX_ZOOM, scale));
+            if (next === prev) return;
+            // Keep the point under the fingers pinned while the scale changes.
+            const cx = centreClientX - rect.left;
+            const cy = centreClientY - rect.top;
+            viewOffset.x += cx - (cx / prev) * next;
+            viewOffset.y += cy - (cy / prev) * next;
+            viewScale = next;
+            clampView();
+            applyView();
+        }
+
+        function resetZoom() {
+            viewScale = 1;
+            viewOffset = { x: 0, y: 0 };
+            applyView();
+            showToast('Fit to screen');
+        }
+
+        function updateZoomReadout() {
+            const el = document.getElementById('zoomLevel');
+            if (!el) return;
+            el.textContent = Math.round(viewScale * 100) + '%';
+            el.classList.toggle('zoomed', viewScale > 1.01);
+        }
+
         // ===== CROP / EXPAND =====
         // Where the image's top-left sits in canvas coordinates. Cropping moves
         // this negative; expanding moves it positive, leaving blank margin.
@@ -1454,6 +1542,16 @@
         function screenPxToCanvas(px) {
             const rect = canvas.getBoundingClientRect();
             const ratio = rect.width ? canvas.width / rect.width : 1;
+            return px * ratio;
+        }
+
+        // The same conversion ignoring zoom, i.e. canvas units per screen pixel
+        // when the whole picture is fitted. Sizes measured against this stay
+        // fixed relative to the image instead of drifting with the zoom level.
+        function fitPxToCanvas(px) {
+            const rect = canvas.getBoundingClientRect();
+            const fittedWidth = rect.width / (viewScale || 1);
+            const ratio = fittedWidth ? canvas.width / fittedWidth : 1;
             return px * ratio;
         }
 
@@ -1827,12 +1925,15 @@
         // slider and font box show. They are converted to canvas units at draw
         // time so a 3px stroke looks like 3px whether the image is 800px or
         // 4032px wide, instead of vanishing to a hairline on large photos.
+        // Stroke sits on the image at a fixed thickness, so it grows and shrinks
+        // with the zoom like the picture does. The floor stops it disappearing
+        // when zoomed out - below about a screen pixel a line reads as absent.
         function strokeWidth(size) {
-            return screenPxToCanvas(size || 1);
+            return Math.max(fitPxToCanvas(size || 1), screenPxToCanvas(1.1));
         }
 
         function textHeightOf(s) {
-            return screenPxToCanvas(s.fontSize || Math.max(16, s.size * 6));
+            return fitPxToCanvas(s.fontSize || Math.max(16, s.size * 6));
         }
 
         function buildFont(s) {
@@ -2854,6 +2955,72 @@
             editingBlock.text = calloutTextInput.value;
             const m = textBlockMetrics(editingBlock);
             calloutTextInput.style.height = (m.height * toScreen) + 'px';
+        }
+
+        // ===== PINCH / PAN =====
+        // Two fingers zoom and pan; one finger still draws. Every pointer is
+        // tracked rather than only the primary one, which is what previously
+        // made a second finger invisible to the app.
+        const activePointers = new Map();
+        let pinchStart = null;
+
+        function pointerPairMetrics() {
+            const pts = [...activePointers.values()];
+            const dx = pts[1].x - pts[0].x;
+            const dy = pts[1].y - pts[0].y;
+            return {
+                distance: Math.hypot(dx, dy) || 1,
+                centreX: (pts[0].x + pts[1].x) / 2,
+                centreY: (pts[0].y + pts[1].y) / 2,
+            };
+        }
+
+        function beginPinch() {
+            const m = pointerPairMetrics();
+            pinchStart = {
+                distance: m.distance,
+                scale: viewScale,
+                centreX: m.centreX,
+                centreY: m.centreY,
+                offset: { ...viewOffset },
+            };
+            // A second finger means this was never a stroke - abandon whatever
+            // the first finger began rather than leaving it half-made.
+            cancelLongPress();
+            drawing = false;
+            isDragging = false;
+            isResizing = false;
+            isRotating = false;
+            suppressNextPointerUp = true;
+            redraw();
+        }
+
+        function updatePinch() {
+            if (!pinchStart || activePointers.size < 2) return;
+            const m = pointerPairMetrics();
+            const target = pinchStart.scale * (m.distance / pinchStart.distance);
+
+            // Pan by however far the midpoint between the fingers has moved.
+            viewOffset = {
+                x: pinchStart.offset.x + (m.centreX - pinchStart.centreX),
+                y: pinchStart.offset.y + (m.centreY - pinchStart.centreY),
+            };
+            viewScale = Math.max(1, Math.min(MAX_ZOOM, target));
+
+            // Then zoom about the midpoint so the picture stays under the fingers.
+            const rect = canvas.getBoundingClientRect();
+            const prevScale = pinchStart.scale;
+            const cx = pinchStart.centreX - rect.left;
+            const cy = pinchStart.centreY - rect.top;
+            viewOffset.x += cx - (cx / prevScale) * viewScale;
+            viewOffset.y += cy - (cy / prevScale) * viewScale;
+
+            clampView();
+            applyView();
+        }
+
+        function endPinch() {
+            pinchStart = null;
         }
 
         // ===== LONG PRESS =====
@@ -4167,6 +4334,9 @@
             // Touch produces no synthesised mousemove stream while dragging, so
             // mouse events alone make drawing impossible on a phone.
             canvas.addEventListener('pointerdown', e => {
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size === 2) { beginPinch(); return; }
+                if (activePointers.size > 2) return;
                 if (!e.isPrimary) return;
                 closeContextMenu();
                 // Keep receiving moves even if the finger slides off the canvas.
@@ -4176,11 +4346,26 @@
                 handleMouseDown(e);
             });
             canvas.addEventListener('pointermove', e => {
+                if (activePointers.has(e.pointerId)) {
+                    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                }
+                if (activePointers.size >= 2) { updatePinch(); return; }
                 if (!e.isPrimary) return;
                 trackLongPress(e);
                 handleMouseMove(e);
             });
             canvas.addEventListener('pointerup', e => {
+                const wasPinching = activePointers.size >= 2;
+                activePointers.delete(e.pointerId);
+                if (wasPinching) {
+                    endPinch();
+                    // Cleared here, not left set: the early return already stops
+                    // this release completing a shape, and leaving it armed
+                    // swallowed the next one-finger stroke.
+                    suppressNextPointerUp = false;
+                    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+                    return;
+                }
                 if (!e.isPrimary) return;
                 cancelLongPress();
                 try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
@@ -4191,6 +4376,8 @@
             // A cancelled pointer (system gesture, call interruption) must not
             // leave the canvas stuck mid-drag.
             canvas.addEventListener('pointercancel', e => {
+                activePointers.delete(e.pointerId);
+                endPinch();
                 if (!e.isPrimary) return;
                 cancelLongPress();
                 try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
@@ -4217,6 +4404,7 @@
             document.getElementById('cropReset').addEventListener('click', resetCrop);
 
             // About / build info
+            document.getElementById('zoomLevel').addEventListener('click', resetZoom);
             document.getElementById('aboutBtn').addEventListener('click', showAbout);
             document.getElementById('forceRefreshBtn').addEventListener('click', forceRefresh);
 
@@ -4470,6 +4658,7 @@
             resizeCanvas();
             updateButtonStates();
             updateImageInfo();
+            applyView();
 
             restoreSession();
 
