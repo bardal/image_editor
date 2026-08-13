@@ -2561,14 +2561,11 @@
         }
 
         function redraw() {
+            // Left transparent deliberately: exports keep an alpha channel, so
+            // space added by expanding stays transparent rather than becoming
+            // white. On screen the canvas element's own white background shows
+            // through, so it still looks like paper while editing.
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Paint the page white so expanded margins export as white rather
-            // than transparent, matching what is on screen.
-            ctx.save();
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.restore();
 
             if (img) {
                 // Drawn at natural size at its offset: the canvas is either the
