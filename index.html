@@ -2243,7 +2243,9 @@
             const margin = screenPxToCanvas(isCoarsePointer() ? 16 : 6);
             for (let i = shapes.length - 1; i >= 0; i--) {
                 const s = shapes[i];
-                if (s.type !== 'text') continue;
+                // Callouts hold text too, so tapping one with the text tool
+                // edits it rather than stacking a new block on top.
+                if (s.type !== 'text' && s.type !== 'callout') continue;
                 const m = textBlockMetrics(s);
                 if (x >= s.x - margin && x <= s.x + s.w + margin &&
                     y >= s.y - margin && y <= s.y + m.height + margin) {
@@ -3032,6 +3034,10 @@
 
         function startLongPress(e) {
             cancelLongPress();
+            // Only while selecting. With a drawing tool the press is the start
+            // of a shape, and hesitating before moving would otherwise open the
+            // menu instead of drawing. Right-click still works with any tool.
+            if (tool !== 'select') return;
             longPressOrigin = { x: e.clientX, y: e.clientY };
             longPressTimer = setTimeout(() => {
                 longPressTimer = null;
