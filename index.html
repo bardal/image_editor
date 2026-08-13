@@ -1338,6 +1338,139 @@
             get outline() { return screenPxToCanvas(2); }
         };
 
+        // ===== SESSION PERSISTENCE =====
+        // Work is kept in IndexedDB rather than localStorage: a phone photo is
+        // far larger than localStorage's few megabytes, and IndexedDB stores the
+        // blob directly instead of inflating it into a base64 string.
+        const DB_NAME = 'image-editor';
+        const STORE = 'session';
+        let dbPromise = null;
+        let saveTimer = null;
+        let restoring = false;
+
+        function openDb() {
+            if (dbPromise) return dbPromise;
+            dbPromise = new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = () => {
+                    if (!req.result.objectStoreNames.contains(STORE)) {
+                        req.result.createObjectStore(STORE);
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            }).catch(err => {
+                console.error('Session store unavailable:', err);
+                return null;
+            });
+            return dbPromise;
+        }
+
+        async function dbPut(key, value) {
+            const db = await openDb();
+            if (!db) return;
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).put(value, key);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function dbGet(key) {
+            const db = await openDb();
+            if (!db) return null;
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, 'readonly');
+                const req = tx.objectStore(STORE).get(key);
+                req.onsuccess = () => resolve(req.result ?? null);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        // Only the drawing is written on this path. The image is a blob and
+        // rarely changes, so it is stored once when it loads rather than on
+        // every edit.
+        async function saveSession() {
+            if (restoring) return;
+            try {
+                await dbPut('doc', {
+                    shapes,
+                    imgOffset,
+                    canvasOverride,
+                    canvasW: canvas.width,
+                    canvasH: canvas.height,
+                    hasImage: !!img,
+                    nextShapeId,
+                    savedAt: Date.now(),
+                });
+            } catch (err) {
+                console.error('Could not save session:', err);
+            }
+        }
+
+        function scheduleSave() {
+            if (restoring) return;
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveSession, 700);
+        }
+
+        async function storeImageBlob(blob) {
+            try { await dbPut('image', blob); } catch (err) { console.error('Could not store image:', err); }
+        }
+
+        async function restoreSession() {
+            let doc;
+            try {
+                doc = await dbGet('doc');
+            } catch (err) {
+                console.error('Could not read saved session:', err);
+                return;
+            }
+            if (!doc || (!doc.shapes?.length && !doc.hasImage)) return;
+
+            restoring = true;
+            try {
+                if (doc.hasImage) {
+                    const blob = await dbGet('image');
+                    if (blob) {
+                        const url = URL.createObjectURL(blob);
+                        const image = new Image();
+                        await new Promise((resolve, reject) => {
+                            image.onload = resolve;
+                            image.onerror = reject;
+                            image.src = url;
+                        }).catch(() => {});
+                        if (image.naturalWidth) img = image;
+                        URL.revokeObjectURL(url);
+                    }
+                }
+
+                imgOffset = doc.imgOffset || { x: 0, y: 0 };
+                canvasOverride = doc.canvasOverride || null;
+                shapes = doc.shapes || [];
+                nextShapeId = doc.nextShapeId || (shapes.length + 1);
+
+                if (canvasOverride) {
+                    canvas.width = canvasOverride.w;
+                    canvas.height = canvasOverride.h;
+                } else if (img) {
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                } else if (doc.canvasW) {
+                    canvas.width = doc.canvasW;
+                    canvas.height = doc.canvasH;
+                }
+
+                redraw();
+                updateImageInfo();
+                updateButtonStates();
+                showToast('Restored your last drawing');
+            } finally {
+                restoring = false;
+            }
+        }
+
         // ===== TOAST =====
         // Feedback used to be written into the button's text label, which is
         // hidden on narrow screens - so on a phone a successful copy gave no
@@ -2639,6 +2772,10 @@
             }
 
             drawCropOverlay();
+
+            // Debounced, so a drag that redraws every frame writes once it
+            // settles rather than on every frame.
+            scheduleSave();
         }
 
         // ===== EVENT HANDLERS =====
@@ -3289,6 +3426,10 @@
                     loading.style.display = 'none';
                 }
                 
+                // Kept so the picture itself survives a reload, not just the
+                // annotations drawn on it.
+                storeImageBlob(processedFile);
+
                 const reader = new FileReader();
                 reader.onload = function(ev) {
                     const image = new Image();
@@ -3697,6 +3838,15 @@
             resizeCanvas();
             updateButtonStates();
             updateImageInfo();
+
+            restoreSession();
+
+            // A backgrounded tab can be discarded without warning, so flush any
+            // pending debounce rather than relying on it firing.
+            window.addEventListener('pagehide', saveSession);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') saveSession();
+            });
         }
 
         // Start the application
