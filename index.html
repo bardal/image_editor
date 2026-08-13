@@ -370,7 +370,9 @@
         }
 
         .prop-group.hidden,
-        .toolbar-divider.hidden { display: none; }
+        .toolbar-divider.hidden,
+        .size-slider.hidden,
+        .size-value.hidden { display: none; }
 
         .crop-group {
             display: none;
@@ -1014,7 +1016,7 @@
             <!-- Properties -->
             <div class="toolbar-props">
                 <div class="prop-group" id="lineGroup">
-                    <span class="swatch-label">Line</span>
+                    <span class="swatch-label" id="lineGroupLabel">Line</span>
                     <label class="swatch swatch-stroke" id="strokeSwatch" title="Line colour">
                         <input type="color" id="color" value="#333333">
                         <span class="swatch-preview" id="strokePreview"></span>
@@ -2105,6 +2107,14 @@
             document.getElementById('fillGroup').classList.toggle('hidden', !showFill);
             document.getElementById('propDivider').classList.toggle('hidden', !(showLine && showFill));
 
+            // For text the colour applies but the line thickness does not - the
+            // size comes from the font controls - so the slider is dropped and
+            // the label says what the swatch actually changes.
+            const textMode = tool === 'text' || (selectedShape && selectedShape.type === 'text');
+            document.getElementById('lineGroupLabel').textContent = textMode ? 'Colour' : 'Line';
+            document.getElementById('size').classList.toggle('hidden', !!textMode);
+            document.querySelector('.size-value').classList.toggle('hidden', !!textMode);
+
             // With nothing left in it, the bar itself goes, handing the space
             // back to the picture.
             const contextualOpen = tool === 'crop' || tool === 'arrow' ||
@@ -2650,6 +2660,13 @@
             } else if (tool === 'select') {
                 handleSelectMouseDown(x, y);
             } else if (tool === 'text') {
+                // A mouse press moves focus to the document by default, which
+                // would blur the input the moment we focus it and commit the
+                // empty text straight away. Touch does not do this, so the bug
+                // only showed on a desktop. Focus still has to happen inside
+                // the gesture for the iOS keyboard, so suppress the default
+                // rather than deferring the focus.
+                e.preventDefault();
                 // Tapping on existing text edits it rather than stacking a new
                 // text shape on top of it.
                 const existing = findTextShapeNear(x, y);
