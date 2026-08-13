@@ -363,6 +363,15 @@
             display: flex;
         }
 
+        .prop-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prop-group.hidden,
+        .toolbar-divider.hidden { display: none; }
+
         .crop-group {
             display: none;
             align-items: center;
@@ -834,6 +843,18 @@
             .toast {
                 bottom: calc(124px + env(safe-area-inset-bottom, 0px));
             }
+
+            /* Nothing in the property bar applies right now, so drop it and
+               give the room back to the canvas. */
+            body.props-empty .toolbar-props { display: none; }
+
+            body.props-empty .main-content {
+                padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+            }
+
+            body.props-empty .toast {
+                bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+            }
         }
 
         /* Touch devices: meet the ~44px minimum tap target, and stop the
@@ -992,23 +1013,27 @@
 
             <!-- Properties -->
             <div class="toolbar-props">
-                <span class="swatch-label">Line</span>
-                <label class="swatch swatch-stroke" id="strokeSwatch" title="Line colour">
-                    <input type="color" id="color" value="#333333">
-                    <span class="swatch-preview" id="strokePreview"></span>
-                </label>
-                <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Line thickness">
-                <span class="size-value">3</span>
-                <div class="toolbar-divider"></div>
-                <span class="swatch-label">Fill</span>
-                <label class="swatch swatch-fill is-off" id="fillSwatch" title="Fill colour">
-                    <input type="color" id="fillColor" value="#ffffff">
-                    <span class="swatch-preview" id="fillPreview"></span>
-                </label>
-                <label class="fill-toggle" title="Turn fill on or off">
-                    <input type="checkbox" id="fillToggle">
-                    On
-                </label>
+                <div class="prop-group" id="lineGroup">
+                    <span class="swatch-label">Line</span>
+                    <label class="swatch swatch-stroke" id="strokeSwatch" title="Line colour">
+                        <input type="color" id="color" value="#333333">
+                        <span class="swatch-preview" id="strokePreview"></span>
+                    </label>
+                    <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Line thickness">
+                    <span class="size-value">3</span>
+                </div>
+                <div class="toolbar-divider" id="propDivider"></div>
+                <div class="prop-group" id="fillGroup">
+                    <span class="swatch-label">Fill</span>
+                    <label class="swatch swatch-fill is-off" id="fillSwatch" title="Fill colour">
+                        <input type="color" id="fillColor" value="#ffffff">
+                        <span class="swatch-preview" id="fillPreview"></span>
+                    </label>
+                    <label class="fill-toggle" title="Turn fill on or off">
+                        <input type="checkbox" id="fillToggle">
+                        On
+                    </label>
+                </div>
                 <div class="arrow-style-group" id="arrowStyleGroup">
                     <span class="arrow-style-label">Start:</span>
                     <select id="startStyleSelect" class="arrow-style-select">
@@ -2065,6 +2090,26 @@
             updateSwatches();
             // Crop controls only while cropping.
             document.getElementById('cropGroup').classList.toggle('visible', tool === 'crop');
+
+            // Line and fill are shown when they can actually do something: a
+            // drawing tool is armed and about to use them, or a shape that
+            // takes them is selected. They are not selection-only - setting a
+            // colour before drawing is the usual way round - but with the
+            // select tool and nothing picked, neither applies to anything.
+            const drawingTools = ['rect', 'ellipse', 'arrow', 'polyline', 'text'];
+            const fillableTools = ['rect', 'ellipse', 'polyline'];
+            const showLine = drawingTools.includes(tool) || selectedShape !== null;
+            const showFill = fillableTools.includes(tool) || canFill(selectedShape);
+
+            document.getElementById('lineGroup').classList.toggle('hidden', !showLine);
+            document.getElementById('fillGroup').classList.toggle('hidden', !showFill);
+            document.getElementById('propDivider').classList.toggle('hidden', !(showLine && showFill));
+
+            // With nothing left in it, the bar itself goes, handing the space
+            // back to the picture.
+            const contextualOpen = tool === 'crop' || tool === 'arrow' ||
+                tool === 'text' || (selectedShape && (selectedShape.type === 'arrow' || selectedShape.type === 'text'));
+            document.body.classList.toggle('props-empty', !showLine && !showFill && !contextualOpen);
 
             // Arrow style dropdowns visibility
             const arrowStyleGroup = document.getElementById('arrowStyleGroup');
