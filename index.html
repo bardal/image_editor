@@ -571,6 +571,32 @@
         .about-actions button:hover { background: #45454c; }
         .about-hint { font-size: 12px; color: #9a9a9e; margin-top: 12px; }
 
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 56px;
+            transform: translateX(-50%) translateY(8px);
+            background: rgba(20,20,24,0.95);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #e4e4e8;
+            font-size: 13px;
+            padding: 10px 16px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.18s, transform 0.18s;
+            z-index: 2000;
+            max-width: calc(100vw - 32px);
+            text-align: center;
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
         /* ===== MODAL ===== */
         .modal {
             display: none;
@@ -736,6 +762,11 @@
             /* Least useful thing in the status bar, and it crowds out the
                build chip and wraps the bar onto two lines. */
             .heic-info { display: none; }
+
+            /* Clear of the pinned property and tool bars. */
+            .toast {
+                bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+            }
         }
 
         /* Touch devices: meet the ~44px minimum tap target, and stop the
@@ -963,6 +994,8 @@
         </div>
     </div>
 
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
     <!-- About / Build Info Modal -->
     <div id="aboutModal" class="modal">
         <div class="modal-content">
@@ -1186,6 +1219,19 @@
             get hairline() { return screenPxToCanvas(1); },
             get outline() { return screenPxToCanvas(2); }
         };
+
+        // ===== TOAST =====
+        // Feedback used to be written into the button's text label, which is
+        // hidden on narrow screens - so on a phone a successful copy gave no
+        // feedback at all. This is visible on every screen size.
+        let toastTimer = null;
+        function showToast(message) {
+            const el = document.getElementById('toast');
+            el.textContent = message;
+            el.classList.add('visible');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.remove('visible'), 1900);
+        }
 
         // ===== COLOUR SWATCHES =====
         // Keeps the visible previews in step with the hidden colour inputs and
@@ -2956,17 +3002,13 @@
         
         // ===== COPY/PASTE HANDLERS =====
         async function copyImageToClipboard() {
-            if (!img) {
-                alert('Load an image first.');
+            // The canvas is usable without a background image - shapes drawn on
+            // the blank canvas are just as copyable, so this keys off whether
+            // there is anything to copy rather than whether a photo is loaded.
+            if (!img && shapes.length === 0) {
+                showToast('Nothing to copy yet');
                 return;
             }
-            const copyBtn = document.getElementById('copyImage');
-            const label = copyBtn.querySelector('.btn-label');
-            const originalLabel = label.textContent;
-            const flash = (text) => {
-                label.textContent = text;
-                setTimeout(() => { label.textContent = originalLabel; }, 1200);
-            };
 
             try {
                 if (!navigator.clipboard || !window.ClipboardItem) {
@@ -2980,12 +3022,10 @@
                     canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not read canvas.')), 'image/png');
                 });
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
-                flash('Copied!');
+                showToast('Copied to clipboard');
             } catch (err) {
                 console.error('Copy to clipboard failed:', err);
-                flash('Failed');
-                alert('Could not copy image to clipboard: ' + err.message +
-                    '\n\nThis usually requires a secure (https) context and a supported browser. You can use Save instead.');
+                showToast('Copy failed — use Save instead');
             }
         }
 
