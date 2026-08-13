@@ -738,12 +738,31 @@
             }
 
             /* The contextual groups stay on one line and ride the property
-               bar's horizontal scroll rather than wrapping into extra rows. */
+               bar's horizontal scroll rather than wrapping into extra rows.
+               order: -1 puts them first, so picking the text or arrow tool
+               shows its own controls immediately instead of leaving them off
+               the right-hand edge behind the always-present line and fill
+               controls. */
             .text-format-group.visible,
             .arrow-style-group.visible {
                 display: flex;
                 flex-wrap: nowrap;
                 gap: 6px;
+                order: -1;
+            }
+
+            /* Shadows at the edges appear only when there is more to scroll to,
+               so a cut-off control reads as scrollable rather than broken. */
+            .toolbar-props {
+                background-image:
+                    linear-gradient(to right, #232326, rgba(35,35,38,0)),
+                    linear-gradient(to left, #232326, rgba(35,35,38,0)),
+                    radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.5), rgba(0,0,0,0)),
+                    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.5), rgba(0,0,0,0));
+                background-position: left center, right center, left center, right center;
+                background-size: 26px 100%, 26px 100%, 12px 100%, 12px 100%;
+                background-repeat: no-repeat;
+                background-attachment: local, local, scroll, scroll;
             }
 
             /* Keep the wide dropdowns from eating the whole bar. */
@@ -842,7 +861,7 @@
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10a5 5 0 0 1 0 10H8"/><path d="M4 10l5-5"/><path d="M4 10l5 5"/></symbol>
         <symbol id="i-delete" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
         <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></symbol>
-        <symbol id="i-select" viewBox="0 0 24 24"><path d="M5 4.5l13 7-5.5 1.8L10 19.5z"/></symbol>
+        <symbol id="i-select" viewBox="0 0 24 24"><path d="M6.1 6L16.9 11.8l-4.6 1.5L10.3 18.5z"/></symbol>
         <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
         <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
         <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h14"/><path d="M13 7l5 5-5 5"/></symbol>
@@ -1666,6 +1685,25 @@
         }
 
         // ===== TEXT EDITING =====
+        // Finds a text shape at or near a point, topmost first. The margin makes
+        // this forgiving on touch, where landing exactly inside a line of text
+        // is hard and missing it would silently start a second overlapping one.
+        function findTextShapeNear(x, y) {
+            const margin = screenPxToCanvas(isCoarsePointer() ? 16 : 6);
+            for (let i = shapes.length - 1; i >= 0; i--) {
+                const s = shapes[i];
+                if (s.type !== 'text') continue;
+                ctx.font = buildFont(s);
+                const w = ctx.measureText(s.text || '').width;
+                const h = textHeightOf(s);
+                if (x >= s.x - margin && x <= s.x + w + margin &&
+                    y >= s.y - margin && y <= s.y + h + margin) {
+                    return s;
+                }
+            }
+            return null;
+        }
+
         function startTextEditing(x, y, existingShape = null) {
             isEditingText = true;
             if (existingShape && typeof existingShape === 'object' && existingShape.type === 'text') {
@@ -1701,13 +1739,21 @@
             canvasTextInput.style.textAlign = ta;
             canvasTextInput.style.color = editingTextShape.color || color;
             canvasTextInput.style.display = 'block';
+            const hasExistingText = !!editingTextShape.text;
             canvasTextInput.value = editingTextShape.text || 'Type here...';
 
             // Must be synchronous. iOS only raises the keyboard when focus()
             // runs inside the user gesture that triggered it - deferring even
             // by a timer focuses the field but leaves the keyboard shut.
             canvasTextInput.focus();
-            canvasTextInput.select();
+            if (hasExistingText) {
+                // Editing real text: put the caret at the end so typing adds to
+                // it. Selecting all would wipe it on the first keystroke.
+                canvasTextInput.selectionStart = canvasTextInput.selectionEnd = canvasTextInput.value.length;
+            } else {
+                // Placeholder: select it so typing replaces it outright.
+                canvasTextInput.select();
+            }
         }
 
         function finishTextEditing() {
@@ -2339,7 +2385,14 @@
             if (tool === 'select') {
                 handleSelectMouseDown(x, y);
             } else if (tool === 'text') {
-                startTextEditing(x, y);
+                // Tapping on existing text edits it rather than stacking a new
+                // text shape on top of it.
+                const existing = findTextShapeNear(x, y);
+                if (existing) {
+                    startTextEditing(existing.x, existing.y, existing);
+                } else {
+                    startTextEditing(x, y);
+                }
             } else if (tool === 'polyline') {
                 handlePolylineClick(x, y);
             } else if (tool === 'arrow') {
