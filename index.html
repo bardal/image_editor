@@ -1336,7 +1336,6 @@
 
         // ===== TEXT EDITING =====
         let isEditingText = false;
-        let editingTextShape = null;
         let editingLabelShape = null;
 
         // ===== HEIC CONVERSION =====
@@ -1837,12 +1836,9 @@
                 const bottom = Math.max(shape.y, shape.y + shape.h);
                 return x >= left && x <= right && y >= top && y <= bottom;
             } else if (shape.type === 'text') {
-                ctx.font = buildFont(shape);
-                const metrics = ctx.measureText(shape.text);
-                const textWidth = metrics.width;
-                const textHeight = textHeightOf(shape);
-                return x >= shape.x && x <= shape.x + textWidth &&
-                       y >= shape.y && y <= shape.y + textHeight;
+                const m = textBlockMetrics(shape);
+                return x >= shape.x && x <= shape.x + shape.w &&
+                       y >= shape.y && y <= shape.y + m.height;
             } else if (shape.type === 'arrow') {
                 const ep = (shape.fromId || shape.toId) ? getConnectorEndpoints(shape) : { x1: shape.x, y1: shape.y, x2: shape.x2, y2: shape.y2 };
                 return isPointNearLine(x, y, ep.x1, ep.y1, ep.x2, ep.y2, Math.max(shape.size || 3, lineGrabWidth()));
@@ -2022,14 +2018,17 @@
                     { x: ax2, y: ay2, type: 'arrow-end', cursor: 'move' }
                 ];
             }
-            if (shape.type === 'callout') {
-                // Width only - the height follows the text - plus the tip,
-                // which moves independently of the box.
-                return [
-                    { x: shape.x, y: shape.y + shape.h / 2, type: 'callout-w', cursor: 'ew-resize' },
-                    { x: shape.x + shape.w, y: shape.y + shape.h / 2, type: 'callout-e', cursor: 'ew-resize' },
-                    { x: shape.tipX, y: shape.tipY, type: 'callout-tip', cursor: 'move' },
+            // Text blocks are sized by width alone; the height follows the
+            // text. A callout adds its tip on top of the same two handles.
+            if (shape.type === 'callout' || shape.type === 'text') {
+                const handles = [
+                    { x: shape.x, y: shape.y + shape.h / 2, type: 'block-w', cursor: 'ew-resize' },
+                    { x: shape.x + shape.w, y: shape.y + shape.h / 2, type: 'block-e', cursor: 'ew-resize' },
                 ];
+                if (shape.type === 'callout') {
+                    handles.push({ x: shape.tipX, y: shape.tipY, type: 'callout-tip', cursor: 'move' });
+                }
+                return handles;
             }
             if (shape.type !== 'rect' && shape.type !== 'ellipse') return [];
 
@@ -2097,107 +2096,15 @@
             for (let i = shapes.length - 1; i >= 0; i--) {
                 const s = shapes[i];
                 if (s.type !== 'text') continue;
-                ctx.font = buildFont(s);
-                const w = ctx.measureText(s.text || '').width;
-                const h = textHeightOf(s);
-                if (x >= s.x - margin && x <= s.x + w + margin &&
-                    y >= s.y - margin && y <= s.y + h + margin) {
+                const m = textBlockMetrics(s);
+                if (x >= s.x - margin && x <= s.x + s.w + margin &&
+                    y >= s.y - margin && y <= s.y + m.height + margin) {
                     return s;
                 }
             }
             return null;
         }
 
-        function startTextEditing(x, y, existingShape = null) {
-            isEditingText = true;
-            if (existingShape && typeof existingShape === 'object' && existingShape.type === 'text') {
-                editingTextShape = existingShape;
-            } else {
-                editingTextShape = { x, y, text: (typeof existingShape === 'string' ? existingShape : ''), color, size, rotation: 0 };
-            }
-
-            const container = document.querySelector('.canvas-container');
-            const rect = canvas.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-
-            const inputX = x * (rect.width / canvas.width);
-            const inputY = y * (rect.height / canvas.height) - 15;
-
-            const maxX = containerRect.width - 50;
-            const maxY = containerRect.height - 30;
-            const minX = Math.max(0, Math.min(inputX, maxX));
-            const minY = Math.max(0, Math.min(inputY, maxY));
-
-            const fs = editingTextShape.fontSize || defaultFontSize;
-            const ff = editingTextShape.fontFamily || defaultFontFamily;
-            const fw = editingTextShape.fontWeight || defaultFontWeight;
-            const fst = editingTextShape.fontStyle || defaultFontStyle;
-            const ta = editingTextShape.textAlign || defaultTextAlign;
-
-            canvasTextInput.style.left = minX + 'px';
-            canvasTextInput.style.top = minY + 'px';
-            canvasTextInput.style.fontSize = fs + 'px';
-            canvasTextInput.style.fontFamily = ff;
-            canvasTextInput.style.fontWeight = fw;
-            canvasTextInput.style.fontStyle = fst;
-            canvasTextInput.style.textAlign = ta;
-            canvasTextInput.style.color = editingTextShape.color || color;
-            canvasTextInput.style.display = 'block';
-            const hasExistingText = !!editingTextShape.text;
-            canvasTextInput.value = editingTextShape.text || 'Type here...';
-
-            // Must be synchronous. iOS only raises the keyboard when focus()
-            // runs inside the user gesture that triggered it - deferring even
-            // by a timer focuses the field but leaves the keyboard shut.
-            canvasTextInput.focus();
-            if (hasExistingText) {
-                // Editing real text: put the caret at the end so typing adds to
-                // it. Selecting all would wipe it on the first keystroke.
-                canvasTextInput.selectionStart = canvasTextInput.selectionEnd = canvasTextInput.value.length;
-            } else {
-                // Placeholder: select it so typing replaces it outright.
-                canvasTextInput.select();
-            }
-        }
-
-        function finishTextEditing() {
-            if (!isEditingText) return;
-
-            const text = canvasTextInput.value.trim();
-
-            if (text) {
-                // Check if editing an existing shape in the shapes array
-                const existingIndex = shapes.findIndex(s => s === editingTextShape);
-                if (existingIndex !== -1) {
-                    shapes[existingIndex].text = text;
-                } else {
-                    shapes.push({
-                        type: 'text',
-                        x: editingTextShape.x,
-                        y: editingTextShape.y,
-                        text,
-                        color,
-                        size,
-                        rotation: 0,
-                        fontSize: defaultFontSize,
-                        fontFamily: defaultFontFamily,
-                        fontWeight: defaultFontWeight,
-                        fontStyle: defaultFontStyle,
-                        textAlign: defaultTextAlign,
-                        id: newShapeId()
-                    });
-                }
-                redraw();
-                updateButtonStates();
-            }
-
-            canvasTextInput.style.display = 'none';
-            canvasTextInput.value = '';
-            isEditingText = false;
-            editingTextShape = null;
-        }
-
-        // ===== LABEL EDITING =====
         function startLabelEditing(shape, initialChar) {
             const center = getShapeCenter(shape);
             isEditingText = true;
@@ -2222,7 +2129,7 @@
             canvasTextInput.style.display = 'block';
             canvasTextInput.value = (shape.label || '') + (initialChar || '');
 
-            // Synchronous for the same reason as startTextEditing - a deferred
+            // Synchronous for the same reason as the block editor - a deferred
             // focus does not open the iOS keyboard.
             canvasTextInput.focus();
             // Place cursor at end
@@ -2256,7 +2163,7 @@
             } else if (shape.type === 'callout') {
                 return { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 };
             } else if (shape.type === 'text') {
-                return { x: shape.x, y: shape.y };
+                return { x: shape.x + (shape.w || 0) / 2, y: shape.y + (shape.h || 0) / 2 };
             }
             return { x: 0, y: 0 };
         }
@@ -2602,12 +2509,7 @@
             } else if (s.type === 'callout') {
                 drawCallout(s);
             } else if (s.type === 'text') {
-                ctx.font = buildFont(s);
-                ctx.textAlign = s.textAlign || 'left';
-                ctx.textBaseline = 'top';
-                ctx.fillText(s.text, s.x, s.y);
-                ctx.textAlign = 'start';
-                ctx.textBaseline = 'alphabetic';
+                drawTextBlock(s);
             }
 
             // Draw label if present (for non-text shapes)
@@ -2678,13 +2580,27 @@
         // shape rather than a linked rectangle, text and arrow, so it moves,
         // deletes, persists and survives a crop as a single thing.
         function calloutPadding() { return screenPxToCanvas(10); }
+
+        // Text is inset inside a callout's box; a plain text block sits flush.
+        function blockPadding(s) {
+            return s.type === 'callout' ? calloutPadding() : 0;
+        }
+
+        // Text shapes predate having a width. Give one to any that lack it,
+        // measured from the text itself so they keep the width they had.
+        function ensureBlockWidth(s) {
+            if (Number.isFinite(s.w) && s.w > 0) return;
+            ctx.font = buildFont(s);
+            const measured = ctx.measureText(String(s.text || '')).width;
+            s.w = Math.max(calloutMinWidth(), measured + blockPadding(s) * 2);
+        }
         function calloutMinWidth() { return screenPxToCanvas(70); }
 
         // Breaks the text to the box width. Words that are themselves wider than
         // the box are split rather than allowed to overflow.
-        function wrapCalloutText(s) {
+        function wrapTextToWidth(s) {
             ctx.font = buildFont(s);
-            const maxWidth = Math.max(1, s.w - calloutPadding() * 2);
+            const maxWidth = Math.max(1, s.w - blockPadding(s) * 2);
             const lines = [];
 
             for (const paragraph of String(s.text || '').split('\n')) {
@@ -2720,10 +2636,11 @@
 
         // Height follows the text, so nothing typed is ever hidden. Width is
         // the part the user controls.
-        function calloutMetrics(s) {
-            const lines = wrapCalloutText(s);
+        function textBlockMetrics(s) {
+            ensureBlockWidth(s);
+            const lines = wrapTextToWidth(s);
             const lineHeight = textHeightOf(s) * 1.25;
-            const padding = calloutPadding();
+            const padding = blockPadding(s);
             const height = Math.max(lineHeight + padding * 2, lines.length * lineHeight + padding * 2);
             return { lines, lineHeight, padding, height };
         }
@@ -2742,10 +2659,34 @@
             return { x: cx + dx * scale, y: cy + dy * scale };
         }
 
-        function drawCallout(s) {
-            const m = calloutMetrics(s);
+        // Draws the wrapped lines. Used by both the text tool and the callout,
+        // so wrapping, line spacing and alignment behave identically in each.
+        function drawTextBlock(s) {
+            const m = textBlockMetrics(s);
             // Kept on the shape so hit detection and handles agree with what is
             // drawn without recomputing the layout everywhere.
+            s.h = m.height;
+
+            ctx.save();
+            ctx.fillStyle = s.color;
+            ctx.font = buildFont(s);
+            ctx.textBaseline = 'top';
+            const align = s.textAlign || 'left';
+            ctx.textAlign = align;
+            const textX = align === 'center' ? s.x + s.w / 2
+                        : align === 'right' ? s.x + s.w - m.padding
+                        : s.x + m.padding;
+            m.lines.forEach((line, i) => {
+                ctx.fillText(line, textX, s.y + m.padding + i * m.lineHeight);
+            });
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
+            ctx.restore();
+            return m;
+        }
+
+        function drawCallout(s) {
+            const m = textBlockMetrics(s);
             s.h = m.height;
 
             const anchor = calloutAnchor(s);
@@ -2777,29 +2718,19 @@
             ctx.lineWidth = strokeWidth(s.size);
             ctx.stroke();
 
-            // Text.
-            ctx.fillStyle = s.color;
-            ctx.font = buildFont(s);
-            ctx.textBaseline = 'top';
-            const align = s.textAlign || 'left';
-            ctx.textAlign = align;
-            const textX = align === 'center' ? s.x + s.w / 2
-                        : align === 'right' ? s.x + s.w - m.padding
-                        : s.x + m.padding;
-            m.lines.forEach((line, i) => {
-                ctx.fillText(line, textX, s.y + m.padding + i * m.lineHeight);
-            });
-            ctx.textAlign = 'start';
-            ctx.textBaseline = 'alphabetic';
             ctx.restore();
+
+            // Same text rendering as the text tool.
+            drawTextBlock(s);
         }
 
         // Editing happens in a box laid over the callout at the same size and
         // font, so the wrapping seen while typing is the wrapping produced.
-        let editingCallout = null;
+        // One editor for both text blocks and callouts.
+        let editingBlock = null;
 
-        function startCalloutEditing(shape) {
-            editingCallout = shape;
+        function startBlockEditing(shape) {
+            editingBlock = shape;
             isEditingText = true;
 
             const rect = canvas.getBoundingClientRect();
@@ -2810,7 +2741,12 @@
             calloutTextInput.style.top = (shape.y * toScreen) + 'px';
             calloutTextInput.style.width = (shape.w * toScreen) + 'px';
             calloutTextInput.style.height = (shape.h * toScreen) + 'px';
-            calloutTextInput.style.padding = pad + 'px';
+            const isCallout = shape.type === 'callout';
+            calloutTextInput.style.padding = (isCallout ? pad : 0) + 'px';
+            // A plain text block has no box, so the editor should not draw one
+            // either - only a faint outline showing the wrap width.
+            calloutTextInput.style.background = isCallout ? '#fff' : 'rgba(255,255,255,0.9)';
+            calloutTextInput.style.borderStyle = isCallout ? 'solid' : 'dashed';
             calloutTextInput.style.boxSizing = 'border-box';
             calloutTextInput.style.fontSize = ((shape.fontSize || defaultFontSize) * toScreen) + 'px';
             calloutTextInput.style.lineHeight = '1.25';
@@ -2828,17 +2764,19 @@
             calloutTextInput.selectionStart = calloutTextInput.selectionEnd = calloutTextInput.value.length;
         }
 
-        function finishCalloutEditing(cancel) {
-            if (!editingCallout) return;
-            const shape = editingCallout;
+        function finishBlockEditing(cancel) {
+            if (!editingBlock) return;
+            const shape = editingBlock;
             const text = calloutTextInput.value;
 
-            editingCallout = null;
+            editingBlock = null;
             isEditingText = false;
             calloutTextInput.style.display = 'none';
             calloutTextInput.value = '';
 
-            if (!cancel) shape.text = text;
+            // Trailing blank lines would silently pad the block's height, so
+            // they are trimmed. Line breaks within the text are kept.
+            if (!cancel) shape.text = text.replace(/\s+$/, '');
 
             // An empty callout is just a stray box; drop it rather than leave it.
             if (!String(shape.text || '').trim()) {
@@ -2850,24 +2788,24 @@
             updateButtonStates();
         }
 
-        function handleCalloutInputKeyDown(e) {
+        function handleBlockInputKeyDown(e) {
             if (e.key === 'Escape') {
                 e.preventDefault();
-                finishCalloutEditing(true);
+                finishBlockEditing(true);
             } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 // Enter alone inserts a line break; this is how you finish.
                 e.preventDefault();
-                finishCalloutEditing(false);
+                finishBlockEditing(false);
             }
         }
 
         // Grows the editor as you type, matching the box's own behaviour.
-        function handleCalloutInput() {
-            if (!editingCallout) return;
+        function handleBlockInput() {
+            if (!editingBlock) return;
             const rect = canvas.getBoundingClientRect();
             const toScreen = rect.width / canvas.width;
-            editingCallout.text = calloutTextInput.value;
-            const m = calloutMetrics(editingCallout);
+            editingBlock.text = calloutTextInput.value;
+            const m = textBlockMetrics(editingBlock);
             calloutTextInput.style.height = (m.height * toScreen) + 'px';
         }
 
@@ -3184,9 +3122,27 @@
                 // text shape on top of it.
                 const existing = findTextShapeNear(x, y);
                 if (existing) {
-                    startTextEditing(existing.x, existing.y, existing);
+                    selectedShape = existing;
+                    startBlockEditing(existing);
                 } else {
-                    startTextEditing(x, y);
+                    const block = {
+                        type: 'text',
+                        x, y,
+                        w: Math.min(canvas.width * 0.6, screenPxToCanvas(220)),
+                        h: 0,
+                        text: '',
+                        color, size,
+                        fontSize: defaultFontSize,
+                        fontFamily: defaultFontFamily,
+                        fontWeight: defaultFontWeight,
+                        fontStyle: defaultFontStyle,
+                        textAlign: defaultTextAlign,
+                        rotation: 0,
+                        id: newShapeId()
+                    };
+                    shapes.push(block);
+                    selectedShape = block;
+                    startBlockEditing(block);
                 }
             } else if (tool === 'polyline') {
                 handlePolylineClick(x, y);
@@ -3215,7 +3171,7 @@
 
         function handleSelectMouseDown(x, y) {
             // Check resize handle
-            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow' || selectedShape.type === 'callout')) {
+            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow' || selectedShape.type === 'callout' || selectedShape.type === 'text')) {
                 const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                 if (resizeHandle) {
                     isResizing = true;
@@ -3345,7 +3301,7 @@
                 drawing = false;
                 redraw();
                 updateButtonStates();
-                startCalloutEditing(shape);
+                startBlockEditing(shape);
                 return;
             } else if (tool === 'ellipse') {
                 shapes.push({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0, id: newShapeId() });
@@ -3524,16 +3480,17 @@
                 return;
             }
 
-            // Callout: the side handles set the width, the tip moves on its own.
-            if (selectedShape.type === 'callout') {
+            // Text blocks and callouts: the side handles set the width and the
+            // text reflows; a callout's tip moves on its own.
+            if (handleType === 'block-w' || handleType === 'block-e' || handleType === 'callout-tip') {
                 if (handleType === 'callout-tip') {
                     selectedShape.tipX = x;
                     selectedShape.tipY = y;
-                } else if (handleType === 'callout-w') {
+                } else if (handleType === 'block-w') {
                     const right = selectedShape.x + selectedShape.w;
                     selectedShape.x = Math.min(x, right - calloutMinWidth());
                     selectedShape.w = right - selectedShape.x;
-                } else if (handleType === 'callout-e') {
+                } else {
                     selectedShape.w = Math.max(calloutMinWidth(), x - selectedShape.x);
                 }
                 redraw();
@@ -3754,31 +3711,23 @@
         }
 
         // ===== TEXT INPUT HANDLERS =====
+        // The single-line input is now only used for shape labels - the short
+        // caption written on a rectangle or arrow. Text blocks and callouts both
+        // use the multi-line block editor.
         function handleTextInputBlur() {
             setTimeout(() => {
-                if (isEditingText) {
-                    if (editingLabelShape) {
-                        finishLabelEditing();
-                    } else {
-                        finishTextEditing();
-                    }
-                }
+                if (isEditingText && editingLabelShape) finishLabelEditing();
             }, 100);
         }
 
         function handleTextInputKeyDown(e) {
             e.stopPropagation();
             if (e.key === 'Enter') {
-                if (editingLabelShape) {
-                    finishLabelEditing();
-                } else {
-                    finishTextEditing();
-                }
+                finishLabelEditing();
             } else if (e.key === 'Escape') {
                 canvasTextInput.style.display = 'none';
                 canvasTextInput.value = '';
                 isEditingText = false;
-                editingTextShape = null;
                 editingLabelShape = null;
             }
         }
@@ -3825,9 +3774,9 @@
             const shapeInfo = getShapeAtPoint(x, y);
             if (shapeInfo) {
                 if (shapeInfo.shape.type === 'callout') {
-                    startCalloutEditing(shapeInfo.shape);
+                    startBlockEditing(shapeInfo.shape);
                 } else if (shapeInfo.shape.type === 'text') {
-                    startTextEditing(shapeInfo.shape.x, shapeInfo.shape.y, shapeInfo.shape);
+                    startBlockEditing(shapeInfo.shape);
                 } else {
                     // Edit label on non-text shapes
                     startLabelEditing(shapeInfo.shape, '');
@@ -4037,9 +3986,9 @@
             
             // Text input events
             canvasTextInput.addEventListener('blur', handleTextInputBlur);
-            calloutTextInput.addEventListener('blur', () => finishCalloutEditing(false));
-            calloutTextInput.addEventListener('keydown', handleCalloutInputKeyDown);
-            calloutTextInput.addEventListener('input', handleCalloutInput);
+            calloutTextInput.addEventListener('blur', () => finishBlockEditing(false));
+            calloutTextInput.addEventListener('keydown', handleBlockInputKeyDown);
+            calloutTextInput.addEventListener('input', handleBlockInput);
             canvasTextInput.addEventListener('keydown', handleTextInputKeyDown);
             
             // Window events
