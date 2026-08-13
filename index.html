@@ -24,6 +24,16 @@
             overscroll-behavior: none;
         }
 
+        /* Form controls do not inherit the page font, so buttons and dropdowns
+           were rendering in the browser default while every label beside them
+           used the app font. */
+        button,
+        select,
+        input,
+        textarea {
+            font-family: inherit;
+        }
+
         .container {
             height: 100vh;
             /* iOS counts browser chrome in 100vh, which pushes the status bar
@@ -390,7 +400,7 @@
 
         .crop-btn {
             font-family: inherit;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             color: #d0d0d4;
             background: #3a3a40;
@@ -448,7 +458,7 @@
             width: 28px;
             height: 28px;
             padding: 0;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .format-btn.active {
@@ -508,7 +518,7 @@
             outline: none;
             background: #fff;
             color: #000;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: inherit;
             font-size: 16px;
             padding: 4px 8px;
             margin: 0;
@@ -796,8 +806,8 @@
 
             .tool-button .tool-text {
                 display: block;
-                font-size: 9px;
-                letter-spacing: 0.02em;
+                font-size: 11px;
+                letter-spacing: 0.01em;
             }
 
             .tool-button .tool-icon svg { width: 22px; height: 22px; }
@@ -941,8 +951,17 @@
                 width: 20px;
                 height: 20px;
             }
+            /* Dropdowns open a native picker rather than a keyboard, so they do
+               not need the 16px that stops iOS zooming, and at 16px they towered
+               over every label beside them. */
             .arrow-style-select,
-            #fontFamily,
+            #fontFamily {
+                font-size: 11px;
+                min-height: 36px;
+            }
+
+            /* These take typed input. Below 16px iOS zooms the page on focus,
+               so they stay larger on purpose. */
             #fontSize,
             .canvas-text-input {
                 font-size: 16px;
