@@ -363,6 +363,42 @@
             display: flex;
         }
 
+        .crop-group {
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .crop-group.visible { display: flex; }
+
+        .crop-hint {
+            font-size: 11px;
+            color: #9a9a9e;
+            white-space: nowrap;
+        }
+
+        .crop-btn {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            color: #d0d0d4;
+            background: #3a3a40;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 6px 14px;
+            min-height: 32px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .crop-btn.primary {
+            background: #3b8eed;
+            border-color: #3b8eed;
+            color: #fff;
+        }
+
+        .crop-btn:hover { filter: brightness(1.12); }
+
         .text-format-group {
             display: none;
             align-items: center;
@@ -744,11 +780,23 @@
                the right-hand edge behind the always-present line and fill
                controls. */
             .text-format-group.visible,
-            .arrow-style-group.visible {
+            .arrow-style-group.visible,
+            .crop-group.visible {
                 display: flex;
                 flex-wrap: nowrap;
                 gap: 6px;
                 order: -1;
+            }
+
+            /* Cropping has no use for the line and fill controls, and hiding
+               them keeps Apply and Reset on screen without scrolling. */
+            .crop-group.visible ~ .swatch-label,
+            .crop-group.visible ~ .swatch,
+            .crop-group.visible ~ .size-slider,
+            .crop-group.visible ~ .size-value,
+            .crop-group.visible ~ .fill-toggle,
+            .crop-group.visible ~ .toolbar-divider {
+                display: none;
             }
 
             /* Shadows at the edges appear only when there is more to scroll to,
@@ -866,6 +914,7 @@
         <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
         <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h14"/><path d="M13 7l5 5-5 5"/></symbol>
         <symbol id="i-line" viewBox="0 0 24 24"><path d="M5 19L19 5"/></symbol>
+        <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a1 1 0 0 0 1 1h14"/><path d="M2 6h15a1 1 0 0 1 1 1v15"/></symbol>
         <symbol id="i-text" viewBox="0 0 24 24"><path d="M6 6V5h12v1"/><path d="M12 5v14"/><path d="M9 19h6"/></symbol>
         <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
     </svg>
@@ -934,6 +983,10 @@
                     <span class="tool-icon"><svg><use href="#i-text"/></svg></span>
                     <span class="tool-text">Text</span>
                 </button>
+                <button class="tool-button" data-tool="crop">
+                    <span class="tool-icon"><svg><use href="#i-crop"/></svg></span>
+                    <span class="tool-text">Crop</span>
+                </button>
             </div>
             <div class="toolbar-divider"></div>
 
@@ -969,6 +1022,11 @@
                         <option value="openArrow">Open Arrow</option>
                         <option value="closedArrow" selected>Closed Arrow</option>
                     </select>
+                </div>
+                <div id="cropGroup" class="crop-group">
+                    <span class="crop-hint">Drag the frame &mdash; outwards adds space</span>
+                    <button type="button" id="cropApply" class="crop-btn primary">Apply</button>
+                    <button type="button" id="cropReset" class="crop-btn">Reset</button>
                 </div>
                 <div id="textFormatGroup" class="text-format-group">
                     <select id="fontFamily" title="Font family">
@@ -1136,6 +1194,16 @@
         let canvasScale = { x: 1, y: 1 };
         let canvasOffset = { x: 0, y: 0 };
 
+        // ===== CROP / EXPAND =====
+        // Where the image's top-left sits in canvas coordinates. Cropping moves
+        // this negative; expanding moves it positive, leaving blank margin.
+        let imgOffset = { x: 0, y: 0 };
+        // Set once the canvas size is the user's choice rather than the image's,
+        // so a later resize does not snap it back to the image dimensions.
+        let canvasOverride = null;
+        let cropRect = null;
+        let cropDrag = null;
+
         // ===== SHAPE IDS =====
         let nextShapeId = 1;
         function newShapeId() { return nextShapeId++; }
@@ -1178,7 +1246,11 @@
         }
 
         function resizeCanvas() {
-            if (img) {
+            if (canvasOverride) {
+                // The user has cropped or expanded; that size wins.
+                canvas.width = canvasOverride.w;
+                canvas.height = canvasOverride.h;
+            } else if (img) {
                 // Match the canvas to the image's natural size so it maps 1:1
                 // (no letterboxing, full-resolution export). CSS scales the
                 // displayed canvas down to fit the container.
@@ -1991,6 +2063,9 @@
                 }
             }
             updateSwatches();
+            // Crop controls only while cropping.
+            document.getElementById('cropGroup').classList.toggle('visible', tool === 'crop');
+
             // Arrow style dropdowns visibility
             const arrowStyleGroup = document.getElementById('arrowStyleGroup');
             const showArrowStyles = tool === 'arrow' || (selectedShape && selectedShape.type === 'arrow');
@@ -2233,6 +2308,148 @@
             }
         }
 
+        // ===== CROP / EXPAND =====
+        function startCropMode() {
+            cropRect = { x: 0, y: 0, w: canvas.width, h: canvas.height };
+            cropDrag = null;
+            redraw();
+        }
+
+        function exitCropMode() {
+            cropRect = null;
+            cropDrag = null;
+            redraw();
+        }
+
+        // Handle positions around the crop frame, in canvas coordinates.
+        function getCropHandles() {
+            if (!cropRect) return [];
+            const { x, y, w, h } = cropRect;
+            return [
+                { name: 'nw', x: x,         y: y },
+                { name: 'n',  x: x + w / 2, y: y },
+                { name: 'ne', x: x + w,     y: y },
+                { name: 'e',  x: x + w,     y: y + h / 2 },
+                { name: 'se', x: x + w,     y: y + h },
+                { name: 's',  x: x + w / 2, y: y + h },
+                { name: 'sw', x: x,         y: y + h },
+                { name: 'w',  x: x,         y: y + h / 2 },
+            ];
+        }
+
+        function getCropHandleAt(x, y) {
+            const tolerance = screenPxToCanvas(isCoarsePointer() ? 26 : 12);
+            let best = null, bestDist = Infinity;
+            for (const handle of getCropHandles()) {
+                const d = Math.sqrt((x - handle.x) ** 2 + (y - handle.y) ** 2);
+                if (d <= tolerance && d < bestDist) { best = handle; bestDist = d; }
+            }
+            return best;
+        }
+
+        function drawCropOverlay() {
+            if (!cropRect) return;
+            const { x, y, w, h } = cropRect;
+            ctx.save();
+
+            // Dim everything outside the frame, including area beyond the canvas
+            // so an expanded frame still reads as the new bounds.
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.beginPath();
+            ctx.rect(-canvas.width, -canvas.height, canvas.width * 3, canvas.height * 3);
+            ctx.rect(x, y, w, h);
+            ctx.fill('evenodd');
+
+            ctx.strokeStyle = '#3b8eed';
+            ctx.lineWidth = screenPxToCanvas(2);
+            ctx.setLineDash([]);
+            ctx.strokeRect(x, y, w, h);
+
+            // Thirds guides.
+            ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+            ctx.lineWidth = screenPxToCanvas(1);
+            ctx.beginPath();
+            for (let i = 1; i < 3; i++) {
+                ctx.moveTo(x + (w * i) / 3, y);
+                ctx.lineTo(x + (w * i) / 3, y + h);
+                ctx.moveTo(x, y + (h * i) / 3);
+                ctx.lineTo(x + w, y + (h * i) / 3);
+            }
+            ctx.stroke();
+
+            const r = screenPxToCanvas(isCoarsePointer() ? 11 : 7);
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#3b8eed';
+            ctx.lineWidth = screenPxToCanvas(2);
+            for (const handle of getCropHandles()) {
+                ctx.beginPath();
+                ctx.arc(handle.x, handle.y, r, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function resizeCropRect(handleName, x, y) {
+            // Edges move independently, and are allowed past the current canvas
+            // bounds - dragging outward is what expands rather than crops.
+            const min = screenPxToCanvas(24);
+            let { x: cx, y: cy, w, h } = cropRect;
+            let left = cx, top = cy, right = cx + w, bottom = cy + h;
+
+            if (handleName.includes('w')) left = Math.min(x, right - min);
+            if (handleName.includes('e')) right = Math.max(x, left + min);
+            if (handleName.includes('n')) top = Math.min(y, bottom - min);
+            if (handleName.includes('s')) bottom = Math.max(y, top + min);
+
+            cropRect = { x: left, y: top, w: right - left, h: bottom - top };
+        }
+
+        function translateShape(s, dx, dy) {
+            if (s.points) {
+                s.points = s.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+            }
+            if (typeof s.x === 'number') { s.x += dx; s.y += dy; }
+            if (typeof s.x2 === 'number') { s.x2 += dx; s.y2 += dy; }
+        }
+
+        function applyCrop() {
+            if (!cropRect) return;
+            const w = Math.max(1, Math.round(cropRect.w));
+            const h = Math.max(1, Math.round(cropRect.h));
+            const dx = -Math.round(cropRect.x);
+            const dy = -Math.round(cropRect.y);
+
+            for (const s of shapes) translateShape(s, dx, dy);
+            imgOffset.x += dx;
+            imgOffset.y += dy;
+
+            canvasOverride = { w, h };
+            canvas.width = w;
+            canvas.height = h;
+
+            cropRect = { x: 0, y: 0, w, h };
+            selectedShape = null;
+            redraw();
+            updateImageInfo();
+            updateButtonStates();
+            showToast(`Canvas ${w} × ${h}`);
+        }
+
+        // Back to the image's own bounds, undoing any crop or expand.
+        function resetCrop() {
+            const dx = -imgOffset.x;
+            const dy = -imgOffset.y;
+            for (const s of shapes) translateShape(s, dx, dy);
+            imgOffset.x = 0;
+            imgOffset.y = 0;
+            canvasOverride = null;
+            resizeCanvas();
+            if (tool === 'crop') startCropMode();
+            updateButtonStates();
+            showToast(`Canvas ${canvas.width} × ${canvas.height}`);
+        }
+
         // ===== POLYLINE FUNCTIONS =====
         // Pressing only ever starts a line. Whether a gesture extends the line
         // or ends it is decided on release, so a drag can add a segment and a
@@ -2345,30 +2562,31 @@
 
         function redraw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
+            // Paint the page white so expanded margins export as white rather
+            // than transparent, matching what is on screen.
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
             if (img) {
-                const scale = Math.min(
-                    canvas.width / img.naturalWidth,
-                    canvas.height / img.naturalHeight
-                );
-                
-                const scaledWidth = img.naturalWidth * scale;
-                const scaledHeight = img.naturalHeight * scale;
-                
-                const x = (canvas.width - scaledWidth) / 2;
-                const y = (canvas.height - scaledHeight) / 2;
-                
-                ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-                
-                canvasScale.x = scale;
-                canvasScale.y = scale;
-                canvasOffset.x = x;
-                canvasOffset.y = y;
+                // Drawn at natural size at its offset: the canvas is either the
+                // image's own size or a crop of it, so scaling here would shrink
+                // the picture instead of trimming it.
+                ctx.drawImage(img, imgOffset.x, imgOffset.y, img.naturalWidth, img.naturalHeight);
+
+                canvasScale.x = 1;
+                canvasScale.y = 1;
+                canvasOffset.x = imgOffset.x;
+                canvasOffset.y = imgOffset.y;
             }
             
             for (const s of shapes) {
                 drawShape(s, false);
             }
+
+            drawCropOverlay();
         }
 
         // ===== EVENT HANDLERS =====
@@ -2382,7 +2600,12 @@
             hasEdited = false;
             hadSelectionBeforeMouseDown = selectedShape !== null;
             
-            if (tool === 'select') {
+            if (tool === 'crop') {
+                const handle = getCropHandleAt(x, y);
+                cropDrag = handle
+                    ? { mode: 'resize', handle: handle.name }
+                    : { mode: 'move', fromX: x, fromY: y, rect: { ...cropRect } };
+            } else if (tool === 'select') {
                 handleSelectMouseDown(x, y);
             } else if (tool === 'text') {
                 // Tapping on existing text edits it rather than stacking a new
@@ -2484,6 +2707,10 @@
         }
 
         function handleMouseUp(e) {
+            if (tool === 'crop') {
+                cropDrag = null;
+                return;
+            }
             if (tool === 'polyline') {
                 const c = screenToCanvas(e.clientX, e.clientY);
                 handlePolylineUp(c.x, c.y);
@@ -2563,7 +2790,23 @@
             
             updateStatusLine(e);
             updateCursor(x, y);
-            
+
+            if (tool === 'crop') {
+                if (cropDrag && cropDrag.mode === 'resize') {
+                    resizeCropRect(cropDrag.handle, x, y);
+                    redraw();
+                } else if (cropDrag && cropDrag.mode === 'move') {
+                    cropRect = {
+                        x: cropDrag.rect.x + (x - cropDrag.fromX),
+                        y: cropDrag.rect.y + (y - cropDrag.fromY),
+                        w: cropDrag.rect.w,
+                        h: cropDrag.rect.h,
+                    };
+                    redraw();
+                }
+                return;
+            }
+
             if (isDragging && !hasMoved) {
                 const distance = Math.sqrt((x - mouseDownPos.x) ** 2 + (y - mouseDownPos.y) ** 2);
                 if (distance > dragThreshold()) {
@@ -2992,7 +3235,13 @@
                     const image = new Image();
                     image.onload = function() {
                         img = image;
+                        // A new image starts from its own bounds, not the last
+                        // image's crop.
+                        imgOffset = { x: 0, y: 0 };
+                        canvasOverride = null;
+                        cropRect = null;
                         resizeCanvas();
+                        if (tool === 'crop') startCropMode();
                         updateImageInfo();
                     };
                     image.src = ev.target.result;
@@ -3131,6 +3380,10 @@
                 handleMouseUp(e);
             });
             canvas.addEventListener('dblclick', handleDoubleClick);
+
+            // Crop / expand
+            document.getElementById('cropApply').addEventListener('click', applyCrop);
+            document.getElementById('cropReset').addEventListener('click', resetCrop);
 
             // About / build info
             document.getElementById('aboutBtn').addEventListener('click', showAbout);
@@ -3348,6 +3601,14 @@
             // Update tool
             tool = toolName;
             selectedShape = null;
+
+            // The crop frame only exists while the crop tool is active.
+            if (toolName === 'crop') {
+                startCropMode();
+            } else if (cropRect) {
+                exitCropMode();
+            }
+
             updateButtonStates();
             redraw();
         }
