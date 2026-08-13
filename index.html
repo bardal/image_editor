@@ -618,6 +618,39 @@
         .about-actions button:hover { background: #45454c; }
         .about-hint { font-size: 12px; color: #9a9a9e; margin-top: 12px; }
 
+        .clear-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .clear-option {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+            font-family: inherit;
+            text-align: left;
+            background: #3a3a40;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 12px 14px;
+            min-height: 56px;
+            cursor: pointer;
+            color: #d0d0d4;
+        }
+
+        .clear-option:hover { background: #45454c; }
+        .clear-option:disabled { opacity: 0.4; cursor: default; }
+        .clear-option:disabled:hover { background: #3a3a40; }
+
+        .clear-option.danger { border-color: rgba(224,92,92,0.45); }
+        .clear-option.danger .clear-option-title { color: #e88; }
+
+        .clear-option-title { font-size: 14px; font-weight: 600; }
+        .clear-option-sub { font-size: 12px; color: #9a9a9e; }
+
         /* ===== TOAST ===== */
         .toast {
             position: fixed;
@@ -1100,6 +1133,25 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+    <!-- Clear options -->
+    <div id="clearModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeClearOptions()">&times;</span>
+            <h3>Clear</h3>
+            <p id="clearSummary">What would you like to remove?</p>
+            <div class="clear-actions">
+                <button type="button" id="clearShapesBtn" class="clear-option">
+                    <span class="clear-option-title">Drawing only</span>
+                    <span class="clear-option-sub">Remove the annotations, keep the image</span>
+                </button>
+                <button type="button" id="clearAllBtn" class="clear-option danger">
+                    <span class="clear-option-title">Everything</span>
+                    <span class="clear-option-sub">Remove the annotations and the image</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- About / Build Info Modal -->
     <div id="aboutModal" class="modal">
         <div class="modal-content">
@@ -1377,6 +1429,17 @@
             });
         }
 
+        async function dbDelete(key) {
+            const db = await openDb();
+            if (!db) return;
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).delete(key);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
         async function dbGet(key) {
             const db = await openDb();
             if (!db) return null;
@@ -1599,6 +1662,56 @@
             } catch (e) {
                 el.textContent = 'could not check';
             }
+        }
+
+        // ===== CLEAR =====
+        function showClearOptions() {
+            const hasShapes = shapes.length > 0;
+            const hasImage = !!img;
+
+            if (!hasShapes && !hasImage) {
+                showToast('Nothing to clear');
+                return;
+            }
+
+            document.getElementById('clearSummary').textContent = hasShapes
+                ? `${shapes.length} ${shapes.length === 1 ? 'shape' : 'shapes'} drawn${hasImage ? ' on an image' : ''}.`
+                : 'An image with no annotations.';
+
+            // Only offer what there is to remove.
+            document.getElementById('clearShapesBtn').disabled = !hasShapes;
+            document.getElementById('clearAllBtn').disabled = !hasImage && !hasShapes;
+
+            document.getElementById('clearModal').style.display = 'block';
+        }
+
+        function closeClearOptions() {
+            document.getElementById('clearModal').style.display = 'none';
+        }
+
+        function clearShapesOnly() {
+            shapes = [];
+            selectedShape = null;
+            closeClearOptions();
+            redraw();
+            updateButtonStates();
+            showToast('Drawing cleared');
+        }
+
+        async function clearEverything() {
+            shapes = [];
+            selectedShape = null;
+            img = null;
+            imgOffset = { x: 0, y: 0 };
+            canvasOverride = null;
+            cropRect = null;
+            // Drop the stored image too, or a reload would bring it straight back.
+            await dbDelete('image');
+            closeClearOptions();
+            resizeCanvas();
+            if (tool === 'crop') startCropMode();
+            updateButtonStates();
+            showToast('Cleared');
         }
 
         function showAbout() {
@@ -3610,7 +3723,7 @@
             
             // Modal events - tapping the backdrop closes whichever modal is open
             window.onclick = function(event) {
-                for (const id of ['heicModal', 'aboutModal']) {
+                for (const id of ['heicModal', 'aboutModal', 'clearModal']) {
                     const modal = document.getElementById(id);
                     if (event.target === modal) {
                         modal.style.display = 'none';
@@ -3736,12 +3849,9 @@
             // Button events
             undoBtn.onclick = undoLastAction;
             deleteBtn.onclick = deleteSelectedShape;
-            document.getElementById('clear').onclick = () => { 
-                shapes = []; 
-                selectedShape = null;
-                redraw();
-                updateButtonStates();
-            };
+            document.getElementById('clear').onclick = showClearOptions;
+            document.getElementById('clearShapesBtn').addEventListener('click', clearShapesOnly);
+            document.getElementById('clearAllBtn').addEventListener('click', clearEverything);
             document.getElementById('download').onclick = async () => {
                 canvas.toBlob(async (blob) => {
                     if (window.showSaveFilePicker) {
