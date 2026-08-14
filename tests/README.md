@@ -33,6 +33,7 @@ both.
 | --- | --- |
 | `regression` | Previously fixed faults: long press stealing a drag, a stranded block edit, Escape destroying a callout |
 | `callout` / `callout-touch` | Callouts by mouse and by touch: creation, wrapping, tip and box independence, re-editing |
+| `blockedit` | Editing text on a phone: the editor stays at 16px or more so Safari cannot zoom the page, Done/Cancel are reachable, and tapping away commits instead of creating another shape |
 | `textblock` | Wrapping, growth, width handles, and that text and callouts share one implementation |
 | `zoom` | Pinch zoom, pan, stroke width fixed to the image, drawing while zoomed |
 | `menu` | Long-press and right-click menus, duplicate, stacking order |

@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Only the canvas should zoom - pinching is handled in-app so the image
+         scales while the toolbar stays put. Safari ignores user-scalable for
+         accessibility, so the real defence against a browser zoom is keeping
+         every focused field at 16px or more (see startBlockEditing). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#252528">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -545,6 +549,31 @@
             box-shadow: 0 2px 12px rgba(0,0,0,0.25);
             border-radius: 4px;
         }
+
+        .block-edit-bar {
+            position: absolute;
+            display: none;
+            gap: 8px;
+            z-index: 1001;
+        }
+
+        .block-edit-bar.open { display: flex; }
+
+        .block-edit-bar button {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: #3a3a40;
+            color: #e8e8ec;
+            cursor: pointer;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+        }
+
+        .block-edit-bar button.primary { background: #3b8eed; border-color: #3b8eed; color: #fff; }
 
         /* ===== LOADING ===== */
         .loading {
@@ -1222,6 +1251,7 @@
                 <canvas id="canvas" width="800" height="600"></canvas>
                 <input type="text" id="canvasTextInput" class="canvas-text-input" placeholder="Type here...">
                 <textarea id="calloutTextInput" class="callout-text-input" placeholder="Type your note…"></textarea>
+                <div id="blockEditBar" class="block-edit-bar"><button type="button" id="blockCancel">Cancel</button><button type="button" id="blockDone" class="primary">Done</button></div>
                 <div class="loading" id="loading">Processing image...</div>
             </div>
 
@@ -2908,7 +2938,13 @@
             calloutTextInput.style.background = isCallout ? '#fff' : 'rgba(255,255,255,0.9)';
             calloutTextInput.style.borderStyle = isCallout ? 'solid' : 'dashed';
             calloutTextInput.style.boxSizing = 'border-box';
-            calloutTextInput.style.fontSize = ((shape.fontSize || defaultFontSize) * toScreen) + 'px';
+            // textHeightOf converts the stored size into canvas units; toScreen
+            // brings it back to the screen. Using the stored size directly here
+            // converted twice and produced ~2px on a phone photo, which made iOS
+            // zoom the whole page to "help" - the field must never be under 16px.
+            const IOS_MIN_FONT_PX = 16;
+            const wantedPx = textHeightOf(shape) * toScreen;
+            calloutTextInput.style.fontSize = Math.max(IOS_MIN_FONT_PX, wantedPx) + 'px';
             calloutTextInput.style.lineHeight = '1.25';
             calloutTextInput.style.fontFamily = shape.fontFamily || defaultFontFamily;
             calloutTextInput.style.fontWeight = shape.fontWeight || defaultFontWeight;
@@ -2917,6 +2953,19 @@
             calloutTextInput.style.color = shape.color;
             calloutTextInput.style.display = 'block';
             calloutTextInput.value = shape.text || '';
+
+            // Anchored under the editor, or above it when that would fall off
+            // the bottom - on a phone the keyboard takes the lower half. Without
+            // a visible Done there was no way to end an edit by touch.
+            const bar = document.getElementById('blockEditBar');
+            bar.classList.add('open');
+            const container = document.querySelector('.canvas-container');
+            const editorBottom = (shape.y + shape.h) * toScreen;
+            const barH = 52;
+            bar.style.left = (shape.x * toScreen) + 'px';
+            bar.style.top = (editorBottom + barH > container.clientHeight
+                ? Math.max(0, shape.y * toScreen - barH)
+                : editorBottom + 8) + 'px';
 
             // Synchronous, so iOS raises the keyboard - same reason as the
             // single-line editor.
@@ -2931,6 +2980,7 @@
 
             editingBlock = null;
             isEditingText = false;
+            document.getElementById('blockEditBar').classList.remove('open');
             calloutTextInput.style.display = 'none';
             calloutTextInput.value = '';
 
@@ -3494,6 +3544,14 @@
             hasEdited = false;
             hadSelectionBeforeMouseDown = selectedShape !== null;
             
+            // A tap outside an open editor finishes it. Without this the same
+            // tap also created another shape, so tapping away from a callout
+            // left a trail of new ones behind.
+            if (editingBlock) {
+                finishBlockEditing(false);
+                return;
+            }
+
             if (tool === 'crop') {
                 const handle = getCropHandleAt(x, y);
                 cropDrag = handle
@@ -4445,6 +4503,14 @@
             // Text input events
             canvasTextInput.addEventListener('blur', handleTextInputBlur);
             calloutTextInput.addEventListener('blur', () => finishBlockEditing(false));
+            document.getElementById('blockDone').addEventListener('pointerdown', e => {
+                e.preventDefault();
+                finishBlockEditing(false);
+            });
+            document.getElementById('blockCancel').addEventListener('pointerdown', e => {
+                e.preventDefault();
+                finishBlockEditing(true);
+            });
             calloutTextInput.addEventListener('keydown', handleBlockInputKeyDown);
             calloutTextInput.addEventListener('input', handleBlockInput);
             canvasTextInput.addEventListener('keydown', handleTextInputKeyDown);
