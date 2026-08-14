@@ -2740,17 +2740,25 @@
                 }
             }
             
-            // Draw resize handles
-            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polyline' || shape.type === 'arrow') {
+            // Draw resize handles. Text blocks and callouts are included: their
+            // width handles and the callout's tip could always be grabbed, but
+            // nothing was drawn for them, so the only way to find one was to
+            // guess where it was.
+            const handled = ['rect', 'ellipse', 'polyline', 'arrow', 'callout', 'text'];
+            if (handled.includes(shape.type)) {
                 const handles = getResizeHandles(shape);
                 ctx.save();
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = 'rgba(59, 142, 237, 0.85)';
                 ctx.lineWidth = UI.outline;
 
                 for (const handle of handles) {
+                    // The tip drags the leader somewhere else entirely rather
+                    // than resizing, so it is filled to read as a different
+                    // thing, and made bigger because it sits out on its own.
+                    const isTip = handle.type === 'callout-tip';
+                    ctx.fillStyle = isTip ? 'rgba(59, 142, 237, 0.85)' : '#ffffff';
+                    ctx.strokeStyle = isTip ? '#ffffff' : 'rgba(59, 142, 237, 0.85)';
                     ctx.beginPath();
-                    ctx.arc(handle.x, handle.y, UI.resizeRadius, 0, 2 * Math.PI);
+                    ctx.arc(handle.x, handle.y, isTip ? UI.rotationRadius : UI.resizeRadius, 0, 2 * Math.PI);
                     ctx.fill();
                     ctx.stroke();
                 }
@@ -3002,6 +3010,13 @@
                 const i = shapes.indexOf(shape);
                 if (i > -1) shapes.splice(i, 1);
                 if (selectedShape === shape) selectedShape = null;
+            } else {
+                // Leave it selected with the select tool active, so the handles
+                // now on screen can actually be dragged. Staying on the drawing
+                // tool drew handles that did nothing when you grabbed them, and
+                // pressing the box again just reopened the keyboard.
+                selectedShape = shape;
+                if (tool === 'callout' || tool === 'text') activateTool('select');
             }
             redraw();
             updateButtonStates();

@@ -158,6 +158,10 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     const m = textBlockMetrics(s);
     return { x: b.x + (s.x + s.w / 2) / k, y: b.y + (s.y + m.height / 2) / k };
   });
+  // Finishing an edit hands you the select tool, so pick the callout tool
+  // again - this is the "callout tool active, tap an existing one" case.
+  await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
+  await page.waitForTimeout(150);
   await tap(onCallout);
   r.tapExistingEdits = await page.evaluate(() => ({
     count: shapes.filter(s => s.type === 'callout').length,
@@ -166,6 +170,45 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   }));
   await page.evaluate(() => finishBlockEditing(true));
   await page.waitForTimeout(150);
+
+  // After placing one, the handles must be on screen and live: selected, on
+  // the select tool, and draggable without picking a tool first.
+  r.afterPlacing = await page.evaluate(() => ({
+    selected: selectedShape === shapes[0],
+    tool,
+    handles: getResizeHandles(shapes[0]).map(h => h.type),
+  }));
+  r.handlesDrawn = await page.evaluate(() => {
+    // The east width handle sits on the box edge; sample the canvas there and
+    // check something was painted over the callout's own fill.
+    const s = shapes[0];
+    const h = getResizeHandles(s).find(g => g.type === 'block-e');
+    const d = ctx.getImageData(Math.round(h.x), Math.round(h.y), 1, 1).data;
+    const tip = getResizeHandles(s).find(g => g.type === 'callout-tip');
+    const t = ctx.getImageData(Math.round(tip.x), Math.round(tip.y), 1, 1).data;
+    return {
+      widthHandlePainted: `rgb(${d[0]},${d[1]},${d[2]})`,
+      tipHandleIsAccent: t[2] > t[0] + 40,
+    };
+  });
+  const tipPt = await page.evaluate(() => {
+    const s = shapes[0];
+    const b = canvas.getBoundingClientRect(); const k = canvas.width / b.width;
+    return { x: b.x + s.tipX / k, y: b.y + s.tipY / k, tipX: s.tipX, boxX: s.x };
+  });
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart', touchPoints: [{ x: tipPt.x, y: tipPt.y }] });
+  for (let i = 1; i <= 4; i++) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x: tipPt.x + i * 15, y: tipPt.y + i * 12 }] });
+    await page.waitForTimeout(25);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(250);
+  r.tipDraggableStraightAfter = await page.evaluate((before) => ({
+    tipMoved: Math.abs(shapes[0].tipX - before.tipX) > 1,
+    boxStayed: Math.abs(shapes[0].x - before.boxX) < 1,
+  }), tipPt);
 
   // A tap with a drawing tool must not leave a zero-sized speck behind; it
   // picks up the shape underneath instead.
