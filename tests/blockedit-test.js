@@ -127,6 +127,79 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     };
   });
 
+  // Tapping an existing callout with the callout tool edits it; it must not
+  // stack a second one on top.
+  await page.evaluate(() => { finishBlockEditing(true); shapes.length = 0; selectedShape = null; redraw(); });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
+  await page.waitForTimeout(150);
+  const tap = async (pt) => {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
+    await page.waitForTimeout(60);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(300);
+  };
+  await tap({ x: box.x + box.w * 0.35, y: box.y + box.h * 0.3 });
+  r.tapCreatesCallout = await page.evaluate(() => ({
+    count: shapes.filter(s => s.type === 'callout').length,
+    editing: !!editingBlock,
+    // Not the bare minimum width a tight drag would floor at.
+    widerThanMinimum: shapes[0].w > calloutMinWidth() * 1.5,
+    fontSize: shapes[0].fontSize,
+  }));
+  await page.keyboard.type('First');
+  await page.evaluate(() => finishBlockEditing(false));
+  await page.waitForTimeout(200);
+
+  const onCallout = await page.evaluate(() => {
+    const s = shapes[0];
+    const b = canvas.getBoundingClientRect();
+    const k = canvas.width / b.width;
+    const m = textBlockMetrics(s);
+    return { x: b.x + (s.x + s.w / 2) / k, y: b.y + (s.y + m.height / 2) / k };
+  });
+  await tap(onCallout);
+  r.tapExistingEdits = await page.evaluate(() => ({
+    count: shapes.filter(s => s.type === 'callout').length,
+    editingSameShape: editingBlock === shapes[0],
+    value: document.getElementById('calloutTextInput').value,
+  }));
+  await page.evaluate(() => finishBlockEditing(true));
+  await page.waitForTimeout(150);
+
+  // A tap with a drawing tool must not leave a zero-sized speck behind; it
+  // picks up the shape underneath instead.
+  await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
+  await page.waitForTimeout(150);
+  await tap({ x: box.x + box.w * 0.75, y: box.y + box.h * 0.15 });
+  r.rectTapOnBlank = await page.evaluate(() => ({
+    shapesAdded: shapes.filter(s => s.type === 'rect').length,
+    stillRectTool: tool === 'rect',
+  }));
+  await tap(onCallout);
+  r.rectTapOnShape = await page.evaluate(() => ({
+    rects: shapes.filter(s => s.type === 'rect').length,
+    selectedIsCallout: selectedShape && selectedShape.type === 'callout',
+    switchedToSelect: tool === 'select',
+  }));
+
+  // Dragging still creates, on the same tool.
+  await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
+  await page.waitForTimeout(150);
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart', touchPoints: [{ x: box.x + 40, y: box.y + box.h - 120 }] });
+  for (let i = 1; i <= 5; i++) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x: box.x + 40 + i * 25, y: box.y + box.h - 120 + i * 10 }] });
+    await page.waitForTimeout(25);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(250);
+  r.dragStillDraws = await page.evaluate(() => {
+    const rects = shapes.filter(s => s.type === 'rect');
+    return { count: rects.length, hasArea: rects.length > 0 && rects[0].w > 0 && rects[0].h > 0 };
+  });
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   console.log(JSON.stringify(r, null, 2));
   await browser.close();

@@ -1233,7 +1233,7 @@
                         <option value="monospace">Monospace</option>
                         <option value="cursive">Cursive</option>
                     </select>
-                    <input type="number" id="fontSize" title="Font size" min="8" max="120" value="24" style="width:50px">
+                    <input type="number" id="fontSize" title="Font size" min="8" max="120" value="16" style="width:50px">
                     <button id="boldToggle" class="tb-btn format-btn" title="Bold"><b>B</b></button>
                     <button id="italicToggle" class="tb-btn format-btn" title="Italic"><i>I</i></button>
                     <button id="alignLeft" class="tb-btn format-btn active" title="Align left">&#9776;</button>
@@ -1383,7 +1383,10 @@
         let fillColorDefault = document.getElementById('fillColor').value;
         let defaultStartStyle = 'none';
         let defaultEndStyle = 'closedArrow';
-        let defaultFontSize = 24;
+        // Screen pixels at fit zoom, so this is the size you actually see
+        // whatever the photo's resolution. 24 was heading-sized and swamped a
+        // callout box on a phone; 16 is ordinary body text and still reads.
+        let defaultFontSize = 16;
         let defaultFontFamily = 'sans-serif';
         let defaultFontWeight = 'normal';
         let defaultFontStyle = 'normal';
@@ -3593,6 +3596,22 @@
                     selectedShape = block;
                     startBlockEditing(block);
                 }
+            } else if (tool === 'callout') {
+                // Pressing an existing callout edits it rather than starting a
+                // new one on top - the same rule the text tool follows. Nobody
+                // draws a fresh callout over one that is already there.
+                const existing = findTextShapeNear(x, y);
+                if (existing) {
+                    e.preventDefault();
+                    selectedShape = existing;
+                    redraw();
+                    updateButtonStates();
+                    startBlockEditing(existing);
+                    return;
+                }
+                drawing = true;
+                startX = x;
+                startY = y;
             } else if (tool === 'polyline') {
                 handlePolylineClick(x, y);
             } else if (tool === 'arrow') {
@@ -3699,6 +3718,25 @@
             const x = coords.x;
             const y = coords.y;
             
+            // A press that never moved is a tap, not a drag. It used to leave a
+            // zero-sized speck behind; now it picks up whatever is under the
+            // finger, so tapping a shape with a drawing tool active means "work
+            // on that one" instead of "start a new nothing here".
+            // The callout tool is exempt: tapping is the quick way to drop a
+            // note, and tapping an existing callout already opened it for
+            // editing back in handleMouseDown.
+            if (tool !== 'select' && tool !== 'callout' && isTapNotDrag(x, y)) {
+                drawing = false;
+                const hit = getAllShapesAtPoint(x, y)[0];
+                if (hit) {
+                    selectedShape = hit.shape;
+                    activateTool('select');
+                }
+                redraw();
+                updateButtonStates();
+                return;
+            }
+
             if (tool === 'select') {
                 handleSelectMouseUp(x, y);
             } else if (tool === 'rect') {
@@ -3713,9 +3751,14 @@
                     id: newShapeId()
                 });
             } else if (tool === 'callout') {
+                // A tap gets a comfortable default box rather than the bare
+                // minimum, which is only meant as a floor for a tight drag.
+                const tapped = isTapNotDrag(x, y);
                 const bx = Math.min(startX, x);
                 const by = Math.min(startY, y);
-                const bw = Math.max(calloutMinWidth(), Math.abs(x - startX));
+                const bw = tapped
+                    ? Math.min(canvas.width * 0.6, screenPxToCanvas(200))
+                    : Math.max(calloutMinWidth(), Math.abs(x - startX));
                 const shape = {
                     type: 'callout',
                     x: bx, y: by, w: bw,
@@ -3783,6 +3826,22 @@
             isResizing = false;
             redraw();
             updateButtonStates();
+        }
+
+        // Fingers wobble, so a touch tap needs a wider slop than a mouse click.
+        function isTapNotDrag(x, y) {
+            if (!mouseDownPos) return false;
+            const slop = screenPxToCanvas(isCoarsePointer() ? 10 : 4);
+            return Math.hypot(x - mouseDownPos.x, y - mouseDownPos.y) < slop;
+        }
+
+        // Switches tool from code, keeping any current selection - unlike a
+        // click on the button, which deliberately clears it.
+        function activateTool(name) {
+            tool = name;
+            document.querySelectorAll('.tool-button').forEach(button => {
+                button.classList.toggle('active', button.dataset.tool === name);
+            });
         }
 
         function handleSelectMouseUp(x, y) {
@@ -4472,6 +4531,16 @@
                 try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
                 handleMouseUp(e);
             });
+            // A touch that ends without moving is followed by a synthesized
+            // mouse sequence, and its mousedown moves focus to the document.
+            // When the release itself opened an editor - tapping to place a
+            // callout - that blurred the field a moment later and the empty
+            // shape was discarded. Suppressing the compatibility events is the
+            // only thing that stops it; preventDefault on the pointer events
+            // does not. touchend runs after pointerup, so the flag is already set.
+            canvas.addEventListener('touchend', e => {
+                if (editingBlock) e.preventDefault();
+            }, { passive: false });
             canvas.addEventListener('dblclick', handleDoubleClick);
             canvas.addEventListener('contextmenu', e => {
                 e.preventDefault();
