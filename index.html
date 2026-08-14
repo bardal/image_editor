@@ -2878,9 +2878,19 @@
         // font, so the wrapping seen while typing is the wrapping produced.
         // One editor for both text blocks and callouts.
         let editingBlock = null;
+        let editingOriginalText = '';
 
         function startBlockEditing(shape) {
+            // Finish any edit already open. The text tool suppresses the default
+            // pointer behaviour to keep focus, which also suppresses the blur
+            // that would otherwise have committed the previous block - leaving
+            // it stranded mid-edit and skipping its empty-shape cleanup.
+            if (editingBlock && editingBlock !== shape) finishBlockEditing(false);
+
             editingBlock = shape;
+            // Keystrokes are written straight onto the shape so the box grows as
+            // you type, so cancelling has to put back what was there.
+            editingOriginalText = String(shape.text || '');
             isEditingText = true;
 
             const rect = canvas.getBoundingClientRect();
@@ -2924,9 +2934,15 @@
             calloutTextInput.style.display = 'none';
             calloutTextInput.value = '';
 
-            // Trailing blank lines would silently pad the block's height, so
-            // they are trimmed. Line breaks within the text are kept.
-            if (!cancel) shape.text = text.replace(/\s+$/, '');
+            if (cancel) {
+                // Undo the live writes, or an existing block cleared then
+                // cancelled would be deleted by the empty check below.
+                shape.text = editingOriginalText;
+            } else {
+                // Trailing blank lines would silently pad the block's height, so
+                // they are trimmed. Line breaks within the text are kept.
+                shape.text = text.replace(/\s+$/, '');
+            }
 
             // An empty callout is just a stray box; drop it rather than leave it.
             if (!String(shape.text || '').trim()) {
@@ -3038,9 +3054,18 @@
             // of a shape, and hesitating before moving would otherwise open the
             // menu instead of drawing. Right-click still works with any tool.
             if (tool !== 'select') return;
+            // A mouse has right-click for this. Arming it here means a press
+            // held still before dragging loses the drag.
+            if (e.pointerType === 'mouse') return;
             longPressOrigin = { x: e.clientX, y: e.clientY };
             longPressTimer = setTimeout(() => {
                 longPressTimer = null;
+                // A press on a handle is an unambiguous intent to manipulate,
+                // so the menu must not steal it - handleMouseDown sets these
+                // straight after this timer is armed. A press on a shape's body
+                // is not: that is exactly where the menu is wanted, and moving
+                // the pointer has already cancelled this timer if it was a drag.
+                if (isResizing || isRotating) return;
                 // Abandon whatever the press had started, so no half-drawn
                 // shape is left behind when the menu takes over.
                 drawing = false;
