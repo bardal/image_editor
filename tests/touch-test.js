@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
@@ -124,7 +125,22 @@ async function main() {
 
   await page.screenshot({ path: 'iphone.png' });
 
-  console.log(JSON.stringify(results, null, 2));
+  finish(results, {
+    'coarsePointer': isTrue,
+    // Hit targets are defined in canvas units; on a 4032px photo shown at 390px
+    // they collapse to a fraction of a screen pixel without the scaling.
+    'scaleFactor': atLeast(5),
+    'handleScreenPx.resizeHitRadius': atLeast(16),
+    'handleScreenPx.rotationHitRadius': atLeast(16),
+    'handleScreenPx.resizeDotRadius': atLeast(7),
+    'shapesAfterTouchDrag': 1,
+    'shapeDrawn.type': 'rect',
+    'pageScrolled': isFalse,
+    'selectedAfterTap': isTrue,
+    'shapeMovedByTap': isFalse,
+    'toolbarFitsWidth': isTrue,
+    'bodyOverflowsX': isFalse,
+  });
   await browser.close();
 }
 

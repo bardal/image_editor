@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas.width*0.5,h:70,
   text:'Existing note',color:'#333',size:3,fill:true,fillColor:'#fff',fontSize:22,
@@ -155,6 +156,22 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
     await page.close();
   }
 
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'handleDragAfterHesitation.tipMoved': isTrue,
+    'handleDragAfterHesitation.menuOpened': isFalse,
+    'mouseDragAfterHesitation.shapeMoved': isTrue,
+    'mouseDragAfterHesitation.menuOpened': isFalse,
+    'emptiedCalloutTapAway.emptyCalloutSurvives': isFalse,
+    'escapeAfterClearing.calloutsLeft': 1,
+    'escapeAfterClearing.textRestored': 'Existing note',
+    'fontSizeFieldReachable': isTrue,
+    'deleteInFontSizeKeepsShape.shapes': 1,
+    'deleteInFontSizeKeepsShape.stillSelected': isTrue,
+    'deleteInFontSizeKeepsShape.focusStillInField': isTrue,
+    'retypingSizeWorks.fontSize': 30,
+    'retypingSizeWorks.labelStarted': isFalse,
+    'retypingSizeWorks.text': 'Existing note',
+    'deleteOnCanvasStillWorks': isTrue,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

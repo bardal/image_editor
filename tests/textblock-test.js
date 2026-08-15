@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -83,6 +84,20 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     document.getElementById('canvasTextInput') !== null);
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'multilineEditorUsed': isTrue,
+    'enterMakesNewline': isTrue,
+    'textWraps.lines': atLeast(2),
+    'widthReflows.reflowed': isTrue,
+    'textHasWidthHandles': ['block-w', 'block-e'],
+    // Text and callouts must go on sharing one implementation.
+    'sharedImplementation.oneWrapper': isTrue,
+    'sharedImplementation.oneMetrics': isTrue,
+    'sharedImplementation.oneRenderer': isTrue,
+    'sharedImplementation.oneEditor': isTrue,
+    'sharedImplementation.oldTextPathGone': isTrue,
+    'legacyMigrates.gotWidth': isTrue,
+    'labelsStillWork': isTrue,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

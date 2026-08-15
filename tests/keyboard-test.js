@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -55,7 +56,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
 
   r.pageErrors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    // iOS only raises the keyboard when focus lands inside the gesture.
+    'focusedSynchronouslyInGesture': isTrue,
+    'inputVisible': isTrue,
+    'textShape': 'Hello phone',
+    'statusBar.chipVisible': isTrue,
+    'statusBar.hintHidden': isTrue,
+  });
 
   await page.evaluate(() => document.querySelector('[data-tool="text"]').click());
   await page.waitForTimeout(150);

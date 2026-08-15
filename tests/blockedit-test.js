@@ -4,6 +4,7 @@
 // way to end the edit; and tapping away created another callout instead of
 // committing the one being typed.
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -158,10 +159,6 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     const m = textBlockMetrics(s);
     return { x: b.x + (s.x + s.w / 2) / k, y: b.y + (s.y + m.height / 2) / k };
   });
-  // Finishing an edit hands you the select tool, so pick the callout tool
-  // again - this is the "callout tool active, tap an existing one" case.
-  await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
-  await page.waitForTimeout(150);
   await tap(onCallout);
   r.tapExistingEdits = await page.evaluate(() => ({
     count: shapes.filter(s => s.type === 'callout').length,
@@ -244,6 +241,43 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'editorFont.iosWouldZoomPage': isFalse,
+    'doneBarVisible.open': isTrue,
+    'doneBarVisible.onScreen': isTrue,
+    'afterTapAway.callouts': 1,
+    'afterTapAway.text': ['Some note'],
+    'afterTapAway.editorClosed': isTrue,
+    'doneCommits.text': 'Edited via Done',
+    'doneCommits.closed': isTrue,
+    'doneCommits.barHidden': isTrue,
+    'cancelRestores.text': 'Edited via Done',
+    'cancelRestores.stillThere': 1,
+    'textTool.iosWouldZoomPage': isFalse,
+    'textTool.barOpen': isTrue,
+    'tapCreatesCallout.count': 1,
+    'tapCreatesCallout.editing': isTrue,
+    'tapCreatesCallout.widerThanMinimum': isTrue,
+    'tapCreatesCallout.fontSize': 16,
+    'tapExistingEdits.count': 1,
+    'tapExistingEdits.editingSameShape': isTrue,
+    'tapExistingEdits.value': 'First',
+    'afterPlacing.selected': isTrue,
+    // The tool is kept, so several callouts can be placed in a row; the
+  // handles work anyway.
+  'afterPlacing.tool': 'callout',
+    'afterPlacing.handles': ['block-w', 'block-e', 'callout-tip'],
+    'handlesDrawn.widthHandlePainted': 'rgb(255,255,255)',
+    'handlesDrawn.tipHandleIsAccent': isTrue,
+    'tipDraggableStraightAfter.tipMoved': isTrue,
+    'tipDraggableStraightAfter.boxStayed': isTrue,
+    'rectTapOnBlank.shapesAdded': 0,
+    'rectTapOnBlank.stillRectTool': isTrue,
+    'rectTapOnShape.rects': 0,
+    'rectTapOnShape.selectedIsCallout': isTrue,
+    'rectTapOnShape.switchedToSelect': isTrue,
+    'dragStillDraws.count': 1,
+    'dragStillDraws.hasArea': isTrue,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

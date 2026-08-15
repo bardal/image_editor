@@ -3,6 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -12,11 +13,37 @@ permissions:
 
 # Allow one deploy at a time; don't cancel a run that's mid-deploy.
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # Nothing reaches the site until the suites pass. They drive a real Chromium
+  # as both a phone and a desktop, and each one asserts its report rather than
+  # only checking that the page did not throw.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: npm install --no-save playwright@1.62.1
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the suites
+        run: ./tests/run-all.sh
+
   deploy:
+    needs: test
+    # Pull requests get the tests only; publishing happens from main.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

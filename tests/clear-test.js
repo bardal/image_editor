@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 const seed = async (page) => page.evaluate(async () => {
@@ -74,6 +75,24 @@ const seed = async (page) => page.evaluate(async () => {
   r.afterClearAllReload = await page.evaluate(() => ({ shapes: shapes.length, hasImage: !!img }));
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'emptyCanvas.dialogShown': isFalse,
+    'emptyCanvas.toast': 'Nothing to clear',
+    'withBoth.dialogShown': isTrue,
+    'withBoth.summary': '1 shape drawn on an image.',
+    'withBoth.shapesOptionEnabled': isTrue,
+    'withBoth.allOptionEnabled': isTrue,
+    'afterClearDrawing.shapes': 0,
+    'afterClearDrawing.hasImage': isTrue,
+    'imageOnly.summary': 'An image with no annotations.',
+    'imageOnly.shapesOptionEnabled': isFalse,
+    'imageOnly.allOptionEnabled': isTrue,
+    'afterClearAll.shapes': 0,
+    'afterClearAll.hasImage': isFalse,
+    // Clearing everything must survive a reload - it used to be left to the
+    // save debounce, so the shapes came straight back.
+    'afterClearAllReload.shapes': 0,
+    'afterClearAllReload.hasImage': isFalse,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

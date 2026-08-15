@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -92,6 +93,21 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   r.overlayCleared = await page.evaluate(() => cropRect === null);
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'cropModeOn': isTrue,
+    'afterCrop.canvas': [600, 500],
+    'afterCrop.shape': [200, 150],
+    'afterCrop.imgOffset.x': -200,
+    'afterCrop.imgOffset.y': -150,
+    'cropKeptAlignment': 'rgb(255,0,0)',
+    'afterExpand.canvas': [1600, 1400],
+    'afterExpand.shape': [600, 550],
+    // Expanded margins stay transparent, in the app and in the export.
+    'marginAlpha': 0,
+    'exportedMarginAlpha': 0,
+    'afterReset.canvas': [1000, 800],
+    'afterReset.shape': [400, 300],
+    'overlayCleared': isTrue,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

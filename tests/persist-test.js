@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -79,6 +80,19 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   r.afterClearReload = await page.evaluate(() => ({ shapes: shapes.length, hasImage: !!img }));
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'after.shapes': 2,
+    'after.texts': ['Keep me'],
+    'after.canvas': [900, 600],
+    'after.hasImage': isTrue,
+    'after.imageSize': [900, 600],
+    'imagePixelRestored': 'rgb(61,107,143)',
+    'afterCropReload.canvas': [500, 400],
+    'afterCropReload.imgOffset.x': -50,
+    'afterCropReload.imgOffset.y': -40,
+    'afterCropReload.shapes': 2,
+    'afterClearReload.shapes': 0,
+    'afterClearReload.hasImage': isTrue,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

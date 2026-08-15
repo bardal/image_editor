@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -67,6 +68,17 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   r.afterSecondLineEnd = await state();
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'afterStartTap.drawing': isFalse,
+    'afterFirstDrag.drawing': isTrue,
+    'afterFirstDrag.pending': 2,
+    'afterSecondDrag.pending': 3,
+    'afterEndingTap.drawing': isFalse,
+    'afterEndingTap.committed': 1,
+    'afterEndingTap.lastPts': 3,
+    'afterSecondLineDrag.drawing': isTrue,
+    'afterSecondLineEnd.committed': 2,
+    'afterSecondLineEnd.lastPts': 2,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

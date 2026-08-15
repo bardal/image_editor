@@ -1,0 +1,11 @@
+{
+  "name": "image-editor",
+  "private": true,
+  "description": "Browser image annotation tool. The app itself has no dependencies and no build step; this file exists only to pin the test runner.",
+  "scripts": {
+    "test": "./tests/run-all.sh"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

@@ -1915,6 +1915,10 @@
             closeClearOptions();
             redraw();
             updateButtonStates();
+            // Written now rather than left to the debounce. Clearing is the one
+            // action where a reload a moment later must not bring the drawing
+            // back, and the pagehide flush cannot be relied on to finish.
+            saveSession();
             showToast('Drawing cleared');
         }
 
@@ -1931,6 +1935,9 @@
             resizeCanvas();
             if (tool === 'crop') startCropMode();
             updateButtonStates();
+            // Same reason as clearShapesOnly: without this the stale document
+            // survived, so a reload restored the shapes that were just cleared.
+            await saveSession();
             showToast('Cleared');
         }
 
@@ -2128,11 +2135,16 @@
         }
 
         // ===== SHAPE MANIPULATION =====
+        // Kept clear of the shape by a fixed distance on screen. A raw canvas
+        // offset shrinks to nothing on a big photo - 20 units is 2 screen pixels
+        // on a 4032px image - so the handle would sit on the shape's own edge.
+        function rotationGap() { return screenPxToCanvas(20); }
+
         function getRotationHandle(shape) {
             if (shape.type === 'rect') {
                 const centerX = shape.x + shape.w / 2;
                 const centerY = shape.y + shape.h / 2;
-                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + 20;
+                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + rotationGap();
                 return {
                     x: centerX + handleDistance * Math.cos(shape.rotation || 0),
                     y: centerY + handleDistance * Math.sin(shape.rotation || 0),
@@ -2142,7 +2154,7 @@
             } else if (shape.type === 'ellipse') {
                 const centerX = shape.x + shape.w / 2;
                 const centerY = shape.y + shape.h / 2;
-                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + 20;
+                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(shape.h)) / 2 + rotationGap();
                 return {
                     x: centerX + handleDistance * Math.cos(shape.rotation || 0),
                     y: centerY + handleDistance * Math.sin(shape.rotation || 0),
@@ -2150,13 +2162,19 @@
                     centerY: centerY
                 };
             } else if (shape.type === 'text') {
-                const textHeight = textHeightOf(shape);
-                const centerY = shape.y + textHeight / 2;
-                const handleDistance = textHeight / 2 + 20;
+                // Anchored to the whole block. This used to sit half a line
+                // height plus 20 to the right of shape.x, from when text was a
+                // single line with no width - on a real block that lands inside
+                // the box, on top of the words, and swallowed the presses meant
+                // to edit them.
+                const height = textBlockMetrics(shape).height;
+                const centerX = shape.x + shape.w / 2;
+                const centerY = shape.y + height / 2;
+                const handleDistance = Math.max(Math.abs(shape.w), Math.abs(height)) / 2 + rotationGap();
                 return {
-                    x: shape.x + handleDistance * Math.cos(shape.rotation || 0),
+                    x: centerX + handleDistance * Math.cos(shape.rotation || 0),
                     y: centerY + handleDistance * Math.sin(shape.rotation || 0),
-                    centerX: shape.x,
+                    centerX: centerX,
                     centerY: centerY
                 };
             } else if (shape.type === 'arrow') {
@@ -3011,12 +3029,11 @@
                 if (i > -1) shapes.splice(i, 1);
                 if (selectedShape === shape) selectedShape = null;
             } else {
-                // Leave it selected with the select tool active, so the handles
-                // now on screen can actually be dragged. Staying on the drawing
-                // tool drew handles that did nothing when you grabbed them, and
-                // pressing the box again just reopened the keyboard.
+                // Left selected so its handles are on screen and ready to drag.
+                // The tool is deliberately not changed: handles work whatever
+                // tool is active (see handleMouseDown), so you can place several
+                // callouts in a row without picking the tool again each time.
                 selectedShape = shape;
-                if (tool === 'callout' || tool === 'text') activateTool('select');
             }
             redraw();
             updateButtonStates();
@@ -3570,6 +3587,18 @@
                 return;
             }
 
+            // A handle belongs to the selected shape whatever tool is active, so
+            // the handles that appear after placing a callout can be dragged
+            // straight away rather than only after switching to select. Only
+            // handles, not the shape's body - dragging inside a shape has to go
+            // on drawing a new one.
+            if (selectedShape && tool !== 'select' && tool !== 'crop' &&
+                (isPointNearResizeHandle(x, y, selectedShape) ||
+                 isPointNearRotationHandle(x, y, selectedShape))) {
+                handleSelectMouseDown(x, y);
+                return;
+            }
+
             if (tool === 'crop') {
                 const handle = getCropHandleAt(x, y);
                 cropDrag = handle
@@ -3718,6 +3747,16 @@
         }
 
         function handleMouseUp(e) {
+            // Finish a handle drag that began under a drawing tool before any of
+            // the tool-specific handling gets a look at this release.
+            if ((isResizing || isRotating) && tool !== 'select') {
+                isResizing = false;
+                isRotating = false;
+                drawing = false;
+                redraw();
+                updateButtonStates();
+                return;
+            }
             if (tool === 'crop') {
                 cropDrag = null;
                 return;
@@ -3905,7 +3944,15 @@
                     hasEdited = true;
                 }
             }
-            
+
+            // A handle drag started under a drawing tool carries on through the
+            // select-mode logic. The active tool decides what a fresh press
+            // does, not what an in-progress drag does.
+            if ((isResizing || isRotating) && tool !== 'select') {
+                handleSelectMouseMove(x, y);
+                return;
+            }
+
             if (tool === 'select') {
                 handleSelectMouseMove(x, y);
             } else if (tool === 'polyline' && isDrawingPolyline) {

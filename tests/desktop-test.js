@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -116,6 +117,21 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
 
   r.pageErrors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'coarsePointer': isFalse,
+    'shapesAfterMouseDrag': 1,
+    'strokeScreenPx': atLeast(2),
+    'handleScreenPx': atLeast(6),
+    'labelEditorOpened': isTrue,
+    // A mouse press moves focus to the document by default; this is the check
+    // that placing text on a PC no longer commits itself instantly.
+    'textStaysFocusedAfterClick': isTrue,
+    'textCommitted': ['Typed on PC'],
+    'reopensExistingText': 'Typed on PC',
+    'textPropLabel.label': 'Colour',
+    'textPropLabel.sliderHidden': isTrue,
+    'rectPropLabel.label': 'Line',
+    'rectPropLabel.sliderHidden': isFalse,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

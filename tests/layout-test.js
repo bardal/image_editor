@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -73,10 +74,24 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return { alignRightVisibleAfterScroll: b.left >= -1 && b.right <= window.innerWidth + 1 };
   });
 
-  console.log(JSON.stringify({
+  finish({
     byTool, scrollProof,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
-  }, null, 2));
+  }, {
+    'byTool.select.toolStripPinnedBottom': isTrue,
+    'byTool.select.toolsAllVisible': isTrue,
+    'byTool.select.unreachableInProps': isEmpty,
+    'byTool.select.canvasClearOfBars': isTrue,
+    'byTool.text.toolStripPinnedBottom': isTrue,
+    'byTool.text.propsShown': isTrue,
+    'byTool.text.propsAboveStrip': isTrue,
+    'byTool.text.unreachableInProps': isEmpty,
+    'byTool.text.canvasClearOfBars': isTrue,
+    'byTool.arrow.propsShown': isTrue,
+    'byTool.arrow.unreachableInProps': isEmpty,
+    'byTool.arrow.canvasClearOfBars': isTrue,
+    'scrollProof.alignRightVisibleAfterScroll': isTrue,
+  });
   await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
   await page.waitForTimeout(150);
   await page.screenshot({ path: 'mobile-new.png' });

@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -120,6 +121,20 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'created.hasTip': isTrue,
+    'created.filled': isTrue,
+    'created.w': atLeast(1),
+    'editorOpen': isTrue,
+    'heightGrewWhileTyping.lines': atLeast(2),
+    'committed.text': 'This note is deliber',
+    'committed.lines': atLeast(2),
+    'tipMovedBoxStayed.tipMoved': isTrue,
+    'tipMovedBoxStayed.boxUnmoved': isTrue,
+    'boxDragCarriesTip.boxMoved': isTrue,
+    'boxDragCarriesTip.tipFollowed': isTrue,
+    'widthReflows.reflowed': isTrue,
+    'survivesReload.text': 'This note is deliber',
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

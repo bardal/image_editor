@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -99,6 +100,23 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   r.expectedTouchPoint = { x: Math.round(box.x + 120), y: Math.round(box.y + 150) };
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'startZoom.scale': 1,
+    'startZoom.chip': '100%',
+    'afterPinch.scale': atLeast(2),
+    'afterPinch.chipHighlighted': isTrue,
+    'afterPinch.transformed': isTrue,
+    'noStrayShape': isTrue,
+    // Stroke width is fixed to the image, so zooming does not fatten a line.
+    'strokeAcrossZoom': v => v && Math.abs(v.atFit - v.at4x) < 0.01,
+    'afterReset.scale': 1,
+    'afterReset.chip': '100%',
+    'afterReset.transform': '',
+    'oneFingerStillDraws.shapes': 1,
+    'oneFingerStillDraws.zoomUnchanged': isTrue,
+    // Drawn while zoomed in, the shape must land back under the finger.
+    'drawWhileZoomed.screenX': near(r.expectedTouchPoint.x, 2),
+    'drawWhileZoomed.screenY': near(r.expectedTouchPoint.y, 2),
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

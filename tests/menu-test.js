@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
@@ -104,6 +105,19 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
-  console.log(JSON.stringify(r, null, 2));
+  finish(r, {
+    'blankMenu': ['Paste image', 'Open image…'],
+    'menuOpen': isTrue,
+    'noStrayShape': isTrue,
+    'shapeMenu': ['Duplicate', 'Bring to front', 'Send to back', 'Delete'],
+    'orderBefore': [1, 2],
+    'orderAfterFront': [2, 1],
+    'afterDuplicate.count': 3,
+    'afterDuplicate.selectedIsCopy': isTrue,
+    'sentToBackIsFirst': isTrue,
+    // A drag that hesitates is still a drag, not a long press.
+    'dragDidNotOpenMenu': isTrue,
+    'staysOnScreen': isTrue,
+  });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
