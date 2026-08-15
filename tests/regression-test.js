@@ -113,6 +113,48 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
     await page.close();
   }
 
+  // ---- Finding 4: toolbar keystrokes reaching the canvas shortcuts ----
+  // Backspacing the font size box deleted the selected shape, and typing a
+  // digit into it started a label on that shape.
+  {
+    const page = await browser.newPage({ viewport:{width:1440,height:900} });
+    await page.goto(APP); await page.waitForTimeout(400);
+    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
+    await page.reload(); await page.waitForTimeout(400);
+    await page.evaluate(`shapes.push(${CALLOUT}); document.querySelector('[data-tool="select"]').click();
+      selectedShape = shapes[0]; redraw(); updateButtonStates();`);
+    await page.waitForTimeout(200);
+    r.fontSizeFieldReachable = await page.evaluate(() =>
+      document.getElementById('textFormatGroup').classList.contains('visible'));
+
+    await page.focus('#fontSize');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(200);
+    r.deleteInFontSizeKeepsShape = await page.evaluate(() => ({
+      shapes: shapes.length,
+      stillSelected: selectedShape === shapes[0],
+      focusStillInField: document.activeElement.id === 'fontSize',
+    }));
+
+    // Retyping a size must retitle nothing and resize the text.
+    await page.fill('#fontSize', '');
+    await page.type('#fontSize', '30');
+    await page.waitForTimeout(200);
+    r.retypingSizeWorks = await page.evaluate(() => ({
+      fontSize: shapes[0] && shapes[0].fontSize,
+      labelStarted: !!editingLabelShape,
+      text: shapes[0] && shapes[0].text,
+    }));
+
+    // With focus back on the page, Delete must still remove the shape.
+    await page.evaluate(() => document.getElementById('fontSize').blur());
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(200);
+    r.deleteOnCanvasStillWorks = await page.evaluate(() => shapes.length === 0);
+    await page.close();
+  }
+
   console.log(JSON.stringify(r, null, 2));
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

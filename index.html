@@ -4178,7 +4178,19 @@
         }
 
         // ===== KEYBOARD HANDLERS =====
+        // A key pressed inside a form field belongs to that field. The canvas
+        // shortcuts listen on the window, so without this, backspacing the font
+        // size box deleted the selected shape, and typing a digit into it
+        // started a label on that shape instead.
+        function isTypingInField(target) {
+            if (!target || target.isContentEditable) return !!target;
+            return target.tagName === 'INPUT'
+                || target.tagName === 'TEXTAREA'
+                || target.tagName === 'SELECT';
+        }
+
         function handleKeyDown(e) {
+            if (isTypingInField(e.target)) return;
             if (isEditingText) return; // Let the text input handle it
             if (isDrawingPolyline && (e.key === 'Enter' || e.key === 'Escape')) {
                 finishPolyline();
