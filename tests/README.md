@@ -70,6 +70,7 @@ does not.
 | `blockedit` | Editing text on a phone: the editor stays at 16px or more so Safari cannot zoom the page, Done/Cancel are reachable, and tapping away commits instead of creating another shape |
 | `textblock` | Wrapping, growth, width handles, and that text and callouts share one implementation |
 | `zoom` | Pinch zoom, pan, stroke width fixed to the image, drawing while zoomed |
+| `pinch` | The spot between your fingers staying put, out-and-back without creeping, and enough bitmap for the screen at any zoom |
 | `menu` | Long-press and right-click menus, duplicate, stacking order |
 | `crop` | Crop, expand, transparent margins, reset |
 | `clear` | Clearing the drawing, everything, and what survives a reload |

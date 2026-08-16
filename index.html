@@ -1446,13 +1446,25 @@
             const container = document.querySelector('.canvas-container');
             const cw = container.clientWidth;
             const ch = container.clientHeight;
-            // Unscaled on-screen size of the canvas at fit.
-            const baseW = canvas.getBoundingClientRect().width / viewScale;
-            const baseH = canvas.getBoundingClientRect().height / viewScale;
+            // Layout geometry: offsetWidth and offsetLeft ignore the transform,
+            // so they describe the canvas as laid out whatever is painted. The
+            // rect does not, and reading it here - before applyView had run -
+            // clamped against the previous frame and shifted the picture.
+            const baseW = canvas.offsetWidth;
+            const baseH = canvas.offsetHeight;
+            const baseLeft = canvas.offsetLeft;
+            const baseTop = canvas.offsetTop;
             const scaledW = baseW * viewScale;
             const scaledH = baseH * viewScale;
-            viewOffset.x = Math.min(0, Math.max(viewOffset.x, cw - scaledW - (cw - baseW) / 2 * 2));
-            viewOffset.y = Math.min(0, Math.max(viewOffset.y, ch - scaledH));
+            // Bigger than the container: keep it covering, so no empty strip can
+            // be dragged into view. Smaller: keep it centred, as the layout has
+            // it, rather than adrift in the space around it.
+            viewOffset.x = scaledW >= cw
+                ? Math.min(-baseLeft, Math.max(viewOffset.x, cw - baseLeft - scaledW))
+                : (cw - scaledW) / 2 - baseLeft;
+            viewOffset.y = scaledH >= ch
+                ? Math.min(-baseTop, Math.max(viewOffset.y, ch - baseTop - scaledH))
+                : (ch - scaledH) / 2 - baseTop;
         }
 
         function setZoom(scale, centreClientX, centreClientY) {
@@ -1461,11 +1473,15 @@
             const next = Math.max(1, Math.min(MAX_ZOOM, scale));
             if (next === prev) return;
             // Keep the point under the fingers pinned while the scale changes.
-            const cx = centreClientX - rect.left;
-            const cy = centreClientY - rect.top;
-            viewOffset.x += cx - (cx / prev) * next;
-            viewOffset.y += cy - (cy / prev) * next;
+            // Outside a gesture the painted frame matches viewScale/viewOffset,
+            // so the untransformed origin can be recovered from the rect.
+            const baseLeft = rect.left - viewOffset.x;
+            const baseTop = rect.top - viewOffset.y;
+            const px = (centreClientX - rect.left) / prev;
+            const py = (centreClientY - rect.top) / prev;
             viewScale = next;
+            viewOffset.x = centreClientX - baseLeft - px * next;
+            viewOffset.y = centreClientY - baseTop - py * next;
             clampView();
             applyView();
         }
@@ -1520,6 +1536,18 @@
         }
 
         // ===== CANVAS UTILITIES =====
+        // Enough bitmap for the screen and for a couple of steps of zoom, held
+        // well inside the canvas-size limits that phones enforce.
+        function blankCanvasScale() {
+            const dpr = window.devicePixelRatio || 1;
+            const wanted = dpr * 1.5;
+            const size = calculateCanvasSize();
+            const longest = Math.max(size.width, size.height) || 1;
+            const byDimension = 4000 / longest;
+            const byArea = Math.sqrt(8e6 / Math.max(1, size.width * size.height));
+            return Math.max(1, Math.min(wanted, byDimension, byArea));
+        }
+
         function calculateCanvasSize() {
             const container = document.querySelector('.canvas-container');
             const containerWidth = container.clientWidth;
@@ -1546,9 +1574,15 @@
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
             } else {
+                // With no photo to take its resolution from, the blank canvas is
+                // sized for the screen rather than for CSS pixels. A phone packs
+                // three device pixels into each CSS pixel and zooming stretches
+                // the bitmap further still, so at one canvas pixel per CSS pixel
+                // the drawing was soft and washed out before you even pinched.
                 const size = calculateCanvasSize();
-                canvas.width = size.width;
-                canvas.height = size.height;
+                const k = blankCanvasScale();
+                canvas.width = Math.round(size.width * k);
+                canvas.height = Math.round(size.height * k);
             }
             redraw();
             updateImageInfo();
@@ -3093,12 +3127,18 @@
 
         function beginPinch() {
             const m = pointerPairMetrics();
+            // Where the canvas's top-left would be with no transform. Captured
+            // once, because the bounding rect during a gesture reports the frame
+            // that has been painted, not the one being computed.
+            const rect = canvas.getBoundingClientRect();
             pinchStart = {
                 distance: m.distance,
                 scale: viewScale,
                 centreX: m.centreX,
                 centreY: m.centreY,
                 offset: { ...viewOffset },
+                baseLeft: rect.left - viewOffset.x,
+                baseTop: rect.top - viewOffset.y,
             };
             // A second finger means this was never a stroke - abandon whatever
             // the first finger began rather than leaving it half-made.
@@ -3116,20 +3156,20 @@
             const m = pointerPairMetrics();
             const target = pinchStart.scale * (m.distance / pinchStart.distance);
 
-            // Pan by however far the midpoint between the fingers has moved.
-            viewOffset = {
-                x: pinchStart.offset.x + (m.centreX - pinchStart.centreX),
-                y: pinchStart.offset.y + (m.centreY - pinchStart.centreY),
-            };
+            // The point of the picture that was between the fingers when the
+            // pinch began, in canvas units.
+            const px = (pinchStart.centreX - pinchStart.baseLeft - pinchStart.offset.x) / pinchStart.scale;
+            const py = (pinchStart.centreY - pinchStart.baseTop - pinchStart.offset.y) / pinchStart.scale;
+
             viewScale = Math.max(1, Math.min(MAX_ZOOM, target));
 
-            // Then zoom about the midpoint so the picture stays under the fingers.
-            const rect = canvas.getBoundingClientRect();
-            const prevScale = pinchStart.scale;
-            const cx = pinchStart.centreX - rect.left;
-            const cy = pinchStart.centreY - rect.top;
-            viewOffset.x += cx - (cx / prevScale) * viewScale;
-            viewOffset.y += cy - (cy / prevScale) * viewScale;
+            // Put that same point back under where the fingers are now. Pan and
+            // zoom fall out of the one calculation, worked from the start of the
+            // gesture, so nothing accumulates between frames - the previous
+            // version adjusted the offset it had just written using a rect that
+            // still described the frame before, and the picture slid away.
+            viewOffset.x = m.centreX - pinchStart.baseLeft - px * viewScale;
+            viewOffset.y = m.centreY - pinchStart.baseTop - py * viewScale;
 
             clampView();
             applyView();
