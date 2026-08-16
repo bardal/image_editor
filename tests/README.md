@@ -51,6 +51,16 @@ Suites using `devices['iPhone 13']` drive real touch events through CDP;
 `desktop-test.js` drives a mouse. Anything touching input should be covered by
 both.
 
+## Not covered
+
+Two things are deliberately absent. HEIC conversion needs the CDN library and a
+real HEIC file. And every "phone" suite is Chromium emulating an iPhone, not
+Safari: the two worst faults this app has had were Safari behaviours Chromium
+does not reproduce - the force-zoom on a sub-16px field, and the synthesised
+mouse events after a tap. What the suites assert there are proxies for what
+Safari is believed to do. If that belief is wrong, they stay green and the phone
+does not.
+
 ## Suites
 
 | Suite | Covers |
@@ -68,3 +78,9 @@ both.
 | `line` | Drag adds a segment, tap ends it |
 | `desktop` | Mouse drawing, text entry, labels |
 | `layout` | Phone layout: pinned bars, nothing unreachable, tap targets |
+| `rotate` | Rotating a rect, an ellipse and a text block by mouse and by touch, and the handle staying clear of the shape |
+| `export` | The saved PNG: full resolution, follows a crop, and carries no selection outline or handles |
+| `undo` | Every kind of change being its own step - draw, move, resize, delete, text edit, colour |
+| `controls` | Colour, stroke width, fill, font family and size, bold, italic, alignment, arrow ends |
+| `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |
+| `misc` | Paste, closing a polygon, shape labels, cycling a stack, the service worker |

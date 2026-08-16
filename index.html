@@ -1910,11 +1910,13 @@
         }
 
         function clearShapesOnly() {
+            beginUndo();
             shapes = [];
             selectedShape = null;
             closeClearOptions();
             redraw();
             updateButtonStates();
+            commitUndo();
             // Written now rather than left to the debounce. Clearing is the one
             // action where a reload a moment later must not bring the drawing
             // back, and the pagehide flush cannot be relied on to finish.
@@ -2138,7 +2140,14 @@
         // Kept clear of the shape by a fixed distance on screen. A raw canvas
         // offset shrinks to nothing on a big photo - 20 units is 2 screen pixels
         // on a 4032px image - so the handle would sit on the shape's own edge.
-        function rotationGap() { return screenPxToCanvas(20); }
+        //
+        // A finger needs more room than that. Resize handles grab from 20 screen
+        // pixels away and are checked first, so at a 20px gap the rotation handle
+        // could never be reached by touch: the press always resized instead. The
+        // gap has to clear the resize reach plus the rotation handle's own.
+        function rotationGap() {
+            return screenPxToCanvas(isCoarsePointer() ? 46 : 20);
+        }
 
         function getRotationHandle(shape) {
             if (shape.type === 'rect') {
@@ -2307,6 +2316,7 @@
         }
 
         function startLabelEditing(shape, initialChar) {
+            beginEditUndo();
             const center = getShapeCenter(shape);
             isEditingText = true;
             editingLabelShape = shape;
@@ -2349,6 +2359,7 @@
             canvasTextInput.value = '';
             editingLabelShape = null;
             isEditingText = false;
+            commitEditUndo();
             redraw();
         }
 
@@ -2486,7 +2497,7 @@
 
         // ===== UI UPDATES =====
         function updateButtonStates() {
-            undoBtn.disabled = shapes.length === 0;
+            undoBtn.disabled = undoStack.length === 0;
             deleteBtn.disabled = selectedShape === null;
             const fillToggle = document.getElementById('fillToggle');
             if (canFill(selectedShape)) {
@@ -2940,6 +2951,7 @@
         let editingOriginalText = '';
 
         function startBlockEditing(shape) {
+            beginEditUndo();
             // Finish any edit already open. The text tool suppresses the default
             // pointer behaviour to keep focus, which also suppresses the blur
             // that would otherwise have committed the previous block - leaving
@@ -3035,6 +3047,7 @@
                 // callouts in a row without picking the tool again each time.
                 selectedShape = shape;
             }
+            commitEditUndo();
             redraw();
             updateButtonStates();
         }
@@ -3254,24 +3267,29 @@
         // Shapes draw in array order, so position in the array is the stacking
         // order. Neither of these was reachable before the context menu.
         function bringShapeToFront(s) {
+            beginUndo();
             const i = shapes.indexOf(s);
-            if (i < 0 || i === shapes.length - 1) return;
+            if (i < 0 || i === shapes.length - 1) { commitUndo(); return; }
             shapes.splice(i, 1);
             shapes.push(s);
+            commitUndo();
             redraw();
             showToast('Brought to front');
         }
 
         function sendShapeToBack(s) {
+            beginUndo();
             const i = shapes.indexOf(s);
-            if (i <= 0) return;
+            if (i <= 0) { commitUndo(); return; }
             shapes.splice(i, 1);
             shapes.unshift(s);
+            commitUndo();
             redraw();
             showToast('Sent to back');
         }
 
         function duplicateShape(s) {
+            beginUndo();
             // Shapes are plain data, so a structural copy is enough.
             const copy = JSON.parse(JSON.stringify(s));
             copy.id = newShapeId();
@@ -3280,6 +3298,7 @@
             translateShape(copy, screenPxToCanvas(16), screenPxToCanvas(16));
             shapes.push(copy);
             selectedShape = copy;
+            commitUndo();
             redraw();
             updateButtonStates();
             showToast('Duplicated');
@@ -4262,6 +4281,7 @@
         }
 
         function deleteSelectedShape() {
+            beginUndo();
             if (selectedShape) {
                 const index = shapes.indexOf(selectedShape);
                 if (index > -1) {
@@ -4277,19 +4297,80 @@
                         });
                     }
                     selectedShape = null;
+                    commitUndo();
                     redraw();
                     updateButtonStates();
                 }
             }
+            undoBefore = null;
+        }
+
+        // ===== UNDO =====
+        // Whole-drawing snapshots. This used to be shapes.pop(), which removed
+        // the most recently added shape whatever you had actually just done - so
+        // undo after moving a box deleted a different box, and a move, a resize,
+        // a text edit or a delete could not be undone at all.
+        //
+        // Anything that changes the drawing brackets itself with beginUndo and
+        // commitUndo. A snapshot that turns out identical is dropped, so a press
+        // that only selected something does not consume a step.
+        const UNDO_LIMIT = 40;
+        let undoStack = [];
+        let undoBefore = null;
+        let editUndoBefore = null;
+
+        function snapshotShapes() {
+            return shapes.map(s => {
+                const copy = { ...s };
+                if (Array.isArray(s.points)) copy.points = s.points.map(p => ({ ...p }));
+                return copy;
+            });
+        }
+
+        function pushUndo(before) {
+            if (!before || JSON.stringify(before) === JSON.stringify(shapes)) return;
+            undoStack.push(before);
+            if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+            updateButtonStates();
+        }
+
+        function beginUndo() {
+            undoBefore = snapshotShapes();
+        }
+
+        function commitUndo() {
+            const before = undoBefore;
+            undoBefore = null;
+            pushUndo(before);
+        }
+
+        // The editors commit long after the press that opened them - on Done, on
+        // blur, on Escape - so they keep their own before-state rather than
+        // sharing the gesture's, which has been committed by then.
+        function beginEditUndo() {
+            editUndoBefore = snapshotShapes();
+        }
+
+        function commitEditUndo() {
+            const before = editUndoBefore;
+            editUndoBefore = null;
+            pushUndo(before);
+        }
+
+        // For actions that are not a drag - a menu item, a button, a keystroke.
+        function recordUndo(fn) {
+            beginUndo();
+            fn();
+            commitUndo();
         }
 
         function undoLastAction() {
-            if (shapes.length > 0) {
-                shapes.pop();
-                selectedShape = null;
-                redraw();
-                updateButtonStates();
-            }
+            if (!undoStack.length) return;
+            shapes = undoStack.pop();
+            selectedShape = null;
+            undoBefore = null;
+            redraw();
+            updateButtonStates();
         }
 
         // ===== TEXT INPUT HANDLERS =====
@@ -4477,6 +4558,26 @@
         }
         
         // ===== COPY/PASTE HANDLERS =====
+        // The canvas carries the selection outline, its handles and the crop
+        // frame. None of that belongs in a picture you save or paste somewhere
+        // else, so the export redraws once without them, grabs the bitmap, and
+        // puts the selection back. toBlob captures the bitmap when it is called,
+        // so it is safe to restore before the encoding finishes.
+        function withCleanCanvas(fn) {
+            const heldSelection = selectedShape;
+            const heldCrop = cropRect;
+            selectedShape = null;
+            cropRect = null;
+            redraw();
+            try {
+                return fn();
+            } finally {
+                selectedShape = heldSelection;
+                cropRect = heldCrop;
+                redraw();
+            }
+        }
+
         async function copyImageToClipboard() {
             // The canvas is usable without a background image - shapes drawn on
             // the blank canvas are just as copyable, so this keys off whether
@@ -4494,9 +4595,9 @@
                 // still active, so the blob Promise is handed to ClipboardItem
                 // rather than awaited first - awaiting here would drop the
                 // activation and the copy would be rejected on iOS.
-                const blobPromise = new Promise((resolve, reject) => {
+                const blobPromise = withCleanCanvas(() => new Promise((resolve, reject) => {
                     canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not read canvas.')), 'image/png');
-                });
+                }));
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
                 showToast('Copied to clipboard');
             } catch (err) {
@@ -4565,6 +4666,10 @@
                 try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
                 if (handleTouchDoubleTap(e)) return;
                 startLongPress(e);
+                // Brackets the gesture for undo. Draw, move, resize and rotate
+                // all pass through here, and an unchanged snapshot is dropped,
+                // so a press that only selected costs nothing.
+                beginUndo();
                 handleMouseDown(e);
             });
             canvas.addEventListener('pointermove', e => {
@@ -4592,8 +4697,9 @@
                 cancelLongPress();
                 try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
                 // The press that opened the menu must not also finish a shape.
-                if (suppressNextPointerUp) { suppressNextPointerUp = false; return; }
+                if (suppressNextPointerUp) { suppressNextPointerUp = false; commitUndo(); return; }
                 handleMouseUp(e);
+                commitUndo();
             });
             // A cancelled pointer (system gesture, call interruption) must not
             // leave the canvas stuck mid-drag.
@@ -4604,6 +4710,7 @@
                 cancelLongPress();
                 try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
                 handleMouseUp(e);
+                commitUndo();
             });
             // A touch that ends without moving is followed by a synthesized
             // mouse sequence, and its mousedown moves focus to the document.
@@ -4794,6 +4901,28 @@
             document.getElementById('alignLeft').addEventListener('click', () => setTextAlign('left'));
             document.getElementById('alignCenter').addEventListener('click', () => setTextAlign('center'));
             document.getElementById('alignRight').addEventListener('click', () => setTextAlign('right'));
+
+            // One undo step per adjustment rather than one per intermediate
+            // value: the snapshot is taken when the control is grabbed and
+            // pushed when it settles. Dragging a colour picker or a slider fires
+            // input continuously, which would otherwise fill the stack.
+            ['color', 'size', 'fillColor', 'fillToggle', 'fontFamily', 'fontSize',
+             'startStyleSelect', 'endStyleSelect'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('pointerdown', beginUndo);
+                el.addEventListener('focus', beginUndo);
+                el.addEventListener('change', commitUndo);
+            });
+            // The format buttons change the shape on click, so they commit there
+            // - a colour input must not, because its click only opens the picker.
+            ['boldToggle', 'italicToggle', 'alignLeft', 'alignCenter', 'alignRight']
+                .forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('pointerdown', beginUndo);
+                    el.addEventListener('click', commitUndo);
+                });
             
             // Button events
             undoBtn.onclick = undoLastAction;
@@ -4802,7 +4931,7 @@
             document.getElementById('clearShapesBtn').addEventListener('click', clearShapesOnly);
             document.getElementById('clearAllBtn').addEventListener('click', clearEverything);
             document.getElementById('download').onclick = async () => {
-                canvas.toBlob(async (blob) => {
+                withCleanCanvas(() => canvas.toBlob(async (blob) => {
                     if (window.showSaveFilePicker) {
                         try {
                             const handle = await showSaveFilePicker({
@@ -4828,7 +4957,7 @@
                         link.click();
                         URL.revokeObjectURL(link.href);
                     }
-                }, 'image/png');
+                }, 'image/png'));
             };
             document.getElementById('copyImage').onclick = copyImageToClipboard;
             document.getElementById('pasteImage').onclick = pasteFromClipboard;
