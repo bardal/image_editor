@@ -75,6 +75,7 @@ does not.
 | `crop` | Crop, expand, transparent margins, reset |
 | `clear` | Clearing the drawing, everything, and what survives a reload |
 | `persist` | Shapes, image and crop surviving a reload |
+| `reflow` | The drawing keeping its place when the blank canvas is re-sized: address bar, rotation, and a document saved on a differently sized canvas |
 | `touch` / `keyboard` | Touch drawing, hit target sizes, the on-screen keyboard |
 | `line` | Drag adds a segment, tap ends it |
 | `desktop` | Mouse drawing, text entry, labels |

@@ -1562,6 +1562,31 @@
             };
         }
 
+        // Moves the drawing with a canvas that has changed size, so it keeps its
+        // place proportionally. Only geometry scales: fontSize and stroke size
+        // are held in screen pixels at fit, so they already render the same
+        // whatever the canvas resolution, and scaling them would compound.
+        function reflowShapes(fromW, fromH, toW, toH) {
+            if (!shapes.length) return;
+            if (!fromW || !fromH || !toW || !toH) return;
+            const kx = toW / fromW;
+            const ky = toH / fromH;
+            if (Math.abs(kx - 1) < 1e-6 && Math.abs(ky - 1) < 1e-6) return;
+            for (const s of shapes) {
+                if (typeof s.x === 'number') s.x *= kx;
+                if (typeof s.y === 'number') s.y *= ky;
+                if (typeof s.w === 'number') s.w *= kx;
+                if (typeof s.h === 'number') s.h *= ky;
+                if (typeof s.x2 === 'number') s.x2 *= kx;
+                if (typeof s.y2 === 'number') s.y2 *= ky;
+                if (typeof s.tipX === 'number') s.tipX *= kx;
+                if (typeof s.tipY === 'number') s.tipY *= ky;
+                if (Array.isArray(s.points)) {
+                    for (const p of s.points) { p.x *= kx; p.y *= ky; }
+                }
+            }
+        }
+
         function resizeCanvas() {
             if (canvasOverride) {
                 // The user has cropped or expanded; that size wins.
@@ -1581,8 +1606,17 @@
                 // the drawing was soft and washed out before you even pinched.
                 const size = calculateCanvasSize();
                 const k = blankCanvasScale();
-                canvas.width = Math.round(size.width * k);
-                canvas.height = Math.round(size.height * k);
+                const wanted = { w: Math.round(size.width * k), h: Math.round(size.height * k) };
+                // The blank canvas is sized to the window, and on a phone the
+                // window changes whenever the address bar slides away or the
+                // handset turns. Shape geometry is in canvas units, so it has to
+                // move with the canvas: without this the drawing jumped every
+                // time, and a document saved under a differently sized canvas
+                // came back with its boxes the old size and its text the new
+                // one, which broke every line after the first word.
+                reflowShapes(canvas.width, canvas.height, wanted.w, wanted.h);
+                canvas.width = wanted.w;
+                canvas.height = wanted.h;
             }
             redraw();
             updateImageInfo();
@@ -1775,8 +1809,14 @@
                     canvas.width = img.naturalWidth;
                     canvas.height = img.naturalHeight;
                 } else if (doc.canvasW) {
+                    // Restore at the size it was saved at so the geometry lines
+                    // up, then hand it to resizeCanvas, which brings it to this
+                    // screen's resolution and reflows the shapes to match. A
+                    // document saved on a smaller canvas would otherwise stay
+                    // soft until something happened to resize it.
                     canvas.width = doc.canvasW;
                     canvas.height = doc.canvasH;
+                    resizeCanvas();
                 }
 
                 redraw();
