@@ -12,6 +12,26 @@ target with `APP_URL`, or the browser binary with `CHROME_PATH`.
 Every push and pull request runs the same command in CI, and nothing is
 published to Pages until it passes — see `.github/workflows/pages.yml`.
 
+## Two units, and which to use
+
+Nearly every visual fault this app has had was one mistake: a size in the wrong
+unit. There are two.
+
+- `fitPxToCanvas` — **part of the picture**. Fixed against the image, so it
+  grows on screen as you zoom, like everything else in the drawing. Stroke
+  widths, text, padding, corner radii, arrowheads, and the geometry of a shape
+  a gesture creates.
+- `screenPxToCanvas` — **something you touch, or something drawn over the
+  picture**. Fixed on the glass, so it stays finger-sized whatever the zoom.
+  Handles, hit tolerances, the crop frame, previews, port dots.
+
+A raw number is almost always wrong: it means canvas units, which shrink to
+nothing on a big photo — 20 units is 2 screen pixels on a 4032px image.
+
+Getting it backwards is invisible at 100% and only shows up zoomed in, which is
+why these kept reaching a phone. `units-test.js` pins the ones that belong to
+the picture.
+
 ## How a suite passes
 
 Each suite builds a report object and ends with `finish(report, rules)` from
@@ -86,3 +106,4 @@ does not.
 | `controls` | Colour, stroke width, fill, font family and size, bold, italic, alignment, arrow ends |
 | `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |
 | `misc` | Paste, closing a polygon, shape labels, cycling a stack, the service worker |
+| `units` | Sizes in the right unit: padding, corners and stroke keeping their proportion to the text at any zoom, shapes made while zoomed coming out the same, editors above the 16px iOS floor |

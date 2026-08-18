@@ -2417,7 +2417,13 @@
 
             canvasTextInput.style.left = minX + 'px';
             canvasTextInput.style.top = minY + 'px';
-            canvasTextInput.style.fontSize = Math.max(14, shape.size * 4) + 'px';
+            // The size the label will actually be drawn at, floored at 16px:
+            // iOS zooms the whole page whenever a focused field is under that,
+            // which is the trap the block editor was caught by. The old
+            // size * 4 was both below the floor and unrelated to the label.
+            const IOS_MIN_FONT_PX = 16;
+            const labelPx = textHeightOf(shape) * (rect.width / canvas.width);
+            canvasTextInput.style.fontSize = Math.max(IOS_MIN_FONT_PX, labelPx) + 'px';
             canvasTextInput.style.color = shape.color;
             canvasTextInput.style.display = 'block';
             canvasTextInput.value = (shape.label || '') + (initialChar || '');
@@ -2887,7 +2893,11 @@
         // A box of wrapped text with a leader line to a point on the image. One
         // shape rather than a linked rectangle, text and arrow, so it moves,
         // deletes, persists and survives a crop as a single thing.
-        function calloutPadding() { return screenPxToCanvas(10); }
+        // Sizes below belong to the drawing, so they are fixed against the
+        // image: they keep their proportion to the text and to each other at
+        // any zoom. In screen pixels the padding collapsed as you zoomed in
+        // and the words ran up against the border.
+        function calloutPadding() { return fitPxToCanvas(10); }
 
         // Text is inset inside a callout's box; a plain text block sits flush.
         function blockPadding(s) {
@@ -2902,7 +2912,11 @@
             const measured = ctx.measureText(String(s.text || '')).width;
             s.w = Math.max(calloutMinWidth(), measured + blockPadding(s) * 2);
         }
-        function calloutMinWidth() { return screenPxToCanvas(70); }
+        function calloutMinWidth() { return fitPxToCanvas(70); }
+
+        function calloutCornerRadius(s) {
+            return Math.min(fitPxToCanvas(6), s.w / 2, s.h / 2);
+        }
 
         // Breaks the text to the box width. Words that are themselves wider than
         // the box are split rather than allowed to overflow.
@@ -3010,7 +3024,7 @@
             drawLineEnding(anchor.x, anchor.y, s.tipX, s.tipY, s.endStyle || 'closedArrow', s.size, s.color, 'end');
 
             // Box.
-            const radius = Math.min(screenPxToCanvas(6), s.w / 2, s.h / 2);
+            const radius = calloutCornerRadius(s);
             ctx.beginPath();
             ctx.moveTo(s.x + radius, s.y);
             ctx.arcTo(s.x + s.w, s.y, s.x + s.w, s.y + s.h, radius);
@@ -3737,7 +3751,7 @@
                     const block = {
                         type: 'text',
                         x, y,
-                        w: Math.min(canvas.width * 0.6, screenPxToCanvas(220)),
+                        w: Math.min(canvas.width * 0.6, fitPxToCanvas(220)),
                         h: 0,
                         text: '',
                         color, size,
@@ -3924,12 +3938,12 @@
                 const bx = Math.min(startX, x);
                 const by = Math.min(startY, y);
                 const bw = tapped
-                    ? Math.min(canvas.width * 0.6, screenPxToCanvas(200))
+                    ? Math.min(canvas.width * 0.6, fitPxToCanvas(200))
                     : Math.max(calloutMinWidth(), Math.abs(x - startX));
                 const shape = {
                     type: 'callout',
                     x: bx, y: by, w: bw,
-                    h: Math.max(screenPxToCanvas(36), Math.abs(y - startY)),
+                    h: Math.max(fitPxToCanvas(36), Math.abs(y - startY)),
                     text: '',
                     color, size,
                     // Filled by default: a callout over a photo is unreadable
@@ -3952,7 +3966,7 @@
                 const dx = canvas.width / 2 - bcx;
                 const dy = canvas.height / 2 - bcy;
                 const len = Math.hypot(dx, dy) || 1;
-                const reach = Math.max(shape.w, shape.h) / 2 + screenPxToCanvas(70);
+                const reach = Math.max(shape.w, shape.h) / 2 + fitPxToCanvas(70);
                 shape.tipX = bcx + (dx / len) * reach;
                 shape.tipY = bcy + (dy / len) * reach;
                 shapes.push(shape);
