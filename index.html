@@ -2683,7 +2683,13 @@
             const dx = x2 - x1, dy = y2 - y1;
             const lineLength = Math.sqrt(dx * dx + dy * dy);
             if (lineLength === 0) return;
-            const headlen = Math.min(screenPxToCanvas(10 + lineSize * 2), lineLength * 0.4);
+            // Sized against the image, like the line it caps. In screen pixels
+            // the two moved opposite ways under zoom - the line thickened while
+            // the head stayed put - until the head was no wider than the line
+            // and disappeared into it. The floor keeps it visible zoomed out.
+            const headlen = Math.min(
+                Math.max(fitPxToCanvas(10 + lineSize * 2), screenPxToCanvas(6)),
+                lineLength * 0.4);
             // For 'start', the arrowhead points from x2 toward x1; for 'end', from x1 toward x2
             let angle, tipX, tipY;
             if (which === 'end') {

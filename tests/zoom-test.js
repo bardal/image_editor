@@ -99,6 +99,64 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
   r.expectedTouchPoint = { x: Math.round(box.x + 120), y: Math.round(box.y + 150) };
 
+  // ---- An arrowhead has to keep its proportion to its own line ----
+  // The head was sized in screen pixels while the line it caps was sized
+  // against the image, so the two moved opposite ways: zoom in and the line
+  // thickened while the head stayed put, until the head was narrower than the
+  // line and vanished into it.
+  await page.evaluate(() => resetZoom());
+  await page.waitForTimeout(200);
+  await page.evaluate(() => {
+    shapes.length = 0;
+    selectedShape = null;
+    // Horizontal, so a vertical scan measures thickness directly.
+    shapes.push({ type: 'arrow', x: canvas.width * 0.2, y: canvas.height * 0.5,
+      x2: canvas.width * 0.8, y2: canvas.height * 0.5, color: '#ff0000', size: 5,
+      startStyle: 'none', endStyle: 'closedArrow', id: 900 });
+    redraw();
+  });
+  await page.waitForTimeout(200);
+
+  // Paint thickness down a column, in canvas pixels.
+  const headVsLine = () => page.evaluate(() => {
+    const a = shapes[0];
+    const y0 = Math.round(a.y);
+    const column = (x) => {
+      const top = Math.max(0, y0 - 400);
+      const col = ctx.getImageData(Math.round(x), top, 1,
+        Math.min(800, canvas.height - top)).data;
+      // Counts the arrow's own red, not opacity: the photo behind it is opaque
+      // everywhere, so an alpha test reads the whole column as painted.
+      let n = 0;
+      for (let i = 0; i < col.length; i += 4) {
+        if (col[i] > 150 && col[i + 1] < 100 && col[i + 2] < 100) n++;
+      }
+      return n;
+    };
+    // The shaft, well clear of either end.
+    const line = column(a.x + (a.x2 - a.x) * 0.5);
+    // The head, sampled just behind the tip where it is at its widest.
+    let head = 0;
+    for (let d = 2; d < 60; d++) head = Math.max(head, column(a.x2 - d));
+    return { line, head, ratio: line ? +(head / line).toFixed(2) : 0 };
+  });
+
+  const headAtFit = await headVsLine();
+  await page.evaluate(() => {
+    setZoom(4, canvas.getBoundingClientRect().left + 20,
+               canvas.getBoundingClientRect().top + 20);
+    redraw();
+  });
+  await page.waitForTimeout(250);
+  const headAt4x = await headVsLine();
+  await page.evaluate(() => resetZoom());
+  r.arrowhead = {
+    atFit: headAtFit,
+    at4x: headAt4x,
+    // Same shape at any zoom: the head keeps its proportion to its own line.
+    ratioHeld: Math.abs(headAtFit.ratio - headAt4x.ratio) < 0.35,
+  };
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'startZoom.scale': 1,
@@ -117,6 +175,10 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     // Drawn while zoomed in, the shape must land back under the finger.
     'drawWhileZoomed.screenX': near(r.expectedTouchPoint.x, 2),
     'drawWhileZoomed.screenY': near(r.expectedTouchPoint.y, 2),
+    // The head must be plainly wider than the line it caps, or it is invisible.
+    'arrowhead.atFit.ratio': v => v >= 2,
+    'arrowhead.at4x.ratio': v => v >= 2,
+    'arrowhead.ratioHeld': isTrue,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
