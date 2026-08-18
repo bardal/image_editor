@@ -1800,7 +1800,15 @@
                 imgOffset = doc.imgOffset || { x: 0, y: 0 };
                 canvasOverride = doc.canvasOverride || null;
                 shapes = doc.shapes || [];
-                nextShapeId = doc.nextShapeId || (shapes.length + 1);
+                // Taken from the highest id present, never from the count.
+                // shapes.length + 1 collides the moment anything has been
+                // deleted or the ids are not consecutive - a document holding
+                // ids 1, 9 and 4 carried on from 4, so the next shape drawn
+                // shared an id with the arrow, and an arrow attached to a reused
+                // id points at whichever shape is found first.
+                const highest = shapes.reduce(
+                    (max, s) => (typeof s.id === 'number' && s.id > max ? s.id : max), 0);
+                nextShapeId = Math.max(doc.nextShapeId || 0, highest + 1);
 
                 if (canvasOverride) {
                     canvas.width = canvasOverride.w;

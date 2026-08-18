@@ -163,6 +163,82 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return a ? { fromId: a.fromId, fromPort: a.fromPort } : null;
   });
 
+  // ---- An attached arrow through a canvas re-size ----
+  // On a blank canvas the window's size decides the canvas's, so this happens
+  // whenever the address bar slides away or the phone turns.
+  await page.evaluate(async () => {
+    await dbDelete('doc'); await dbDelete('image');
+  });
+  await page.reload();
+  await page.waitForTimeout(600);
+  await page.evaluate(() => {
+    shapes.length = 0;
+    const w = canvas.width, h = canvas.height;
+    shapes.push({ type: 'rect', x: w * 0.1, y: h * 0.1, w: w * 0.3, h: h * 0.15,
+      rotation: 0, color: '#c00', size: 4, fill: false, id: 301 });
+    shapes.push({ type: 'arrow', x: w * 0.4, y: h * 0.175, x2: w * 0.8, y2: h * 0.6,
+      color: '#fff', size: 4, startStyle: 'none', endStyle: 'closedArrow',
+      fromId: 301, fromPort: 'e', toId: null, toPort: null, id: 302 });
+    redraw();
+  });
+  const touchesTarget = () => page.evaluate(() => {
+    const a = shapes.find(s => s.type === 'arrow');
+    const t = shapes.find(s => s.id === (a && a.fromId));
+    if (!a || !t) return null;
+    const e = getConnectorEndpoints(a);
+    const slop = Math.max(canvas.width, canvas.height) * 0.02;
+    return {
+      fromId: a.fromId,
+      fromPort: a.fromPort,
+      // The tail must still sit on the box it is attached to.
+      onTarget: e.x1 >= t.x - slop && e.x1 <= t.x + t.w + slop &&
+                e.y1 >= t.y - slop && e.y1 <= t.y + t.h + slop,
+    };
+  });
+  r.attachedBeforeResize = await touchesTarget();
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(400);
+  r.attachedAfterRotate = await touchesTarget();
+  await page.setViewportSize({ width: 1500, height: 900 });
+  await page.waitForTimeout(400);
+  r.attachedAfterResize = await touchesTarget();
+
+  // ---- Shape ids must stay unique across a restore ----
+  // The fallback for a document saved without a counter was shapes.length + 1,
+  // which collides whenever anything has been deleted - and an arrow pointing
+  // at a reused id attaches itself to the wrong shape.
+  await page.evaluate(async () => {
+    await dbPut('doc', {
+      shapes: [
+        { type: 'rect', x: 50, y: 50, w: 120, h: 80, rotation: 0, color: '#c00',
+          size: 4, fill: false, id: 1 },
+        { type: 'rect', x: 260, y: 60, w: 120, h: 80, rotation: 0, color: '#0c0',
+          size: 4, fill: false, id: 9 },
+        { type: 'arrow', x: 170, y: 90, x2: 260, y2: 100, color: '#fff', size: 4,
+          startStyle: 'none', endStyle: 'closedArrow',
+          fromId: 1, fromPort: 'e', toId: 9, toPort: 'w', id: 4 },
+      ],
+      imgOffset: { x: 0, y: 0 }, canvasOverride: null,
+      canvasW: 800, canvasH: 600, hasImage: false,
+      savedAt: 1,
+    });
+  });
+  await page.reload();
+  await page.waitForTimeout(800);
+  r.idsAfterRestore = await page.evaluate(() => {
+    const before = shapes.map(s => s.id);
+    const fresh = [newShapeId(), newShapeId()];
+    const all = before.concat(fresh);
+    return {
+      before,
+      fresh,
+      unique: new Set(all).size === all.length,
+      // Each end of the arrow still resolves to exactly one shape.
+      fromResolvesOnce: shapes.filter(s => s.id === 1).length === 1,
+      toResolvesOnce: shapes.filter(s => s.id === 9).length === 1,
+    };
+  });
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'snapOnDraw.fromId': 101,
@@ -182,6 +258,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'hoverOffersPort.portNamed': isTrue,
     'attachmentSurvivesReload.fromId': 201,
     'attachmentSurvivesReload.fromPort': 'e',
+    'attachedBeforeResize.onTarget': isTrue,
+    'attachedAfterRotate.fromId': 301,
+    'attachedAfterRotate.onTarget': isTrue,
+    'attachedAfterResize.fromId': 301,
+    'attachedAfterResize.onTarget': isTrue,
+    'idsAfterRestore.unique': isTrue,
+    'idsAfterRestore.fromResolvesOnce': isTrue,
+    'idsAfterRestore.toResolvesOnce': isTrue,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
