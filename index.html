@@ -4226,14 +4226,12 @@
                         p.y += dy;
                     }
                 } else if (selectedShape.type === 'callout') {
-                    // The tip travels with the box, so the callout keeps
-                    // pointing at whatever it was pointing at.
-                    const nx = x - dragOffset.x;
-                    const ny = y - dragOffset.y;
-                    selectedShape.tipX += nx - selectedShape.x;
-                    selectedShape.tipY += ny - selectedShape.y;
-                    selectedShape.x = nx;
-                    selectedShape.y = ny;
+                    // Only the box moves. The tip marks a place on the picture,
+                    // and dragging the label is how you get the words out of the
+                    // way of it - carrying the tip along took the marker off
+                    // whatever it had been put on. The leader re-aims itself.
+                    selectedShape.x = x - dragOffset.x;
+                    selectedShape.y = y - dragOffset.y;
                 } else {
                     selectedShape.x = x - dragOffset.x;
                     selectedShape.y = y - dragOffset.y;

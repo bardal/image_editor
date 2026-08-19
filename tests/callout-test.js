@@ -82,7 +82,9 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     boxUnmoved: afterTip.x === before.x && afterTip.y === before.y,
   };
 
-  // Dragging the box must carry the tip along.
+  // Dragging the box must leave the tip where it is. The tip marks a place on
+  // the picture; moving the label is how you get the words out of the way, and
+  // it must not drag the marker off what it was pointing at.
   const boxCentre = await page.evaluate(() => {
     const c = selectedShape; const b = canvas.getBoundingClientRect();
     const k = canvas.width / b.width;
@@ -94,11 +96,11 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await page.mouse.move(boxCentre.x + 60, boxCentre.y + 40, { steps: 6 });
   await page.mouse.up();
   await page.waitForTimeout(200);
-  r.boxDragCarriesTip = await page.evaluate(bd => {
+  r.boxDragLeavesTip = await page.evaluate(bd => {
     const c = selectedShape;
     const dx = c.x - bd.x, dy = c.y - bd.y;
     return { boxMoved: Math.abs(dx) > 20,
-             tipFollowed: Math.abs((c.tipX - bd.tipX) - dx) < 1 && Math.abs((c.tipY - bd.tipY) - dy) < 1 };
+             tipStayed: Math.abs(c.tipX - bd.tipX) < 1 && Math.abs(c.tipY - bd.tipY) < 1 };
   }, beforeDrag);
 
   // Widening the box should reflow the text and change the line count.
@@ -131,8 +133,8 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'committed.lines': atLeast(2),
     'tipMovedBoxStayed.tipMoved': isTrue,
     'tipMovedBoxStayed.boxUnmoved': isTrue,
-    'boxDragCarriesTip.boxMoved': isTrue,
-    'boxDragCarriesTip.tipFollowed': isTrue,
+    'boxDragLeavesTip.boxMoved': isTrue,
+    'boxDragLeavesTip.tipStayed': isTrue,
     'widthReflows.reflowed': isTrue,
     'survivesReload.text': 'This note is deliber',
   });

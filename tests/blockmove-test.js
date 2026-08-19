@@ -104,7 +104,8 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     r[key] = {
       dragMoved: Math.abs(afterDrag.x - before.x) > 5 || Math.abs(afterDrag.y - before.y) > 5,
       dragOpenedEditor: afterDrag.editing,
-      tipFollowed: before.tipX === null ? null : Math.abs(afterDrag.tipX - before.tipX) > 5,
+      // The tip marks a place on the picture and stays there.
+      tipStayed: before.tipX === null ? null : Math.abs(afterDrag.tipX - before.tipX) < 1,
       // A tap is still how you edit, whichever tool is active.
       tapOpenedEditor: afterTap.editing,
       tapMoved: Math.abs(afterTap.x - before.x) > 5 || Math.abs(afterTap.y - before.y) > 5,
@@ -213,7 +214,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   finish(r, {
     'calloutWithCallout.dragMoved': isTrue,
     'calloutWithCallout.dragOpenedEditor': isFalse,
-    'calloutWithCallout.tipFollowed': isTrue,
+    'calloutWithCallout.tipStayed': isTrue,
     'calloutWithCallout.tapOpenedEditor': isTrue,
     'calloutWithCallout.tapMoved': isFalse,
     'calloutWithCallout.count': 1,
@@ -225,7 +226,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     // The select tool must go on behaving exactly as it did.
     'calloutWithSelect.dragMoved': isTrue,
     'calloutWithSelect.dragOpenedEditor': isFalse,
-    'calloutWithSelect.tipFollowed': isTrue,
+    'calloutWithSelect.tipStayed': isTrue,
     'calloutWithSelect.count': 1,
     'dismissWithCallout.startedSelected': isTrue,
     'dismissWithCallout.firstTapDeselects': isTrue,
