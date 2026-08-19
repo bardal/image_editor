@@ -22,6 +22,10 @@ jobs:
   # only checking that the page did not throw.
   test:
     runs-on: ubuntu-latest
+    # A hung step used to sit there until the six hour default gave up, holding
+    # the queue and every later deploy behind it. Twenty minutes is roughly
+    # eight times a healthy run.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,10 +38,33 @@ jobs:
       - name: Install Playwright
         run: npm install --no-save playwright@1.62.1
 
+      # Keyed on the Playwright version, so the browser is downloaded once and
+      # reused until that version changes.
+      - name: Cache Chromium
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.62.1-${{ runner.os }}
+
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        # --with-deps shells out to apt, which can block on a lock or a prompt
+        # with nothing to time it out - that is what hung for 27 minutes on a
+        # step that normally takes 25 seconds. The runner image already carries
+        # the libraries, so deps are only fetched when the browser itself is,
+        # and the step is bounded either way.
+        timeout-minutes: 6
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          if [ "${{ steps.browser-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       - name: Run the suites
+        timeout-minutes: 10
         run: ./tests/run-all.sh
 
   deploy:
