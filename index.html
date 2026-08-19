@@ -2687,18 +2687,47 @@
         }
 
         // ===== DRAWING FUNCTIONS =====
+        // Sized against the image, like the line it caps. In screen pixels the two
+        // moved opposite ways under zoom - the line thickened while the head
+        // stayed put - until the head was no wider than the line and disappeared
+        // into it. The floor keeps it visible zoomed out.
+        function arrowHeadLength(lineSize, lineLength) {
+            return Math.min(
+                Math.max(fitPxToCanvas(10 + lineSize * 2), screenPxToCanvas(6)),
+                lineLength * 0.4);
+        }
+
+        // How far short of the end the shaft should stop. A filled head is a
+        // triangle whose point is the end of the arrow; running the shaft to
+        // that same point left its flat end sticking out either side of the
+        // narrowing triangle, as a square nub on the tip. The head's back
+        // corners sit headlen away at 30 degrees, so along the line they are
+        // headlen * cos(30) back - stopping there meets the head's base exactly.
+        function shaftInset(style, lineSize, lineLength) {
+            if (style !== 'closedArrow') return 0;
+            return arrowHeadLength(lineSize, lineLength) * Math.cos(Math.PI / 6);
+        }
+
+        // The shaft, shortened at whichever ends carry a filled head.
+        function shaftEndpoints(x1, y1, x2, y2, startStyle, endStyle, lineSize) {
+            const dx = x2 - x1, dy = y2 - y1;
+            const len = Math.hypot(dx, dy);
+            if (!len) return { x1, y1, x2, y2 };
+            const ux = dx / len, uy = dy / len;
+            const back = shaftInset(startStyle, lineSize, len);
+            const front = shaftInset(endStyle, lineSize, len);
+            return {
+                x1: x1 + ux * back, y1: y1 + uy * back,
+                x2: x2 - ux * front, y2: y2 - uy * front,
+            };
+        }
+
         function drawLineEnding(x1, y1, x2, y2, style, lineSize, lineColor, which) {
             if (style === 'none') return;
             const dx = x2 - x1, dy = y2 - y1;
             const lineLength = Math.sqrt(dx * dx + dy * dy);
             if (lineLength === 0) return;
-            // Sized against the image, like the line it caps. In screen pixels
-            // the two moved opposite ways under zoom - the line thickened while
-            // the head stayed put - until the head was no wider than the line
-            // and disappeared into it. The floor keeps it visible zoomed out.
-            const headlen = Math.min(
-                Math.max(fitPxToCanvas(10 + lineSize * 2), screenPxToCanvas(6)),
-                lineLength * 0.4);
+            const headlen = arrowHeadLength(lineSize, lineLength);
             // For 'start', the arrowhead points from x2 toward x1; for 'end', from x1 toward x2
             let angle, tipX, tipY;
             if (which === 'end') {
@@ -2732,9 +2761,10 @@
         }
 
         function drawArrow(x1, y1, x2, y2, color, size, startStyle, endStyle) {
+            const shaft = shaftEndpoints(x1, y1, x2, y2, startStyle, endStyle, size);
             ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
+            ctx.moveTo(shaft.x1, shaft.y1);
+            ctx.lineTo(shaft.x2, shaft.y2);
             ctx.strokeStyle = color;
             ctx.lineWidth = strokeWidth(size);
             ctx.stroke();
@@ -3020,9 +3050,11 @@
             // Leader line first, so the box covers where it meets the edge.
             ctx.strokeStyle = s.color;
             ctx.lineWidth = strokeWidth(s.size);
+            const leader = shaftEndpoints(anchor.x, anchor.y, s.tipX, s.tipY,
+                'none', s.endStyle || 'closedArrow', s.size);
             ctx.beginPath();
-            ctx.moveTo(anchor.x, anchor.y);
-            ctx.lineTo(s.tipX, s.tipY);
+            ctx.moveTo(leader.x1, leader.y1);
+            ctx.lineTo(leader.x2, leader.y2);
             ctx.stroke();
             drawLineEnding(anchor.x, anchor.y, s.tipX, s.tipY, s.endStyle || 'closedArrow', s.size, s.color, 'end');
 

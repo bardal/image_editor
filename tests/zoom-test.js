@@ -157,6 +157,29 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     ratioHeld: Math.abs(headAtFit.ratio - headAt4x.ratio) < 0.35,
   };
 
+  // The shaft ran all the way to the arrowhead's point. Near the point the
+  // triangle is narrower than the shaft, so the shaft's flat end stuck out on
+  // both sides as a square nub - obvious once the line is thick.
+  r.tipIsPointed = await page.evaluate(() => {
+    const a = shapes[0];
+    const y0 = Math.round(a.y);
+    const column = (x) => {
+      const top = Math.max(0, y0 - 400);
+      const col = ctx.getImageData(Math.round(x), top, 1,
+        Math.min(800, canvas.height - top)).data;
+      let n = 0;
+      for (let i = 0; i < col.length; i += 4) {
+        if (col[i] > 150 && col[i + 1] < 100 && col[i + 2] < 100) n++;
+      }
+      return n;
+    };
+    const shaft = column(a.x + (a.x2 - a.x) * 0.5);
+    // A hair behind the point the arrowhead has barely any width, so anything
+    // like the shaft's thickness here is the nub.
+    const atPoint = column(a.x2 - 2);
+    return { shaft, atPoint, pointed: atPoint < shaft * 0.6 };
+  });
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'startZoom.scale': 1,
@@ -179,6 +202,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'arrowhead.atFit.ratio': v => v >= 2,
     'arrowhead.at4x.ratio': v => v >= 2,
     'arrowhead.ratioHeld': isTrue,
+    'tipIsPointed.pointed': isTrue,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
