@@ -103,7 +103,7 @@ does not.
 | `rotate` | Rotating a rect, an ellipse and a text block by mouse and by touch, and the handle staying clear of the shape |
 | `export` | The saved PNG: full resolution, follows a crop, and carries no selection outline or handles |
 | `undo` | Every kind of change being its own step - draw, move, resize, delete, text edit, colour |
-| `controls` | Colour, stroke width, fill, font family and size, bold, italic, alignment, arrow ends |
+| `controls` | Colour, stroke width, fill, font family and size, bold, italic, alignment, arrow ends, and a fill colour chosen on a phone reaching the shape |
 | `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |
 | `misc` | Paste, closing a polygon, shape labels, cycling a stack, the service worker |
 | `blockmove` | Tap to edit, drag to move, for a callout or a text block under any tool |

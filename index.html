@@ -4984,15 +4984,23 @@
             // Ribbon toggle event
             document.getElementById('ribbonToggle').addEventListener('click', handleRibbonToggle);
             
-            // Color and size events
-            document.getElementById('color').addEventListener('input', e => {
-                color = e.target.value;
+            // Color and size events.
+            // A colour picker reports its choice twice over: continuously while
+            // it is being dragged, and once more as it closes. On iOS the usual
+            // way to use it is to tap a swatch in the grid and dismiss, and that
+            // colour can arrive only on the close - so both events apply it.
+            // Listening for the drag alone left the swatch showing a colour that
+            // had gone nowhere.
+            function applyStrokeColour(value) {
+                color = value;
                 if (selectedShape) {
                     selectedShape.color = color;
                     redraw();
                 }
                 updateSwatches();
-            });
+            }
+            document.getElementById('color').addEventListener('input', e => applyStrokeColour(e.target.value));
+            document.getElementById('color').addEventListener('change', e => applyStrokeColour(e.target.value));
             document.getElementById('size').addEventListener('input', e => {
                 size = parseInt(e.target.value);
                 document.querySelector('.size-value').textContent = size;
@@ -5010,8 +5018,8 @@
                 }
                 updateSwatches();
             });
-            document.getElementById('fillColor').addEventListener('input', e => {
-                fillColorDefault = e.target.value;
+            function applyFillColour(value) {
+                fillColorDefault = value;
                 // Picking a fill colour implies wanting fill on, whether or not
                 // a shape happens to be selected - otherwise the swatch stays
                 // showing 'off' right after you have chosen a colour for it.
@@ -5025,6 +5033,17 @@
                     redraw();
                 }
                 updateSwatches();
+            }
+            document.getElementById('fillColor').addEventListener('input', e => applyFillColour(e.target.value));
+            document.getElementById('fillColor').addEventListener('change', e => {
+                applyFillColour(e.target.value);
+                // With nothing selected the colour has nowhere to land yet, so
+                // the picture does not change and choosing one looks like it did
+                // nothing. Say where it went. Only on the settled value, or
+                // dragging through the picker would toast on every frame.
+                if (!canFill(selectedShape)) {
+                    showToast('Fill set - draw a shape, or tap one with Select');
+                }
             });
             document.getElementById('startStyleSelect').addEventListener('change', e => {
                 defaultStartStyle = e.target.value;

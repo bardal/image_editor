@@ -1,7 +1,7 @@
 // The toolbar controls had no coverage at all - not colour, stroke width, fill,
 // font family or size, bold, italic or alignment. Changing a shape's colour was
 // the first thing this app was ever asked to do.
-const { chromium } = require('playwright');
+const { chromium, devices } = require('playwright');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
@@ -203,6 +203,103 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return a ? { start: a.startStyle, end: a.endStyle } : null;
   });
 
+  // ---- Choosing a fill colour on a phone ----
+  // Reported from an iPhone: the fill swatch could be found and the iOS colour
+  // picker opened, but there was no obvious way to apply the colour. Three
+  // things have to hold for that flow to work.
+  {
+    const ctx2 = await browser.newContext({ ...devices['iPhone 13'] });
+    const p2 = await ctx2.newPage();
+    p2.on('pageerror', e => errors.push(String(e)));
+    await p2.goto(APP); await p2.waitForTimeout(300);
+    await p2.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
+    await p2.reload(); await p2.waitForTimeout(500);
+    const cdp = await ctx2.newCDPSession(p2);
+
+    const armRect = () => p2.evaluate(() => {
+      shapes.length = 0; selectedShape = null;
+      document.querySelector('[data-tool="rect"]').click();
+      redraw(); updateButtonStates();
+    });
+    await armRect();
+    await p2.waitForTimeout(200);
+
+    // A finger on the swatch must reach the colour input behind it, or the
+    // picker never opens.
+    r.swatchTapReachesInput = await p2.evaluate(() => new Promise(res => {
+      const input = document.getElementById('fillColor');
+      const swatch = document.getElementById('fillSwatch');
+      let reached = false;
+      const seen = () => { reached = true; };
+      input.addEventListener('click', seen, { once: true });
+      const b = swatch.getBoundingClientRect();
+      // Where a finger would land, and what the label does with it.
+      swatch.click();
+      setTimeout(() => {
+        input.removeEventListener('click', seen);
+        res({ reached, onScreen: b.left >= 0 && b.right <= window.innerWidth });
+      }, 200);
+    }));
+
+    // The picker reports the chosen colour as it is dragged and again when it
+    // closes. A colour that only arrives on the close must still be applied:
+    // tapping a swatch in the iOS grid and dismissing is the usual way to use
+    // it, and the app listened for the drag alone.
+    await p2.evaluate(() => {
+      shapes.push({ type: 'rect', x: 100, y: 100, w: 300, h: 200, rotation: 0,
+        color: '#3b8eed', size: 4, fill: false, id: newShapeId() });
+      document.querySelector('[data-tool="select"]').click();
+      selectedShape = shapes[0]; redraw(); updateButtonStates();
+    });
+    await p2.waitForTimeout(150);
+    r.changeAloneApplies = await p2.evaluate(() => {
+      const el = document.getElementById('fillColor');
+      el.value = '#cc0044';
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return { fillOn: !!shapes[0].fill, colour: shapes[0].fillColor,
+               toggleChecked: document.getElementById('fillToggle').checked };
+    });
+
+    // With nothing selected the colour becomes the default for the next shape
+    // and the picture does not change, which is what "no obvious way to apply
+    // it" looked like. Say so rather than doing nothing visible.
+    await p2.evaluate(() => {
+      selectedShape = null;
+      document.querySelector('[data-tool="rect"]').click();
+      document.getElementById('toast').textContent = '';
+      redraw(); updateButtonStates();
+    });
+    await p2.waitForTimeout(150);
+    r.saysWhereItWent = await p2.evaluate(() => {
+      const el = document.getElementById('fillColor');
+      el.value = '#00aa66';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      const toast = document.getElementById('toast');
+      return { message: toast.textContent, shown: toast.classList.contains('visible') };
+    });
+
+    // And that default must actually reach the next shape drawn.
+    const box2 = await p2.evaluate(() => {
+      const b = canvas.getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height };
+    });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart',
+      touchPoints: [{ x: box2.x + 40, y: box2.y + 40 }] });
+    for (let i = 1; i <= 4; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove',
+        touchPoints: [{ x: box2.x + 40 + i * 25, y: box2.y + 40 + i * 20 }] });
+      await p2.waitForTimeout(25);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await p2.waitForTimeout(250);
+    r.nextShapeTakesIt = await p2.evaluate(() => {
+      const s = shapes[shapes.length - 1];
+      return { fillOn: !!s.fill, colour: s.fillColor };
+    });
+    await ctx2.close();
+  }
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'colourAppliesToSelection': '#ff0000',
@@ -236,6 +333,15 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'arrowEnds.end': 'none',
     'survivesReload.start': 'openArrow',
     'survivesReload.end': 'none',
+    'swatchTapReachesInput.reached': isTrue,
+    'swatchTapReachesInput.onScreen': isTrue,
+    'changeAloneApplies.fillOn': isTrue,
+    'changeAloneApplies.colour': '#cc0044',
+    'changeAloneApplies.toggleChecked': isTrue,
+    'saysWhereItWent.message': v => typeof v === 'string' && /fill/i.test(v),
+    'saysWhereItWent.shown': isTrue,
+    'nextShapeTakesIt.fillOn': isTrue,
+    'nextShapeTakesIt.colour': '#00aa66',
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
