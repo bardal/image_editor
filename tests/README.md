@@ -106,4 +106,5 @@ does not.
 | `controls` | Colour, stroke width, fill, font family and size, bold, italic, alignment, arrow ends |
 | `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |
 | `misc` | Paste, closing a polygon, shape labels, cycling a stack, the service worker |
+| `blockmove` | Tap to edit, drag to move, for a callout or a text block under any tool |
 | `units` | Sizes in the right unit: padding, corners and stroke keeping their proportion to the text at any zoom, shapes made while zoomed coming out the same, editors above the 16px iOS floor |

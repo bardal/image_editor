@@ -1409,6 +1409,9 @@
         // ===== MOUSE STATE =====
         let mouseDownPos = { x: 0, y: 0 };
         let hasMoved = false;
+        // Set when a text tool presses an existing block: the release turns it
+        // into an edit if the finger did not move.
+        let pendingBlockEdit = null;
         let hasEdited = false;
         let hadSelectionBeforeMouseDown = false;
 
@@ -3741,12 +3744,17 @@
                 // the gesture for the iOS keyboard, so suppress the default
                 // rather than deferring the focus.
                 e.preventDefault();
-                // Tapping on existing text edits it rather than stacking a new
-                // text shape on top of it.
+                // Pressing existing text works on it rather than stacking a new
+                // block on top. Which way is decided on release: a tap opens the
+                // editor, a drag moves the block. A selected block shows handles,
+                // so being unable to move its body was the odd one out.
                 const existing = findTextShapeNear(x, y);
                 if (existing) {
                     selectedShape = existing;
-                    startBlockEditing(existing);
+                    pendingBlockEdit = existing;
+                    handleSelectMouseDown(x, y);
+                    redraw();
+                    updateButtonStates();
                 } else {
                     const block = {
                         type: 'text',
@@ -3775,9 +3783,11 @@
                 if (existing) {
                     e.preventDefault();
                     selectedShape = existing;
+                    // Same rule as the text tool: tap to edit, drag to move.
+                    pendingBlockEdit = existing;
+                    handleSelectMouseDown(x, y);
                     redraw();
                     updateButtonStates();
-                    startBlockEditing(existing);
                     return;
                 }
                 drawing = true;
@@ -3874,6 +3884,20 @@
         }
 
         function handleMouseUp(e) {
+            // A press on an existing block: the finger has told us which it was.
+            if (pendingBlockEdit && tool !== 'select') {
+                const block = pendingBlockEdit;
+                pendingBlockEdit = null;
+                const moved = hasMoved;
+                isDragging = false;
+                drawing = false;
+                if (!moved) startBlockEditing(block);
+                redraw();
+                updateButtonStates();
+                return;
+            }
+            pendingBlockEdit = null;
+
             // Finish a handle drag that began under a drawing tool before any of
             // the tool-specific handling gets a look at this release.
             if ((isResizing || isRotating) && tool !== 'select') {
@@ -4075,7 +4099,7 @@
             // A handle drag started under a drawing tool carries on through the
             // select-mode logic. The active tool decides what a fresh press
             // does, not what an in-progress drag does.
-            if ((isResizing || isRotating) && tool !== 'select') {
+            if ((isResizing || isRotating || isDragging) && tool !== 'select') {
                 handleSelectMouseMove(x, y);
                 return;
             }
