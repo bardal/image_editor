@@ -3743,9 +3743,14 @@
             
             // A tap outside an open editor finishes it. Without this the same
             // tap also created another shape, so tapping away from a callout
-            // left a trail of new ones behind.
+            // left a trail of new ones behind. The selection goes too: tapping
+            // away is how you put the whole thing down, so the next tap starts
+            // the next note rather than a third being needed.
             if (editingBlock) {
                 finishBlockEditing(false);
+                selectedShape = null;
+                redraw();
+                updateButtonStates();
                 return;
             }
 
@@ -3785,6 +3790,12 @@
                     selectedShape = existing;
                     pendingBlockEdit = existing;
                     handleSelectMouseDown(x, y);
+                    redraw();
+                    updateButtonStates();
+                } else if (selectedShape) {
+                    // Something is still selected, so this press only lets go
+                    // of it. Press again on blank canvas to start a new block.
+                    selectedShape = null;
                     redraw();
                     updateButtonStates();
                 } else {
@@ -3988,6 +3999,16 @@
                     id: newShapeId()
                 });
             } else if (tool === 'callout') {
+                // A tap on blank canvas while something is selected only lets
+                // go of it: one gesture to put the current note down, the next
+                // to begin the next one. A drag says draw one regardless.
+                if (hadSelectionBeforeMouseDown && isTapNotDrag(x, y)) {
+                    selectedShape = null;
+                    drawing = false;
+                    redraw();
+                    updateButtonStates();
+                    return;
+                }
                 // A tap gets a comfortable default box rather than the bare
                 // minimum, which is only meant as a floor for a tight drag.
                 const tapped = isTapNotDrag(x, y);

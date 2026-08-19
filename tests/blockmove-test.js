@@ -130,6 +130,85 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     backWhereItWas: Math.abs(undoAfter.x - undoBefore.x) < 2 && Math.abs(undoAfter.y - undoBefore.y) < 2,
   };
 
+  // ---- A tap on blank canvas dismisses before it creates ----
+  // Finishing a note leaves it selected, so the next tap on blank canvas was
+  // starting a second note while the first was still the thing you were
+  // working on. One gesture to put the current thing down, the next to begin
+  // the next one.
+  const tapBlank = async (fx, fy) => {
+    const b = await page.evaluate(() => {
+      const r0 = canvas.getBoundingClientRect();
+      return { x: r0.x, y: r0.y, w: r0.width, h: r0.height };
+    });
+    const pt = { x: b.x + b.w * fx, y: b.y + b.h * fy };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
+    await page.waitForTimeout(60);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(350);
+  };
+  const counts = () => page.evaluate(() => ({
+    shapes: shapes.length, selected: !!selectedShape, editing: !!editingBlock,
+  }));
+
+  for (const tool of ['callout', 'text']) {
+    const key = `dismissWith${tool[0].toUpperCase()}${tool.slice(1)}`;
+    await place(tool === 'callout' ? 'callout' : 'text');
+    await useTool(tool);
+    const start = await counts();
+
+    // Something is selected, so this tap only lets go of it.
+    await tapBlank(0.75, 0.78);
+    const afterFirst = await counts();
+
+    // Nothing is selected now, so this one starts a new note.
+    await tapBlank(0.75, 0.78);
+    const afterSecond = await counts();
+    await page.evaluate(() => { if (editingBlock) finishBlockEditing(true); });
+    await page.waitForTimeout(150);
+
+    r[key] = {
+      startedSelected: start.selected,
+      firstTapDeselects: !afterFirst.selected,
+      firstTapAddsNothing: afterFirst.shapes === start.shapes,
+      firstTapOpensNoEditor: !afterFirst.editing,
+      secondTapCreates: afterSecond.shapes === start.shapes + 1,
+    };
+  }
+
+  // Tapping away from an open editor puts the whole thing down: the text is
+  // kept and the selection is released, so one more tap starts the next note
+  // rather than a third being needed.
+  await place('callout');
+  await useTool('callout');
+  await page.evaluate(() => startBlockEditing(shapes[0]));
+  await page.waitForTimeout(250);
+  await tapBlank(0.75, 0.78);
+  r.tapAwayFromEditor = await page.evaluate(() => ({
+    shapes: shapes.length,
+    text: shapes[0] ? shapes[0].text : null,
+    selected: !!selectedShape,
+    editing: !!editingBlock,
+  }));
+
+  // A drag is explicit, so it still draws even with something selected.
+  await place('callout');
+  await useTool('callout');
+  const b2 = await page.evaluate(() => {
+    const r0 = canvas.getBoundingClientRect();
+    return { x: r0.x, y: r0.y, w: r0.width, h: r0.height };
+  });
+  const from = { x: b2.x + b2.w * 0.15, y: b2.y + b2.h * 0.75 };
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+  for (let i = 1; i <= 6; i++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove',
+      touchPoints: [{ x: from.x + i * 25, y: from.y + i * 8 }] });
+    await page.waitForTimeout(30);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(350);
+  r.dragStillCreates = await page.evaluate(() => shapes.length);
+  await page.evaluate(() => { if (editingBlock) finishBlockEditing(true); });
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'calloutWithCallout.dragMoved': isTrue,
@@ -148,6 +227,19 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'calloutWithSelect.dragOpenedEditor': isFalse,
     'calloutWithSelect.tipFollowed': isTrue,
     'calloutWithSelect.count': 1,
+    'dismissWithCallout.startedSelected': isTrue,
+    'dismissWithCallout.firstTapDeselects': isTrue,
+    'dismissWithCallout.firstTapAddsNothing': isTrue,
+    'dismissWithCallout.firstTapOpensNoEditor': isTrue,
+    'dismissWithCallout.secondTapCreates': isTrue,
+    'dismissWithText.firstTapDeselects': isTrue,
+    'dismissWithText.firstTapAddsNothing': isTrue,
+    'dismissWithText.secondTapCreates': isTrue,
+    'tapAwayFromEditor.shapes': 1,
+    'tapAwayFromEditor.text': 'Nicko',
+    'tapAwayFromEditor.selected': isFalse,
+    'tapAwayFromEditor.editing': isFalse,
+    'dragStillCreates': 2,
     'undoOfDrag.steps': 1,
     'undoOfDrag.backWhereItWas': isTrue,
     'errors': isEmpty,
