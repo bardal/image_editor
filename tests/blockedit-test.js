@@ -152,14 +152,17 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await page.evaluate(() => finishBlockEditing(false));
   await page.waitForTimeout(200);
 
-  const onCallout = await page.evaluate(() => {
+  // Worked out afresh each time it is used: the property bar takes an extra
+  // row for the text controls and gives it back for the rect tool, so the
+  // canvas moves under a screen coordinate held from before a tool change.
+  const onCallout = () => page.evaluate(() => {
     const s = shapes[0];
     const b = canvas.getBoundingClientRect();
     const k = canvas.width / b.width;
     const m = textBlockMetrics(s);
     return { x: b.x + (s.x + s.w / 2) / k, y: b.y + (s.y + m.height / 2) / k };
   });
-  await tap(onCallout);
+  await tap(await onCallout());
   r.tapExistingEdits = await page.evaluate(() => ({
     count: shapes.filter(s => s.type === 'callout').length,
     editingSameShape: editingBlock === shapes[0],
@@ -216,7 +219,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     shapesAdded: shapes.filter(s => s.type === 'rect').length,
     stillRectTool: tool === 'rect',
   }));
-  await tap(onCallout);
+  await tap(await onCallout());
   r.rectTapOnShape = await page.evaluate(() => ({
     rects: shapes.filter(s => s.type === 'rect').length,
     selectedIsCallout: selectedShape && selectedShape.type === 'callout',

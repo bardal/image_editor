@@ -187,9 +187,11 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'calloutAt4x.w': v => Math.abs(v - r.calloutAtFit.w) <= 2,
     'calloutAt4x.h': v => Math.abs(v - r.calloutAtFit.h) <= 2,
     // The box grows to fit its text after the tip has been placed, so this is
-    // measured from a centre that has since moved by half that growth. A couple
-    // of per cent, not the fourfold difference the screen-pixel default gave.
-    'calloutAt4x.reach': v => Math.abs(v - r.calloutAtFit.reach) <= 20,
+    // measured from a centre that has since moved by half that growth, and the
+    // tap lands on a canvas laid out slightly differently at each zoom. A few
+    // per cent either way, against the fourfold difference the screen-pixel
+    // default gave.
+    'calloutAt4x.reach': v => Math.abs(v - r.calloutAtFit.reach) <= r.calloutAtFit.reach * 0.05,
     'textAt4x.w': v => Math.abs(v - r.textAtFit.w) <= 2,
     'labelEditor.iosWouldZoomPage': isFalse,
     'labelEditor.matchesDrawn': isTrue,

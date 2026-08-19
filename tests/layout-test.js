@@ -26,6 +26,11 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
       // Every control must sit inside the property bar's scrollable extent,
       // i.e. reachable by scrolling even if not currently visible.
       const unreachable = [];
+      // And every one must be on screen as it stands. A control parked off the
+      // edge behind a horizontal scroll is a control nobody finds: the fill
+      // swatch sat 654px along a 390px screen, so "how do I apply fill colour?"
+      // had no answer on the phone.
+      const offScreen = [];
       props.querySelectorAll('button, input, select, label').forEach(el => {
         const b = el.getBoundingClientRect();
         if (b.width === 0 && b.height === 0) return;
@@ -33,6 +38,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
         if (offsetLeft < 0 || offsetLeft + el.offsetWidth > props.scrollWidth + 2) {
           unreachable.push(el.id || el.className);
         }
+        if (b.left < -1 || b.right > vw + 1) offScreen.push(el.id || el.className);
       });
 
       // All six tools must be visible without scrolling.
@@ -46,9 +52,12 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
         propsAboveStrip: pr.height === 0 || Math.abs(pr.bottom - sr.top) <= 1,
         toolsAllVisible: toolsVisible,
         toolCount: strip.querySelectorAll('.tool-button').length,
-        propsScrollable: props.scrollWidth > props.clientWidth,
         propsScrollWidth: props.scrollWidth,
+        propsWidth: Math.round(pr.width),
+        // Nothing hidden sideways: the bar takes another row instead.
+        needsSideScroll: props.scrollWidth > props.clientWidth + 1,
         unreachableInProps: unreachable,
+        offScreenInProps: offScreen,
         // Compare against whichever pinned bar is topmost: the property bar
         // hides itself when nothing in it applies, leaving the tool strip.
         canvasClearOfBars: cr.bottom <= (pr.height > 0 ? pr.top : sr.top) + 1,
@@ -59,26 +68,51 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   };
 
   const byTool = {};
-  for (const t of ['select', 'text', 'arrow']) {
+  for (const t of ['select', 'rect', 'text', 'arrow', 'callout', 'crop']) {
     byTool[t] = await check(t);
   }
 
-  // Prove the far end of the property bar can actually be scrolled into view.
-  await page.evaluate(() => document.querySelector('[data-tool="text"]').click());
-  await page.waitForTimeout(150);
-  const scrollProof = await page.evaluate(() => {
-    const props = document.querySelector('.toolbar-props');
-    props.scrollLeft = props.scrollWidth;
-    const last = document.getElementById('alignRight');
-    const b = last.getBoundingClientRect();
-    return { alignRightVisibleAfterScroll: b.left >= -1 && b.right <= window.innerWidth + 1 };
-  });
+  // The two controls the question was actually about, under every tool that
+  // offers them: both colour swatches, fully on screen, no scrolling.
+  const swatches = {};
+  for (const t of ['rect', 'ellipse', 'callout']) {
+    await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
+    await page.waitForTimeout(180);
+    swatches[t] = await page.evaluate(() => {
+      const on = id => {
+        const el = document.getElementById(id);
+        const b = el.getBoundingClientRect();
+        if (!b.width) return null;
+        return b.left >= -1 && b.right <= window.innerWidth + 1
+            && b.top >= -1 && b.bottom <= window.innerHeight + 1;
+      };
+      return { stroke: on('strokeSwatch'), fill: on('fillSwatch') };
+    });
+  }
 
   finish({
-    byTool, scrollProof,
+    byTool, swatches,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
+    'byTool.rect.offScreenInProps': isEmpty,
+    'byTool.rect.needsSideScroll': isFalse,
+    'byTool.select.offScreenInProps': isEmpty,
+    'byTool.text.offScreenInProps': isEmpty,
+    'byTool.text.needsSideScroll': isFalse,
+    'byTool.arrow.offScreenInProps': isEmpty,
+    'byTool.arrow.needsSideScroll': isFalse,
+    'byTool.callout.offScreenInProps': isEmpty,
+    'byTool.callout.needsSideScroll': isFalse,
+    'byTool.callout.canvasClearOfBars': isTrue,
+    'byTool.crop.offScreenInProps': isEmpty,
+    'byTool.crop.needsSideScroll': isFalse,
+    'swatches.rect.stroke': isTrue,
+    'swatches.rect.fill': isTrue,
+    'swatches.ellipse.stroke': isTrue,
+    'swatches.ellipse.fill': isTrue,
+    'swatches.callout.stroke': isTrue,
+    'swatches.callout.fill': isTrue,
     'byTool.select.toolsAllVisible': isTrue,
     'byTool.select.unreachableInProps': isEmpty,
     'byTool.select.canvasClearOfBars': isTrue,
@@ -90,7 +124,6 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'byTool.arrow.propsShown': isTrue,
     'byTool.arrow.unreachableInProps': isEmpty,
     'byTool.arrow.canvasClearOfBars': isTrue,
-    'scrollProof.alignRightVisibleAfterScroll': isTrue,
   });
   await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
   await page.waitForTimeout(150);

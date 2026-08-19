@@ -886,22 +886,25 @@
 
             .toolbar-props {
                 bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-                height: 48px;
+                min-height: 48px;
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                padding: 0 10px;
+                justify-content: center;
+                column-gap: 6px;
+                row-gap: 2px;
+                padding: 2px 8px;
                 border-top: 1px solid rgba(255,255,255,0.07);
-                /* Contextual controls can exceed the width; scrolling keeps
-                   them reachable without stacking more rows. */
-                overflow-x: auto;
-                overflow-y: hidden;
-                flex-wrap: nowrap;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
+                /* Every control on screen, over as many rows as that takes.
+                   This was one row that scrolled sideways: with the callout
+                   tool it ran to 772px on a 390px screen, putting both colour
+                   swatches off the right-hand edge behind a scroll with no
+                   affordance - so "how do I apply fill colour?" had no answer
+                   on the phone. A second row costs a little canvas; a control
+                   nobody can find costs the whole feature. */
+                flex-wrap: wrap;
+                overflow: visible;
             }
 
-            .toolbar-props::-webkit-scrollbar { display: none; }
             .toolbar-props > * { flex-shrink: 0; }
 
             .tool-button {
@@ -921,9 +924,11 @@
 
             .tool-button .tool-icon svg { width: 22px; height: 22px; }
 
-            /* Keep the canvas clear of the two pinned bars. */
+            /* Keep the canvas clear of the two pinned bars. The property bar
+               takes as many rows as its controls need, so its height is
+               measured rather than assumed - see syncPropsHeight(). */
             .main-content {
-                padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+                padding-bottom: calc(56px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
             }
 
             .status-bar { font-size: 10px; }
@@ -936,12 +941,10 @@
                 margin: 0 4px;
             }
 
-            /* The contextual groups stay on one line and ride the property
-               bar's horizontal scroll rather than wrapping into extra rows.
-               order: -1 puts them first, so picking the text or arrow tool
-               shows its own controls immediately instead of leaving them off
-               the right-hand edge behind the always-present line and fill
-               controls. */
+            /* A contextual group keeps its own controls together on one line
+               and takes a row of its own when it needs one. order: -1 puts it
+               above the line and fill controls, so picking the text or arrow
+               tool shows what that tool offers first. */
             .text-format-group.visible,
             .arrow-style-group.visible,
             .crop-group.visible {
@@ -962,28 +965,17 @@
                 display: none;
             }
 
-            /* Shadows at the edges appear only when there is more to scroll to,
-               so a cut-off control reads as scrollable rather than broken. */
-            .toolbar-props {
-                background-image:
-                    linear-gradient(to right, #232326, rgba(35,35,38,0)),
-                    linear-gradient(to left, #232326, rgba(35,35,38,0)),
-                    radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.5), rgba(0,0,0,0)),
-                    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.5), rgba(0,0,0,0));
-                background-position: left center, right center, left center, right center;
-                background-size: 26px 100%, 26px 100%, 12px 100%, 12px 100%;
-                background-repeat: no-repeat;
-                background-attachment: local, local, scroll, scroll;
-            }
-
             /* Keep the wide dropdowns from eating the whole bar. */
             #fontFamily { max-width: 104px; }
             .arrow-style-select { max-width: 104px; }
             .size-slider { width: 92px; }
 
-            /* Separator between the persistent controls and the contextual
-               ones, now that they share a single scrolling row. */
-            .toolbar-props .toolbar-divider {
+            /* Separator between the line and fill controls where they share a
+               row. :not(.hidden) because this rule sits after the one that
+               hides it and carries the same weight, so without it the divider
+               stayed on screen with nothing on its right - which is how an
+               arrow's controls ended with a stray hairline. */
+            .toolbar-props .toolbar-divider:not(.hidden) {
                 display: block;
                 height: 24px;
                 margin: 0 2px;
@@ -995,20 +987,12 @@
 
             /* Clear of the pinned property and tool bars. */
             .toast {
-                bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+                bottom: calc(76px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
             }
 
             /* Nothing in the property bar applies right now, so drop it and
                give the room back to the canvas. */
             body.props-empty .toolbar-props { display: none; }
-
-            body.props-empty .main-content {
-                padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-            }
-
-            body.props-empty .toast {
-                bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-            }
         }
 
         /* Touch devices: meet the ~44px minimum tap target, and stop the
@@ -2673,6 +2657,18 @@
                 document.getElementById('alignCenter').classList.toggle('active', defaultTextAlign === 'center');
                 document.getElementById('alignRight').classList.toggle('active', defaultTextAlign === 'right');
             }
+
+            syncPropsHeight();
+        }
+
+        // The property bar wraps onto as many rows as its controls need, so the
+        // canvas cannot be held clear of it by a constant. Its measured height
+        // rides in a custom property that the phone layout reads; a hidden bar
+        // measures zero and the picture takes the space back.
+        function syncPropsHeight() {
+            const bar = document.querySelector('.toolbar-props');
+            const h = bar ? bar.getBoundingClientRect().height : 0;
+            document.documentElement.style.setProperty('--props-h', h + 'px');
         }
 
         function updateImageInfo() {
@@ -4950,6 +4946,16 @@
             
             // Window events
             window.addEventListener('resize', resizeCanvas);
+            // A turn of the handset re-wraps the bar, and so does anything that
+            // changes a control's width - the font dropdown on a longer name,
+            // say. Watching the bar itself catches both.
+            window.addEventListener('resize', syncPropsHeight);
+            window.addEventListener('orientationchange', syncPropsHeight);
+            if (window.ResizeObserver) {
+                new ResizeObserver(syncPropsHeight)
+                    .observe(document.querySelector('.toolbar-props'));
+            }
+            syncPropsHeight();
             
             // Drag and drop events
             const container = document.querySelector('.canvas-container');

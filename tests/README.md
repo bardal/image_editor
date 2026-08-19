@@ -99,7 +99,7 @@ does not.
 | `touch` / `keyboard` | Touch drawing, hit target sizes, the on-screen keyboard |
 | `line` | Drag adds a segment, tap ends it |
 | `desktop` | Mouse drawing, text entry, labels |
-| `layout` | Phone layout: pinned bars, nothing unreachable, tap targets |
+| `layout` | Phone layout: pinned bars, every control on screen without scrolling sideways, tap targets |
 | `rotate` | Rotating a rect, an ellipse and a text block by mouse and by touch, and the handle staying clear of the shape |
 | `export` | The saved PNG: full resolution, follows a crop, and carries no selection outline or handles |
 | `undo` | Every kind of change being its own step - draw, move, resize, delete, text edit, colour |
