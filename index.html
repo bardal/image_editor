@@ -230,15 +230,23 @@
            the width slider. A hollow ring read as an empty box, and next to a
            slashed fill swatch the two looked like each other's icon. */
         .swatch-stroke .swatch-preview {
-            width: 22px;
-            height: 4px;
-            border-radius: 2px;
-            background-color: var(--stroke-color, #333333);
+            /* The bar used to be the whole preview, painted straight onto the
+               toolbar: a dark line on a dark bar, invisible at exactly the
+               moment you wanted to check what colour you were drawing in. It
+               now sits on a light chip the same size as the fill swatch, which
+               also gives the pair equal visual weight. */
+            background-color: #ececee;
+            background-image: linear-gradient(var(--stroke-color, #333333), var(--stroke-color, #333333));
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 70% var(--stroke-bar, 4px);
         }
 
-        /* Fill: a solid block of the current colour. */
+        /* Fill: a solid block of the current colour, ringed in the same light
+           tone as the line chip so a dark fill still reads against the bar. */
         .swatch-fill .swatch-preview {
             background-color: var(--fill-color, #ffffff);
+            box-shadow: 0 0 0 2px #ececee, inset 0 0 0 1px rgba(0,0,0,0.35);
         }
 
         /* Switched off shows the standard transparency chequerboard rather
@@ -287,7 +295,9 @@
             font-size: 11px;
             font-weight: 600;
             color: #adadb2;
-            min-width: 12px;
+            /* Two digits wide whatever it currently says, so going from 3 to
+               20 does not shift everything to its right. */
+            min-width: 2ch;
             text-align: center;
             font-variant-numeric: tabular-nums;
         }
@@ -892,10 +902,21 @@
                 min-height: 48px;
                 display: flex;
                 align-items: center;
-                justify-content: center;
-                column-gap: 6px;
-                row-gap: 2px;
-                padding: 2px 8px;
+                /* Two gaps rather than one: tight inside a control and its
+                   label, wide between groups. With a single even gap the row
+                   read as seven loose items and the thickness number looked
+                   like it belonged to fill. In rem so it tracks the text size
+                   a person has chosen rather than a pixel guess. */
+                --gap-tight: 0.25rem;
+                --gap-group: 0.9rem;
+                /* Rows start at the same edge instead of each centring itself
+                   at its own width - which left two wrapped rows sharing no
+                   vertical line, and moved a control sideways whenever the
+                   group beside it appeared or went. */
+                justify-content: flex-start;
+                column-gap: var(--gap-group);
+                row-gap: 0.15rem;
+                padding: 0.25rem 0.75rem;
                 border-top: 1px solid rgba(255,255,255,0.07);
                 /* Every control on screen, over as many rows as that takes.
                    This was one row that scrolled sideways: with the callout
@@ -909,6 +930,25 @@
             }
 
             .toolbar-props > * { flex-shrink: 0; }
+            .toolbar-props .prop-group { gap: var(--gap-tight); }
+
+            /* Chip first, word second. With the label leading, the swatch sat
+               at whatever x that word happened to be wide - and the line label
+               reads COLOUR for text and LINE everywhere else, so the control
+               moved under your thumb when you changed tool. Leading with the
+               chip pins it to the edge of the row without pinning a width to
+               anything. */
+            .toolbar-props .prop-group .swatch { order: 0; }
+            .toolbar-props .prop-group .swatch-label { order: 1; }
+            .toolbar-props .prop-group .size-slider { order: 2; }
+            .toolbar-props .prop-group .size-value { order: 3; }
+            .toolbar-props .prop-group .fill-toggle { order: 3; }
+
+            /* The line group takes up whatever slack the row has, so the
+               slider grows into a wide screen and gives way on a narrow one,
+               and fill sits at the far edge without being positioned there.
+               No control has a place of its own to be knocked out of. */
+            .toolbar-props #lineGroup { flex: 1 1 auto; min-width: 0; }
 
             .tool-button {
                 flex-direction: column;
@@ -968,21 +1008,17 @@
                 display: none;
             }
 
-            /* Keep the wide dropdowns from eating the whole bar. */
-            #fontFamily { max-width: 104px; }
-            .arrow-style-select { max-width: 104px; }
-            .size-slider { width: 92px; }
+            /* Caps in rem, so they hold their proportion to the text rather
+               than to a screen this was measured on once. */
+            #fontFamily { flex: 0 1 6.5rem; min-width: 0; }
+            .arrow-style-select { flex: 0 1 6.5rem; min-width: 0; }
+            .size-slider { flex: 1 1 3rem; width: 3rem; min-width: 2.5rem; }
 
-            /* Separator between the line and fill controls where they share a
-               row. :not(.hidden) because this rule sits after the one that
-               hides it and carries the same weight, so without it the divider
-               stayed on screen with nothing on its right - which is how an
-               arrow's controls ended with a stray hairline. */
-            .toolbar-props .toolbar-divider:not(.hidden) {
-                display: block;
-                height: 24px;
-                margin: 0 2px;
-            }
+            /* No rule between the groups: at 24px against 44px swatches it
+               read as a tick rather than a separator, and it needed its own
+               show-and-hide logic to avoid being left dangling at the end of a
+               row. The wide gap separates them. */
+            .toolbar-props .toolbar-divider { display: none; }
 
             /* Least useful thing in the status bar, and it crowds out the
                build chip and wraps the bar onto two lines. */
@@ -1852,7 +1888,8 @@
             strokePreview.style.setProperty('--stroke-color', strokeVal);
             // The bar doubles as a thickness preview, clamped so it stays a
             // line rather than growing into a block at the top of the range.
-            strokePreview.style.height = Math.max(2, Math.min(12, size || 3)) + 'px';
+            strokePreview.style.setProperty('--stroke-bar',
+                Math.max(2, Math.min(12, size || 3)) + 'px');
 
             document.getElementById('fillPreview').style.setProperty('--fill-color', fillVal);
 

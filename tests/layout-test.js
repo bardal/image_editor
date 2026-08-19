@@ -90,8 +90,58 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     });
   }
 
+  // Controls must hold their place as tools change. The row used to centre
+  // itself on its own width, so the line controls slid sideways whenever the
+  // fill group appeared or went, and two wrapped rows shared no left edge.
+  const anchors = {};
+  for (const t of ['rect', 'ellipse', 'arrow', 'text', 'callout']) {
+    await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
+    await page.waitForTimeout(180);
+    anchors[t] = await page.evaluate(() => {
+      const props = document.querySelector('.toolbar-props');
+      const pr = props.getBoundingClientRect();
+      const rows = new Map();
+      [...props.children].forEach(el => {
+        const b = el.getBoundingClientRect();
+        if (!b.width) return;
+        const key = Math.round(b.top);
+        if (!rows.has(key) || b.left < rows.get(key)) rows.set(key, b.left);
+      });
+      const starts = [...rows.values()].map(x => Math.round(x - pr.left));
+      return {
+        rowStarts: starts,
+        // Every row begins at the bar's own edge, not wherever its width
+        // happens to centre it.
+        rowsShareLeftEdge: starts.every(x => Math.abs(x - starts[0]) <= 1),
+        strokeSwatchLeft: Math.round(
+          document.getElementById('strokeSwatch').getBoundingClientRect().left),
+      };
+    });
+  }
+  const strokeLefts = Object.values(anchors).map(a => a.strokeSwatchLeft);
+  anchors.strokeSwatchHoldsItsPlace =
+    strokeLefts.every(x => Math.abs(x - strokeLefts[0]) <= 1);
+
+  // A colour swatch has to show its colour. Both previews sit on a light chip
+  // for that reason: a dark stroke painted straight onto the dark bar was
+  // invisible at the moment you wanted to check what you were drawing in.
+  const chips = await page.evaluate(() => {
+    const lum = el => {
+      const m = getComputedStyle(el).backgroundColor.match(/\d+/g).map(Number);
+      return Math.round(0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]);
+    };
+    const stroke = document.getElementById('strokePreview');
+    const fill = document.getElementById('fillPreview');
+    const size = el => { const b = el.getBoundingClientRect();
+                         return [Math.round(b.width), Math.round(b.height)]; };
+    return { strokeChipLuma: lum(stroke), strokeChip: size(stroke),
+             fillChip: size(fill),
+             // Equal weight, or the pair does not read as a pair.
+             sameSize: String(size(stroke)) === String(size(fill)) };
+  });
+
   finish({
-    byTool, swatches,
+    byTool, swatches, anchors, chips,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
@@ -113,6 +163,13 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'swatches.ellipse.fill': isTrue,
     'swatches.callout.stroke': isTrue,
     'swatches.callout.fill': isTrue,
+    'anchors.rect.rowsShareLeftEdge': isTrue,
+    'anchors.arrow.rowsShareLeftEdge': isTrue,
+    'anchors.text.rowsShareLeftEdge': isTrue,
+    'anchors.callout.rowsShareLeftEdge': isTrue,
+    'anchors.strokeSwatchHoldsItsPlace': isTrue,
+    'chips.strokeChipLuma': atLeast(180),
+    'chips.sameSize': isTrue,
     'byTool.select.toolsAllVisible': isTrue,
     'byTool.select.unreachableInProps': isEmpty,
     'byTool.select.canvasClearOfBars': isTrue,
