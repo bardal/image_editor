@@ -11,7 +11,10 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>Simple Image Editor</title>
+    <!-- What iOS calls the icon once it is on a home screen; Android reads
+         short_name from the manifest instead. -->
+    <meta name="apple-mobile-web-app-title" content="Etch">
+    <title>Etch</title>
     <script async src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
     
     <!-- ===== STYLES ===== -->
@@ -1283,7 +1286,7 @@
     <div id="aboutModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeAbout()">&times;</span>
-            <h3>Image Editor</h3>
+            <h3>Etch</h3>
             <p>Annotate images in the browser. Nothing is uploaded &mdash; everything stays on your device.</p>
             <div class="about-row">
                 <span>Build</span>
@@ -1669,6 +1672,8 @@
         // Work is kept in IndexedDB rather than localStorage: a phone photo is
         // far larger than localStorage's few megabytes, and IndexedDB stores the
         // blob directly instead of inflating it into a base64 string.
+        // Deliberately still the old name: this is where a person's current
+        // image and drawing live, and renaming the store would strand them.
         const DB_NAME = 'image-editor';
         const STORE = 'session';
         let dbPromise = null;

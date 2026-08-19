@@ -1,6 +1,8 @@
-# Simple Image Editor
+# Etch
 
-A simple, browser-based image editor with annotation tools, HEIC support, and intuitive shape manipulation.
+Etch is a browser-based image annotator: arrows, boxes, callouts and text on
+top of a photo, with HEIC support and direct shape manipulation. Nothing is
+uploaded - it all runs on your device.
 
 ## 🌟 Features
 
@@ -188,7 +190,7 @@ The editor is built as a single HTML file with embedded CSS and JavaScript. To c
 
 ## 📄 **License**
 
-This is a simple, open-source image editor. Feel free to use, modify, and distribute as needed.
+Etch is open source. Feel free to use, modify, and distribute as needed.
 
 ---
 

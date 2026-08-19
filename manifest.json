@@ -1,7 +1,7 @@
 {
-  "name": "Image Editor",
-  "short_name": "ImgEdit",
-  "description": "Simple browser-based image editor with shapes, annotations, and export",
+  "name": "Etch",
+  "short_name": "Etch",
+  "description": "Annotate images in the browser - arrows, boxes, callouts and text. Nothing is uploaded.",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#1a1a1e",

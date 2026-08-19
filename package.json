@@ -1,5 +1,5 @@
 {
-  "name": "image-editor",
+  "name": "etch",
   "private": true,
   "description": "Browser image annotation tool. The app itself has no dependencies and no build step; this file exists only to pin the test runner.",
   "scripts": {

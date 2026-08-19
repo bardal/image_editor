@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Browser-based image annotation/editing tool built as a single-file HTML application (`index.html`) with embedded CSS and JavaScript. No build tools, no framework, no npm dependencies. It's a PWA with offline support via service worker.
+**Etch** - a browser-based image annotation/editing tool built as a single-file HTML application (`index.html`) with embedded CSS and JavaScript. No build tools, no framework, no npm dependencies. It's a PWA with offline support via service worker.
 
 ## Development
 
@@ -42,4 +42,4 @@ Only one: `heic2any` loaded async from unpkg CDN for HEIC/HEIF to JPEG conversio
 
 ### PWA files
 - `sw.js` — service worker with network-first caching strategy
-- `manifest.json` — PWA metadata (app name "Image Editor", standalone display mode)
+- `manifest.json` — PWA metadata (app name "Etch", standalone display mode)

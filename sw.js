@@ -2,7 +2,7 @@
 // gets its own cache and the activate handler drops the previous one. Without
 // this a stale cached copy can survive a deploy and make it look like the
 // deploy never landed.
-const CACHE_NAME = 'image-editor-__BUILD_ID__';
+const CACHE_NAME = 'etch-__BUILD_ID__';
 const ASSETS = [
   './',
   './index.html',

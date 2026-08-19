@@ -217,13 +217,13 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
         registered: !!reg,
         cacheNames: names,
         // One cache per build, so a deploy retires the previous offline copy.
-        buildScopedCache: names.some(n => n.startsWith('image-editor-')),
+        buildScopedCache: names.some(n => n.startsWith('etch-')),
       };
     });
 
     r.cachedTheApp = await page.evaluate(async () => {
       const names = await caches.keys();
-      const cache = await caches.open(names.find(n => n.startsWith('image-editor-')) || names[0]);
+      const cache = await caches.open(names.find(n => n.startsWith('etch-')) || names[0]);
       const keys = await cache.keys();
       const paths = keys.map(k => new URL(k.url).pathname);
       return {
