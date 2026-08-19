@@ -140,8 +140,44 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
              sameSize: String(size(stroke)) === String(size(fill)) };
   });
 
+  // A switch is a pill with a knob that travels along it. Scaling it for touch
+  // by setting both sides to 20px made the body a circle and left the knob
+  // hanging half outside it when on - a grey blob that read as nothing. Tests
+  // that only check state never see that, so this one checks the shape: the
+  // knob has to sit inside the body at both ends of its travel.
+  await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
+  await page.waitForTimeout(180);
+  // The knob slides over 0.15s, so each state is read once it has settled -
+  // computed style mid-transition reports wherever the animation had got to.
+  const readSwitch = () => page.evaluate(() => {
+    const el = document.getElementById('fillToggle');
+    const b = el.getBoundingClientRect();
+    const k = getComputedStyle(el, '::after');
+    const shift = new DOMMatrixReadOnly(k.transform).m41;
+    const left = parseFloat(k.left) + shift;
+    const w = parseFloat(k.width);
+    const top = parseFloat(k.top), h = parseFloat(k.height);
+    return {
+      pill: b.width > b.height * 1.4,
+      knobInside: left >= -0.5 && left + w <= b.width + 0.5
+               && top >= -0.5 && top + h <= b.height + 0.5,
+      travels: Math.round(shift),
+    };
+  });
+  const setSwitch = on => page.evaluate(v => {
+    const el = document.getElementById('fillToggle');
+    el.checked = v;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, on);
+  await setSwitch(false); await page.waitForTimeout(300);
+  const switchOff = await readSwitch();
+  await setSwitch(true); await page.waitForTimeout(300);
+  const switchOn = await readSwitch();
+  await setSwitch(false);
+  const fillSwitch = { off: switchOff, on: switchOn };
+
   finish({
-    byTool, swatches, anchors, chips,
+    byTool, swatches, anchors, chips, fillSwitch,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
@@ -170,6 +206,12 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'anchors.strokeSwatchHoldsItsPlace': isTrue,
     'chips.strokeChipLuma': atLeast(180),
     'chips.sameSize': isTrue,
+    'fillSwitch.off.pill': isTrue,
+    'fillSwitch.off.knobInside': isTrue,
+    'fillSwitch.on.pill': isTrue,
+    'fillSwitch.on.knobInside': isTrue,
+    // It has to actually move, or the two states look the same.
+    'fillSwitch.on.travels': atLeast(8),
     'byTool.select.toolsAllVisible': isTrue,
     'byTool.select.unreachableInProps': isEmpty,
     'byTool.select.canvasClearOfBars': isTrue,

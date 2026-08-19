@@ -944,6 +944,11 @@
             .toolbar-props .prop-group .size-value { order: 3; }
             .toolbar-props .prop-group .fill-toggle { order: 3; }
 
+            /* The chip says which state it is in - chequerboard for off, the
+               colour for on - so the word beside the switch is a third way of
+               saying the same thing, in a bar with no room for a second. */
+            .fill-toggle-text { display: none; }
+
             /* The line group takes up whatever slack the row has, so the
                slider grows into a wide screen and gives way on a narrow one,
                and fill sits at the far edge without being positioned there.
@@ -1079,9 +1084,22 @@
                 background: #3b8eed;
                 border-radius: 50%;
             }
+            .fill-toggle {
+                min-height: 44px;
+            }
             .fill-toggle input[type="checkbox"] {
-                width: 20px;
-                height: 20px;
+                width: 40px;
+                height: 24px;
+                border-radius: 12px;
+            }
+            .fill-toggle input[type="checkbox"]::after {
+                width: 18px;
+                height: 18px;
+                top: 3px;
+                left: 3px;
+            }
+            .fill-toggle input[type="checkbox"]:checked::after {
+                transform: translateX(16px);
             }
             /* Dropdowns open a native picker rather than a keyboard, so they do
                not need the 16px that stops iOS zooming, and at 16px they towered
@@ -1227,7 +1245,7 @@
                     </label>
                     <label class="fill-toggle" title="Turn fill on or off">
                         <input type="checkbox" id="fillToggle">
-                        On
+                        <span class="fill-toggle-text">On</span>
                     </label>
                 </div>
                 <div class="arrow-style-group" id="arrowStyleGroup">
