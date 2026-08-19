@@ -48,20 +48,15 @@ jobs:
           key: playwright-chromium-1.62.1-${{ runner.os }}
 
       - name: Install Chromium
-        # --with-deps shells out to apt, which can block on a lock or a prompt
-        # with nothing to time it out - that is what hung for 27 minutes on a
-        # step that normally takes 25 seconds. The runner image already carries
-        # the libraries, so deps are only fetched when the browser itself is,
-        # and the step is bounded either way.
+        # Deliberately without --with-deps. That flag runs apt-get update, which
+        # hung twice in a row on an Ubuntu mirror - 28 minutes of silence in the
+        # log between fetching an InRelease file and the cancel, with the browser
+        # download never even reached. The runner image already ships the
+        # libraries Chromium needs, so apt has nothing to add here; if one ever
+        # is missing the browser fails to launch and the suites say so at once,
+        # which beats hanging. Bounded regardless.
         timeout-minutes: 6
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          if [ "${{ steps.browser-cache.outputs.cache-hit }}" = "true" ]; then
-            npx playwright install chromium
-          else
-            npx playwright install --with-deps chromium
-          fi
+        run: npx playwright install chromium
 
       - name: Run the suites
         timeout-minutes: 10
