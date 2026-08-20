@@ -1133,7 +1133,6 @@
         <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
         <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="M12 10v6"/><path d="M9.5 13.5L12 16l2.5-2.5"/></symbol>
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10a5 5 0 0 1 0 10H8"/><path d="M4 10l5-5"/><path d="M4 10l5 5"/></symbol>
-        <symbol id="i-delete" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
         <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></symbol>
         <symbol id="i-select" viewBox="0 0 24 24"><path d="M6.1 6L16.9 11.8l-4.6 1.5L10.3 18.5z"/></symbol>
         <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
@@ -1178,11 +1177,13 @@
                 <span class="btn-icon"><svg><use href="#i-undo"/></svg></span>
                 <span class="btn-label">Undo</span>
             </button>
-            <button class="tb-btn" id="delete" disabled title="Delete Selected">
-                <span class="btn-icon"><svg><use href="#i-delete"/></svg></span>
-                <span class="btn-label">Delete</span>
-            </button>
-            <button class="tb-btn" id="clear" title="Clear All Shapes">
+            <!-- One bin. There used to be a cross for "delete what you have
+                 picked" beside this wastebasket for "clear everything", which
+                 put the two the wrong way round: the wastebasket is the icon a
+                 person reaches for to delete the shape they have selected, and
+                 it wiped the drawing instead. This takes the selection when
+                 there is one and offers to clear when there is not. -->
+            <button class="tb-btn" id="clear" title="Clear the drawing or the image">
                 <span class="btn-icon"><svg><use href="#i-clear"/></svg></span>
                 <span class="btn-label">Clear</span>
             </button>
@@ -1407,7 +1408,7 @@
         const ctx = canvas.getContext('2d');
         const loading = document.getElementById('loading');
         const undoBtn = document.getElementById('undo');
-        const deleteBtn = document.getElementById('delete');
+        const clearBtn = document.getElementById('clear');
         const imageInfo = document.getElementById('imageInfo');
         const canvasTextInput = document.getElementById('canvasTextInput');
         const calloutTextInput = document.getElementById('calloutTextInput');
@@ -2633,7 +2634,12 @@
         // ===== UI UPDATES =====
         function updateButtonStates() {
             undoBtn.disabled = undoStack.length === 0;
-            deleteBtn.disabled = selectedShape === null;
+            // The bin says which of its two jobs it will do if pressed now.
+            const binDeletes = selectedShape !== null;
+            clearBtn.querySelector('.btn-label').textContent = binDeletes ? 'Delete' : 'Clear';
+            clearBtn.title = binDeletes
+                ? 'Delete the selected shape'
+                : 'Clear the drawing or the image';
             const fillToggle = document.getElementById('fillToggle');
             if (canFill(selectedShape)) {
                 fillToggle.checked = !!selectedShape.fill;
@@ -5194,8 +5200,10 @@
             
             // Button events
             undoBtn.onclick = undoLastAction;
-            deleteBtn.onclick = deleteSelectedShape;
-            document.getElementById('clear').onclick = showClearOptions;
+            clearBtn.onclick = () => {
+                if (selectedShape) deleteSelectedShape();
+                else showClearOptions();
+            };
             document.getElementById('clearShapesBtn').addEventListener('click', clearShapesOnly);
             document.getElementById('clearAllBtn').addEventListener('click', clearEverything);
             document.getElementById('download').onclick = async () => {
