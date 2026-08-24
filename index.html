@@ -518,6 +518,12 @@
             display: block;
             cursor: crosshair;
             background: #fff;
+            /* A dark photo against the dark container has no visible edge, so
+               the picture appears to bleed into the app. A hairline ring plus a
+               soft drop shadow mark where it stops. applyView rewrites this
+               counter-scaled, since a transform would otherwise fatten the ring
+               to eight pixels at full zoom. */
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 6px 24px rgba(0,0,0,0.55);
             /* Claim all touch gestures: without this a drag scrolls or zooms
                the page instead of drawing, and never reaches the canvas. */
             touch-action: none;
@@ -1478,6 +1484,12 @@
             canvas.style.transform = viewScale === 1 && !viewOffset.x && !viewOffset.y
                 ? ''
                 : `translate(${viewOffset.x}px, ${viewOffset.y}px) scale(${viewScale})`;
+            // The transform scales the edge ring and its shadow along with the
+            // picture, so divide the lengths back out to keep them the same
+            // thickness on screen at every zoom level.
+            const k = 1 / viewScale;
+            canvas.style.boxShadow =
+                `0 0 0 ${k}px rgba(255,255,255,0.3), 0 ${6 * k}px ${24 * k}px rgba(0,0,0,0.55)`;
             updateZoomReadout();
         }
 
