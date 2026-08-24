@@ -1417,7 +1417,7 @@
                 </div>
                 <div class="status-item">
                     <span class="heic-info">JPEG / PNG / GIF / WebP / HEIC | Drag/Drop or Paste</span>
-                    <button type="button" id="zoomLevel" class="zoom-chip" title="Tap to fit the picture on screen">100%</button>
+                    <button type="button" id="zoomLevel" class="zoom-chip" title="Fit the picture on screen (ctrl-scroll over the picture to zoom)">100%</button>
                     <button type="button" id="aboutBtn" class="version-chip" title="About this build">dev</button>
                 </div>
             </div>
@@ -3509,6 +3509,48 @@
             pinchStart = null;
         }
 
+        // ===== WHEEL ZOOM / PAN =====
+        // Ctrl-scroll is the browser's own page-zoom gesture, and a trackpad
+        // pinch arrives as the same event. Both mean "make what I am looking at
+        // bigger", which here is the picture and not the toolbars - so the
+        // canvas claims the gesture and preventDefault stops the browser
+        // scaling the whole UI around it. Zooming is anchored on the pointer,
+        // as pinching is anchored between the fingers.
+        //
+        // The plain wheel then pans, but only once zoomed in: a mouse has no
+        // second finger, so without this there is no way to reach the part of
+        // the picture the zoom pushed off screen. At fit zoom there is nothing
+        // to pan and the event is left alone.
+        function handleWheel(e) {
+            // With nothing loaded there is no picture to zoom, so the gesture
+            // is left to the browser rather than swallowed to no effect.
+            if (!img) return;
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                // Exponential, so a notch is the same proportional step at any
+                // zoom - a fixed increment crawls when zoomed in and lurches
+                // when zoomed out. The divisor puts a mouse notch at about a
+                // fifth, so fit to full zoom is a dozen notches, while the small
+                // deltas a trackpad pinch sends stay smooth. deltaMode 1 and 2
+                // report lines and pages rather than pixels; converting keeps a
+                // notch a notch.
+                const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+                setZoom(viewScale * Math.exp(-e.deltaY * unit / 600), e.clientX, e.clientY);
+                return;
+            }
+            if (viewScale === 1) return;
+            e.preventDefault();
+            // Shift-scroll is the conventional way to send a one-axis wheel
+            // sideways; a trackpad or tilt wheel sends deltaX itself.
+            const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+            const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit;
+            const dy = (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * unit;
+            viewOffset.x -= dx;
+            viewOffset.y -= dy;
+            clampView();
+            applyView();
+        }
+
         // ===== LONG PRESS =====
         // A press held still for a moment opens the context menu. Moving the
         // finger cancels it, so it never fires part-way through a drag.
@@ -5519,6 +5561,11 @@
             canvas.addEventListener('touchend', e => {
                 if (editingBlock) e.preventDefault();
             }, { passive: false });
+            // On the container, not the canvas: while zoomed the picture is
+            // clipped, and the wheel should still work over the surround.
+            // passive: false, or preventDefault is ignored and the page zooms.
+            document.querySelector('.canvas-container')
+                .addEventListener('wheel', handleWheel, { passive: false });
             canvas.addEventListener('dblclick', handleDoubleClick);
             canvas.addEventListener('contextmenu', e => {
                 e.preventDefault();
