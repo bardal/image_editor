@@ -1978,6 +1978,25 @@
             try { await dbPut('image', blob); } catch (err) { console.error('Could not store image:', err); }
         }
 
+        // A line drawn before the rotation handle went away can have been left
+        // at an angle the handle applied on top of its endpoints. Nothing turns
+        // a line any more, so that angle is folded into the ends themselves:
+        // the line stays exactly where its owner left it, and now the handles
+        // are where the line is - the hit test never knew about the rotation,
+        // so a turned line could only be grabbed along the path it was drawn.
+        function bakeLineRotation(s) {
+            if (s.type !== 'arrow' || !s.rotation) return s;
+            const cx = (s.x + s.x2) / 2;
+            const cy = (s.y + s.y2) / 2;
+            const cos = Math.cos(s.rotation), sin = Math.sin(s.rotation);
+            const turn = (x, y) => ({
+                x: cx + (x - cx) * cos - (y - cy) * sin,
+                y: cy + (x - cx) * sin + (y - cy) * cos
+            });
+            const a = turn(s.x, s.y), b = turn(s.x2, s.y2);
+            return { ...s, x: a.x, y: a.y, x2: b.x, y2: b.y, rotation: 0 };
+        }
+
         async function restoreSession() {
             let doc;
             try {
@@ -2037,6 +2056,12 @@
                     canvas.height = doc.canvasH;
                     resizeCanvas();
                 }
+
+                // After the reflow, not before: resizeCanvas can scale the two
+                // axes by different amounts, and folding the angle in first
+                // would then be stretched by it - the line would come back at
+                // an angle its owner never left it at.
+                shapes = shapes.map(bakeLineRotation);
 
                 syncTearControls();
                 redraw();
@@ -2483,18 +2508,11 @@
                     centerX: centerX,
                     centerY: centerY
                 };
-            } else if (shape.type === 'arrow') {
-                const centerX = (shape.x + shape.x2) / 2;
-                const centerY = (shape.y + shape.y2) / 2;
-                const length = Math.sqrt((shape.x2 - shape.x) ** 2 + (shape.y2 - shape.y) ** 2);
-                const handleDistance = Math.max(length / 2, 30);
-                return {
-                    x: centerX + handleDistance * Math.cos(shape.rotation || 0),
-                    y: centerY + handleDistance * Math.sin(shape.rotation || 0),
-                    centerX: centerX,
-                    centerY: centerY
-                };
             }
+            // A line has no rotation handle. Its two ends already say where it
+            // points, and dragging one is the shorter way to say it - swinging
+            // a separate handle about the midpoint only reaches the same angles
+            // by a longer route, and left the ends somewhere they were not put.
             return null;
         }
 
@@ -3015,9 +3033,6 @@
                 if (s.type === 'text') {
                     centerX = s.x;
                     centerY = s.y + textHeightOf(s) / 2;
-                } else if (s.type === 'arrow') {
-                    centerX = (s.x + s.x2) / 2;
-                    centerY = (s.y + s.y2) / 2;
                 } else {
                     centerX = s.x + s.w / 2;
                     centerY = s.y + s.h / 2;
@@ -3100,7 +3115,7 @@
 
         function drawSelectionHandles(shape) {
             // Draw rotation handle
-            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'text' || shape.type === 'arrow') {
+            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'text') {
                 const handle = getRotationHandle(shape);
                 if (handle) {
                     ctx.save();
