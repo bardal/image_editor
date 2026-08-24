@@ -1063,11 +1063,8 @@
 
             /* The tear controls are the one contextual group that may not fit
                a narrow phone on one line, so this is the one that is allowed
-               to wrap onto a second rather than run off the edge. The hint
-               goes first: on a phone the grips on the picture say the same
-               thing, and there is no room for both. */
+               to wrap onto a second rather than run off the edge. */
             .tear-group.visible { flex-wrap: wrap; }
-            .tear-hint { display: none; }
             .tear-edge { width: 40px; height: 36px; }
 
             /* Cropping has no use for the line and fill controls, and hiding
@@ -1377,7 +1374,6 @@
                     </div>
                     <input type="range" id="tearDepth" min="4" max="48" value="16" class="size-slider" title="How deep the tear bites in">
                     <button type="button" id="tearShuffle" class="crop-btn" title="Tear it again, differently">Again</button>
-                    <span class="crop-hint tear-hint">Or drag an edge inwards</span>
                 </div>
                 <div id="textFormatGroup" class="text-format-group">
                     <select id="fontFamily" title="Font family">
@@ -3997,7 +3993,11 @@
             const coarse = isCoarsePointer();
             const long = screenPxToCanvas(coarse ? 56 : 44);
             const thick = screenPxToCanvas(coarse ? 10 : 8);
-            const inset = screenPxToCanvas(coarse ? 20 : 15);
+            // Clear of the rip on an edge already torn: at a fixed inset the
+            // grip sat in the gap the tear had taken, floating off the page it
+            // belongs to.
+            const inset = screenPxToCanvas(coarse ? 20 : 15)
+                + (tear[edge] ? fitPxToCanvas(tear.depth) : 0);
             const W = canvas.width, H = canvas.height;
             if (edge === 'top') return { x: W / 2 - long / 2, y: inset - thick / 2, w: long, h: thick };
             if (edge === 'bottom') return { x: W / 2 - long / 2, y: H - inset - thick / 2, w: long, h: thick };
@@ -4034,9 +4034,10 @@
         // Which edge a press belongs to: the nearest one, within a band wide
         // enough to hold the grip and whatever is already torn away.
         function tearEdgeAt(x, y) {
-            const band = Math.max(
-                screenPxToCanvas(isCoarsePointer() ? 46 : 32),
-                fitPxToCanvas(tear.depth) * 1.25);
+            // Wide enough to hold the grip wherever the rip has pushed it, and
+            // the same reach again on an edge with nothing torn from it yet.
+            const band = fitPxToCanvas(tear.depth) +
+                screenPxToCanvas(isCoarsePointer() ? 46 : 32);
             let best = null, bestDistance = Infinity;
             for (const edge of TEAR_EDGES) {
                 const d = tearEdgeDistance(edge, x, y);
