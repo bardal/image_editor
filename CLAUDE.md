@@ -22,7 +22,8 @@ The entire app lives in one file with three sections:
 
 ### Key global state variables
 - `img` — loaded image; `shapes` — array of all drawn shapes; `selectedShape` — current selection
-- `tool` — active tool: `'select'`, `'rect'`, `'ellipse'`, `'arrow'`, `'polyline'`, `'text'`
+- `tool` — active tool: `'select'`, `'rect'`, `'ellipse'`, `'arrow'`, `'polyline'`, `'text'`, `'callout'`, `'crop'`, `'tear'`
+- `tear` — which page edges are torn, how deep, and the seed the rip is generated from
 - `color`, `size`, `fillDefault` — drawing properties
 - `drawing`, `isDragging`, `isRotating`, `isResizing` — interaction state flags
 - `canvasScale` — DPI adjustment factor for coordinate conversion
@@ -34,8 +35,9 @@ Each shape is a plain object with `type`, position/size fields, `color`, `size`,
 - **Coordinate conversion**: All mouse events go through `screenToCanvas()` to handle DPI scaling and canvas offset.
 - **Hit detection**: `isPointInShape()` dispatches by shape type. Overlapping shapes are cycled on repeated clicks via `getAllShapesAtPoint()`.
 - **Selection UI**: Selected shapes get green dashed borders, a rotation handle (green circle), and resize handles (corner squares for rect/ellipse).
-- **Undo**: Stack-based — stores deep copies of shape state. No redo.
+- **Undo**: Stack-based — each entry is a deep copy of `{ shapes, tear }`, so tearing an edge is a step like any other. No redo.
 - **Canvas redraw**: `redraw()` clears canvas, draws the base image, then iterates all shapes. Called after every state change.
+- **Torn page**: `tearPaths()` builds the ragged page outline from a seeded noise function (`tearRandom`/`tearSample`), cached against the canvas size and settings. `redraw()` clips the picture to it, so the strip a tear takes is cleared rather than painted — an export keeps the alpha. Depth is in `fitPx`, like stroke widths.
 
 ### External dependency
 Only one: `heic2any` loaded async from unpkg CDN for HEIC/HEIF to JPEG conversion (iPhone photos).
