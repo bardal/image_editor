@@ -1582,6 +1582,8 @@
         let viewScale = 1;
         let viewOffset = { x: 0, y: 0 };
         const MAX_ZOOM = 8;
+        // Which edges the ring was last built for - see redraw().
+        let lastRingKey = null;
 
         // Marks where the picture stops. A photo that happens to match the
         // surface behind it - a dark one on dark chrome, a white one on light -
@@ -1599,11 +1601,28 @@
         // The bands live under the same transform as the picture, so every
         // length is divided by the zoom to hold its on-screen thickness; left
         // alone, the hairline reached eight pixels at full zoom.
+        // A torn edge marks itself. The rip carries the same two bands - a pale
+        // lip against the picture, a shadow against what is behind it - so a
+        // straight rule across it would only say the page stops somewhere it
+        // does not. The ring is laid side by side for that reason, and a side
+        // that has been torn is left to the tear. Spread would reach all four
+        // at once; an offset with no spread lays a band along one.
         function edgeRing(scale) {
             const k = 1 / (scale || 1);
-            return `0 0 0 ${k}px rgba(255,255,255,0.85),`
-                 + ` 0 0 0 ${2 * k}px rgba(0,0,0,0.75),`
-                 + ` 0 ${6 * k}px ${24 * k}px rgba(0,0,0,0.45)`;
+            const sides = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
+            const bands = [];
+            for (const [side, [dx, dy]] of Object.entries(sides)) {
+                if (tear[side]) continue;
+                // Pale first: the later shadow is painted behind it, so the
+                // 2px dark band shows as the outer half of the pair.
+                bands.push(`${dx * k}px ${dy * k}px 0 0 rgba(255,255,255,0.85)`);
+                bands.push(`${dx * 2 * k}px ${dy * 2 * k}px 0 0 rgba(0,0,0,0.75)`);
+            }
+            // The lift beneath the page is a rectangle whatever is drawn over
+            // it, so it goes as soon as any edge is ragged - a straight glow
+            // under a torn edge reads as a second, harder edge below the rip.
+            if (!hasTear()) bands.push(`0 ${6 * k}px ${24 * k}px rgba(0,0,0,0.45)`);
+            return bands.join(', ');
         }
 
         function applyView() {
@@ -4258,6 +4277,14 @@
 
             drawTearOverlay();
             drawCropOverlay();
+
+            // The edge ring skips the sides the rip has taken, so it is rebuilt
+            // when that set changes - applyView alone only hears about zoom.
+            const ringKey = TEAR_EDGES.map(e => (tear[e] ? 1 : 0)).join('');
+            if (ringKey !== lastRingKey) {
+                lastRingKey = ringKey;
+                applyView();
+            }
 
             // Debounced, so a drag that redraws every frame writes once it
             // settles rather than on every frame.
