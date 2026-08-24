@@ -518,12 +518,9 @@
             display: block;
             cursor: crosshair;
             background: #fff;
-            /* A dark photo against the dark container has no visible edge, so
-               the picture appears to bleed into the app. A hairline ring plus a
-               soft drop shadow mark where it stops. applyView rewrites this
-               counter-scaled, since a transform would otherwise fatten the ring
-               to eight pixels at full zoom. */
-            box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 6px 24px rgba(0,0,0,0.55);
+            /* The edge ring is drawn by applyView, not here: it has to be
+               counter-scaled against the zoom transform, and one author beats
+               two that can drift apart. */
             /* Claim all touch gestures: without this a drag scrolls or zooms
                the page instead of drawing, and never reaches the canvas. */
             touch-action: none;
@@ -1479,17 +1476,35 @@
         let viewOffset = { x: 0, y: 0 };
         const MAX_ZOOM = 8;
 
+        // Marks where the picture stops. A photo that happens to match the
+        // surface behind it - a dark one on dark chrome, a white one on light -
+        // otherwise runs straight into the app with no visible boundary, so a
+        // single-colour rule cannot be relied on: whichever shade it is, some
+        // image or some theme will swallow it.
+        //
+        // Two bands solve it without knowing either colour. The pale band sits
+        // against the picture, the dark one against whatever surrounds it, and
+        // the step between the two is full contrast no matter what is on either
+        // side - so at least one boundary always reads. Both lie outside the
+        // canvas box and so cover none of the image, and neither is painted
+        // into the bitmap: exports are unaffected.
+        //
+        // The bands live under the same transform as the picture, so every
+        // length is divided by the zoom to hold its on-screen thickness; left
+        // alone, the hairline reached eight pixels at full zoom.
+        function edgeRing(scale) {
+            const k = 1 / (scale || 1);
+            return `0 0 0 ${k}px rgba(255,255,255,0.85),`
+                 + ` 0 0 0 ${2 * k}px rgba(0,0,0,0.75),`
+                 + ` 0 ${6 * k}px ${24 * k}px rgba(0,0,0,0.45)`;
+        }
+
         function applyView() {
             canvas.style.transformOrigin = '0 0';
             canvas.style.transform = viewScale === 1 && !viewOffset.x && !viewOffset.y
                 ? ''
                 : `translate(${viewOffset.x}px, ${viewOffset.y}px) scale(${viewScale})`;
-            // The transform scales the edge ring and its shadow along with the
-            // picture, so divide the lengths back out to keep them the same
-            // thickness on screen at every zoom level.
-            const k = 1 / viewScale;
-            canvas.style.boxShadow =
-                `0 0 0 ${k}px rgba(255,255,255,0.3), 0 ${6 * k}px ${24 * k}px rgba(0,0,0,0.55)`;
+            canvas.style.boxShadow = edgeRing(viewScale);
             updateZoomReadout();
         }
 
