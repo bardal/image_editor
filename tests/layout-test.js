@@ -41,7 +41,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
         if (b.left < -1 || b.right > vw + 1) offScreen.push(el.id || el.className);
       });
 
-      // All six tools must be visible without scrolling.
+      // Every tool must be visible without scrolling, however many there are.
       const toolsVisible = [...strip.querySelectorAll('.tool-button')]
         .every(b => { const r = b.getBoundingClientRect(); return r.left >= -1 && r.right <= vw + 1; });
 
@@ -68,7 +68,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   };
 
   const byTool = {};
-  for (const t of ['select', 'rect', 'text', 'arrow', 'callout', 'crop']) {
+  for (const t of ['select', 'rect', 'text', 'arrow', 'callout', 'crop', 'tear']) {
     byTool[t] = await check(t);
   }
 
@@ -193,6 +193,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'byTool.callout.canvasClearOfBars': isTrue,
     'byTool.crop.offScreenInProps': isEmpty,
     'byTool.crop.needsSideScroll': isFalse,
+    // The tear controls are the widest contextual group there is: four edges,
+    // a depth and a button. They wrap onto a second row rather than running
+    // off the side.
+    'byTool.tear.offScreenInProps': isEmpty,
+    'byTool.tear.needsSideScroll': isFalse,
+    'byTool.tear.unreachableInProps': isEmpty,
+    'byTool.tear.canvasClearOfBars': isTrue,
+    'byTool.tear.toolsAllVisible': isTrue,
     'swatches.rect.stroke': isTrue,
     'swatches.rect.fill': isTrue,
     'swatches.ellipse.stroke': isTrue,

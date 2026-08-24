@@ -93,6 +93,7 @@ does not.
 | `pinch` | The spot between your fingers staying put, out-and-back without creeping, and enough bitmap for the screen at any zoom |
 | `menu` | Long-press and right-click menus, duplicate, stacking order |
 | `crop` | Crop, expand, transparent margins, reset |
+| `tear` | Torn edges: the strip really goes, only the chosen edge, depth, undo, and what a reload brings back |
 | `clear` | Clearing the drawing, everything, what survives a reload, and the single bin that deletes a selection or offers to clear |
 | `persist` | Shapes, image and crop surviving a reload |
 | `reflow` | The drawing keeping its place when the blank canvas is re-sized: address bar, rotation, and a document saved on a differently sized canvas |

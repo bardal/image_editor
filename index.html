@@ -437,6 +437,54 @@
 
         .crop-btn:hover { filter: brightness(1.12); }
 
+        /* Torn page. The four edge buttons sit in one segmented block so they
+           read as a single control, the way the tear itself is one look. */
+        .tear-group {
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tear-group.visible { display: flex; }
+
+        .tear-edges {
+            display: flex;
+            gap: 2px;
+            padding: 2px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+        }
+
+        .tear-edge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 28px;
+            padding: 0;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: #adadb2;
+            cursor: pointer;
+            transition: background 0.12s, color 0.12s;
+        }
+
+        .tear-edge svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .tear-edge:hover { color: #d0d0d4; background: rgba(255,255,255,0.05); }
+
+        .tear-edge.active { background: #3b8eed; color: #fff; }
+
         .text-format-group {
             display: none;
             align-items: center;
@@ -955,19 +1003,29 @@
                No control has a place of its own to be knocked out of. */
             .toolbar-props #lineGroup { flex: 1 1 auto; min-width: 0; }
 
+            /* The tools share the width between them rather than each holding a
+               size of its own. At a fixed 52px the strip was wider than the
+               screen as soon as there were nine of them, and the last tool -
+               whichever it happened to be - sat off the right-hand edge with
+               nothing to say it was there. */
+            .tool-strip { gap: 0; }
+
             .tool-button {
+                flex: 1 1 0;
                 flex-direction: column;
                 gap: 2px;
-                min-width: 52px;
+                min-width: 0;
                 min-height: 52px;
+                padding: 0 2px;
                 background: none;
                 border-radius: 8px;
+                overflow: hidden;
             }
 
             .tool-button .tool-text {
                 display: block;
-                font-size: 11px;
-                letter-spacing: 0.01em;
+                font-size: 10px;
+                letter-spacing: 0;
             }
 
             .tool-button .tool-icon svg { width: 22px; height: 22px; }
@@ -995,12 +1053,22 @@
                tool shows what that tool offers first. */
             .text-format-group.visible,
             .arrow-style-group.visible,
-            .crop-group.visible {
+            .crop-group.visible,
+            .tear-group.visible {
                 display: flex;
                 flex-wrap: nowrap;
                 gap: 6px;
                 order: -1;
             }
+
+            /* The tear controls are the one contextual group that may not fit
+               a narrow phone on one line, so this is the one that is allowed
+               to wrap onto a second rather than run off the edge. The hint
+               goes first: on a phone the grips on the picture say the same
+               thing, and there is no room for both. */
+            .tear-group.visible { flex-wrap: wrap; }
+            .tear-hint { display: none; }
+            .tear-edge { width: 40px; height: 36px; }
 
             /* Cropping has no use for the line and fill controls, and hiding
                them keeps Apply and Reset on screen without scrolling. */
@@ -1043,8 +1111,19 @@
            browser zooming in when a form control is focused (iOS zooms any
            input whose font-size is below 16px). */
         @media (pointer: coarse) {
-            .tb-btn, .tool-button {
+            .tb-btn {
                 min-width: 44px;
+                min-height: 44px;
+            }
+            /* The tool strip divides the screen between its tools rather than
+               giving each one a fixed size, so on the narrowest phone nine
+               tools come out at 43px - a pixel under the finger size the rest
+               of this block asks for. They sit edge to edge with no dead space
+               between them and are 56px tall, which is the direction a thumb
+               actually misses in. A fixed 44 would put the last tool off the
+               screen entirely, which is the worse of the two. */
+            .tool-button {
+                min-width: 40px;
                 min-height: 44px;
             }
             .swatch {
@@ -1141,6 +1220,11 @@
         <symbol id="i-line" viewBox="0 0 24 24"><path d="M5 19L19 5"/></symbol>
         <symbol id="i-callout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="11" rx="2"/><path d="M8 15l-2 5 7-5"/></symbol>
         <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a1 1 0 0 0 1 1h14"/><path d="M2 6h15a1 1 0 0 1 1 1v15"/></symbol>
+        <symbol id="i-tear" viewBox="0 0 24 24"><path d="M4 4h16v10l-2 2-2-2.5-2 2.5-2-2-2 2.5-2-2-2 2.5-2-2z"/></symbol>
+        <symbol id="i-tear-top" viewBox="0 0 24 24"><path d="M4 8l2.7-2 2.6 2.5 2.7-2.5 2.7 2 2.6-2.5L20 8v12H4z"/></symbol>
+        <symbol id="i-tear-right" viewBox="0 0 24 24"><path d="M16 4l2 2.7-2.5 2.6 2.5 2.7-2 2.7 2.5 2.6L16 20H4V4z"/></symbol>
+        <symbol id="i-tear-bottom" viewBox="0 0 24 24"><path d="M4 16l2.7 2 2.6-2.5 2.7 2.5 2.7-2 2.6 2.5L20 16V4H4z"/></symbol>
+        <symbol id="i-tear-left" viewBox="0 0 24 24"><path d="M8 4L6 6.7l2.5 2.6L6 12l2 2.7-2.5 2.6L8 20h12V4z"/></symbol>
         <symbol id="i-text" viewBox="0 0 24 24"><path d="M6 6V5h12v1"/><path d="M12 5v14"/><path d="M9 19h6"/></symbol>
         <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
     </svg>
@@ -1223,6 +1307,10 @@
                     <span class="tool-icon"><svg><use href="#i-crop"/></svg></span>
                     <span class="tool-text">Crop</span>
                 </button>
+                <button class="tool-button" data-tool="tear">
+                    <span class="tool-icon"><svg><use href="#i-tear"/></svg></span>
+                    <span class="tool-text">Tear</span>
+                </button>
             </div>
             <div class="toolbar-divider"></div>
 
@@ -1267,6 +1355,29 @@
                     <span class="crop-hint">Drag the frame &mdash; outwards adds space</span>
                     <button type="button" id="cropApply" class="crop-btn primary">Apply</button>
                     <button type="button" id="cropReset" class="crop-btn">Reset</button>
+                </div>
+                <!-- Which edges are torn, and how deep. The four buttons read
+                     as one control because a torn page is one look, not four
+                     separate ones - and the icons say which edge each is for
+                     on a screen too narrow for the words. -->
+                <div id="tearGroup" class="tear-group">
+                    <div class="tear-edges" role="group" aria-label="Torn edges">
+                        <button type="button" id="tear-top" class="tear-edge" title="Tear the top edge" aria-label="Tear the top edge">
+                            <svg><use href="#i-tear-top"/></svg>
+                        </button>
+                        <button type="button" id="tear-left" class="tear-edge" title="Tear the left edge" aria-label="Tear the left edge">
+                            <svg><use href="#i-tear-left"/></svg>
+                        </button>
+                        <button type="button" id="tear-right" class="tear-edge" title="Tear the right edge" aria-label="Tear the right edge">
+                            <svg><use href="#i-tear-right"/></svg>
+                        </button>
+                        <button type="button" id="tear-bottom" class="tear-edge" title="Tear the bottom edge" aria-label="Tear the bottom edge">
+                            <svg><use href="#i-tear-bottom"/></svg>
+                        </button>
+                    </div>
+                    <input type="range" id="tearDepth" min="4" max="48" value="16" class="size-slider" title="How deep the tear bites in">
+                    <button type="button" id="tearShuffle" class="crop-btn" title="Tear it again, differently">Again</button>
+                    <span class="crop-hint tear-hint">Or drag an edge inwards</span>
                 </div>
                 <div id="textFormatGroup" class="text-format-group">
                     <select id="fontFamily" title="Font family">
@@ -1701,6 +1812,13 @@
             return px * ratio;
         }
 
+        // The other way round, for turning a distance dragged across the canvas
+        // back into the unit a size is stored in.
+        function canvasToFitPx(units) {
+            const one = fitPxToCanvas(1);
+            return one ? units / one : units;
+        }
+
         // Minimum grab width for thin lines, so a 1px arrow is still tappable.
         function lineGrabWidth() {
             return screenPxToCanvas(isCoarsePointer() ? 24 : 10);
@@ -1794,6 +1912,7 @@
             try {
                 await dbPut('doc', {
                     shapes,
+                    tear,
                     imgOffset,
                     canvasOverride,
                     canvasW: canvas.width,
@@ -1847,6 +1966,9 @@
                 imgOffset = doc.imgOffset || { x: 0, y: 0 };
                 canvasOverride = doc.canvasOverride || null;
                 shapes = doc.shapes || [];
+                // Merged rather than assigned, so a document saved before torn
+                // edges existed still arrives with a depth and a seed.
+                if (doc.tear) tear = { ...tear, ...doc.tear };
                 // Taken from the highest id present, never from the count.
                 // shapes.length + 1 collides the moment anything has been
                 // deleted or the ids are not consecutive - a document holding
@@ -1874,6 +1996,7 @@
                     resizeCanvas();
                 }
 
+                syncTearControls();
                 redraw();
                 updateImageInfo();
                 updateButtonStates();
@@ -2061,6 +2184,8 @@
             imgOffset = { x: 0, y: 0 };
             canvasOverride = null;
             cropRect = null;
+            tear = { ...tear, top: false, right: false, bottom: false, left: false };
+            syncTearControls();
             // Drop the stored image too, or a reload would bring it straight back.
             await dbDelete('image');
             closeClearOptions();
@@ -2659,6 +2784,9 @@
             updateSwatches();
             // Crop controls only while cropping.
             document.getElementById('cropGroup').classList.toggle('visible', tool === 'crop');
+            // Same for the tear controls.
+            document.getElementById('tearGroup').classList.toggle('visible', tool === 'tear');
+            if (tool === 'tear') syncTearControls();
 
             // Line and fill are shown when they can actually do something: a
             // drawing tool is armed and about to use them, or a shape that
@@ -2684,7 +2812,7 @@
 
             // With nothing left in it, the bar itself goes, handing the space
             // back to the picture.
-            const contextualOpen = tool === 'crop' || tool === 'arrow' ||
+            const contextualOpen = tool === 'crop' || tool === 'tear' || tool === 'arrow' ||
                 tool === 'text' || (selectedShape && (selectedShape.type === 'arrow' || selectedShape.type === 'text'));
             document.body.classList.toggle('props-empty', !showLine && !showFill && !contextualOpen);
 
@@ -2926,11 +3054,6 @@
             }
 
             ctx.restore();
-            
-            // Draw handles for selected shapes
-            if (s === selectedShape && !temp) {
-                drawSelectionHandles(s);
-            }
         }
 
         function drawSelectionHandles(shape) {
@@ -3652,6 +3775,307 @@
             showToast(`Canvas ${canvas.width} × ${canvas.height}`);
         }
 
+        // ===== TORN PAGE =====
+        // Any of the four edges can be torn. The strip the rip takes is cleared
+        // rather than painted over, so a saved PNG carries a ragged edge with
+        // nothing behind it and drops onto a slide or a document as paper would.
+        //
+        // Depth is held in fit pixels - the unit stroke widths and font sizes
+        // use - so a tear keeps its proportion to the picture whatever the
+        // photo's resolution, and does not change size when you zoom.
+        const TEAR_EDGES = ['top', 'right', 'bottom', 'left'];
+        const TEAR_MIN_DEPTH = 4;
+        const TEAR_MAX_DEPTH = 48;
+        let tear = { top: false, right: false, bottom: false, left: false, depth: 16, seed: 1 };
+        let tearDrag = null;
+        // The built paths, keyed by everything they are built from. Re-running
+        // the noise over every edge on every frame of a drag is wasted work, and
+        // the key covers the canvas size, so a crop rebuilds without being told.
+        let tearCache = null;
+        // Set while an export takes the bitmap, so the edge grips - which are
+        // interface, not picture - stay out of it.
+        let hideOverlays = false;
+
+        function hasTear() {
+            return TEAR_EDGES.some(edge => tear[edge]);
+        }
+
+        // Deterministic noise. Anything drawn from Math.random would crawl while
+        // you dragged the depth and come back a different shape after a reload,
+        // so every value here is a function of the seed and the position along
+        // the edge - never of how many samples were taken, which changes with
+        // the depth and would otherwise reshuffle the rip as you set it.
+        function tearRandom(seed) {
+            let a = seed | 0;
+            return function () {
+                a = (a + 0x6D2B79F5) | 0;
+                let t = Math.imul(a ^ (a >>> 15), 1 | a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
+        function tearSeries(rand, count) {
+            const values = [];
+            for (let i = 0; i <= count; i++) values.push(rand() * 2 - 1);
+            return values;
+        }
+
+        // Smoothed lookup along a series. Two of these at different wavelengths
+        // give an edge that wanders like paper rather than buzzing like a
+        // sawtooth; the third term below is the fibre, and is deliberately not
+        // smoothed - a tear is angular close up.
+        function tearSample(values, t) {
+            const n = values.length - 1;
+            const p = Math.max(0, Math.min(1, t)) * n;
+            const i = Math.min(n - 1, Math.floor(p));
+            const f = p - i;
+            return values[i] + (values[i + 1] - values[i]) * (f * f * (3 - 2 * f));
+        }
+
+        function tearGrit(seed, step) {
+            let t = Math.imul(seed ^ (step + 0x9E3779B9), 0x85EBCA6B);
+            t ^= t >>> 13;
+            t = Math.imul(t, 0xC2B2AE35);
+            t ^= t >>> 16;
+            return ((t >>> 0) / 4294967296) * 2 - 1;
+        }
+
+        function tearEase(u) {
+            const c = Math.max(0, Math.min(1, u));
+            return c * c * (3 - 2 * c);
+        }
+
+        // Clockwise from the top-left, with the direction the rip bites in.
+        const TEAR_SIDES = {
+            top:    { from: 'tl', to: 'tr', nx: 0,  ny: 1 },
+            right:  { from: 'tr', to: 'br', nx: -1, ny: 0 },
+            bottom: { from: 'br', to: 'bl', nx: 0,  ny: -1 },
+            left:   { from: 'bl', to: 'tl', nx: 1,  ny: 0 },
+        };
+
+        // A corner is cut once and shared by the two edges that meet there, so
+        // two torn edges join instead of crossing. Where a torn edge meets a
+        // whole one the corner stays square and the rip tapers out to reach it.
+        // Both values are drawn whether or not they are used, so toggling one
+        // edge does not reshape the corners of another.
+        function tearCorners(depth) {
+            const rand = tearRandom(tear.seed * 2654435761 + 101);
+            const W = canvas.width, H = canvas.height;
+            const bite = (a, b) => {
+                const x = depth * (0.2 + rand() * 0.5);
+                const y = depth * (0.2 + rand() * 0.5);
+                return tear[a] && tear[b] ? { x, y, cut: true } : { x: 0, y: 0, cut: false };
+            };
+            const tl = bite('top', 'left');
+            const tr = bite('top', 'right');
+            const br = bite('bottom', 'right');
+            const bl = bite('bottom', 'left');
+            return {
+                tl: { x: tl.x, y: tl.y, cut: tl.cut },
+                tr: { x: W - tr.x, y: tr.y, cut: tr.cut },
+                br: { x: W - br.x, y: H - br.y, cut: br.cut },
+                bl: { x: bl.x, y: H - bl.y, cut: bl.cut },
+            };
+        }
+
+        function tearEdgePoints(edge, corners, depth, index) {
+            const side = TEAR_SIDES[edge];
+            const a = corners[side.from];
+            const b = corners[side.to];
+            if (!tear[edge]) return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
+
+            const len = Math.hypot(b.x - a.x, b.y - a.y);
+            const seed = (tear.seed * 7919 + index * 104729) | 0;
+            // Feature size comes from the page, not from the depth: a shallow
+            // tear and a deep one on the same picture are the same rip, one
+            // biting further in than the other.
+            const feature = Math.max(1, Math.min(canvas.width, canvas.height) * 0.05);
+            const rand = tearRandom(seed);
+            const swing = tearSeries(rand, Math.max(2, Math.min(24, Math.round(len / (feature * 4)))));
+            const notches = tearSeries(rand, Math.max(4, Math.min(160, Math.round(len / feature))));
+            const steps = Math.max(12, Math.min(420, Math.ceil(len / Math.max(depth * 0.4, 1))));
+            // How far from a square corner the rip reaches full depth.
+            const ramp = len ? Math.min(0.4, (depth * 2.5) / len) : 0;
+
+            const points = [];
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const bias = 0.55 * tearSample(swing, t)
+                    + 0.30 * tearSample(notches, t)
+                    + 0.15 * tearGrit(seed, Math.round(t * 997));
+                // Curved rather than taken straight: paper tears in long
+                // shallow runs with the odd deep bite out of it, and an even
+                // spread of depths reads as a wavy line instead.
+                const u = Math.max(0, Math.min(1, 0.5 + 0.5 * bias));
+                let d = depth * Math.pow(u, 1.6);
+                if (!a.cut && ramp) d *= tearEase(t / ramp);
+                if (!b.cut && ramp) d *= tearEase((1 - t) / ramp);
+                points.push({
+                    x: a.x + (b.x - a.x) * t + side.nx * d,
+                    y: a.y + (b.y - a.y) * t + side.ny * d,
+                });
+            }
+            return points;
+        }
+
+        // Three paths: what is left of the page, the rips alone (for the pale
+        // lip along them), and the strip the rips took (for the shadow that
+        // makes the edge read as paper rather than as a cut-out).
+        function tearPaths() {
+            const W = canvas.width, H = canvas.height;
+            const depth = Math.max(1, fitPxToCanvas(tear.depth));
+            const key = [W, H, Math.round(depth * 10), tear.seed,
+                TEAR_EDGES.map(e => (tear[e] ? 1 : 0)).join('')].join('|');
+            if (tearCache && tearCache.key === key) return tearCache.paths;
+            if (!hasTear()) {
+                tearCache = { key, paths: null };
+                return null;
+            }
+
+            const corners = tearCorners(depth);
+            const paper = new Path2D();
+            const rips = new Path2D();
+            let started = false;
+            TEAR_EDGES.forEach((edge, index) => {
+                const points = tearEdgePoints(edge, corners, depth, index);
+                for (let i = 0; i < points.length; i++) {
+                    const p = points[i];
+                    if (!started) { paper.moveTo(p.x, p.y); started = true; }
+                    else paper.lineTo(p.x, p.y);
+                }
+                if (tear[edge]) {
+                    rips.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) rips.lineTo(points[i].x, points[i].y);
+                }
+            });
+            paper.closePath();
+
+            // Even-odd against the full page leaves exactly what was torn away.
+            const gone = new Path2D();
+            gone.rect(0, 0, W, H);
+            gone.addPath(paper);
+
+            const paths = { paper, rips, gone, depth };
+            tearCache = { key, paths };
+            return paths;
+        }
+
+        // Painted into the torn strip only, so the page keeps its clean alpha:
+        // the fill is clipped away and only the shadow it casts survives.
+        function drawTearShadow(paths) {
+            ctx.save();
+            ctx.clip(paths.gone, 'evenodd');
+            ctx.shadowColor = 'rgba(0,0,0,0.35)';
+            ctx.shadowBlur = Math.max(paths.depth * 0.3, screenPxToCanvas(1));
+            ctx.shadowOffsetY = paths.depth * 0.06;
+            ctx.fillStyle = '#000';
+            ctx.fill(paths.paper);
+            ctx.restore();
+        }
+
+        // Torn paper shows its fibre core along the rip. Without this the edge
+        // reads as something cut out with scissors.
+        function drawTearLip(paths) {
+            ctx.save();
+            ctx.clip(paths.paper);
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            // Proportional to the rip, within limits: a hairline is lost on a
+            // deep tear, and a fixed 3px is a stripe across a shallow one.
+            ctx.lineWidth = Math.max(
+                Math.min(paths.depth * 0.18, fitPxToCanvas(3.5)),
+                fitPxToCanvas(1.2), screenPxToCanvas(0.75));
+            ctx.stroke(paths.rips);
+            ctx.restore();
+        }
+
+        // A grip lies just inside each edge while the tear tool is active: tap
+        // it to tear that edge or mend it, drag it inwards to set the depth.
+        function tearGrip(edge) {
+            const coarse = isCoarsePointer();
+            const long = screenPxToCanvas(coarse ? 56 : 44);
+            const thick = screenPxToCanvas(coarse ? 10 : 8);
+            const inset = screenPxToCanvas(coarse ? 20 : 15);
+            const W = canvas.width, H = canvas.height;
+            if (edge === 'top') return { x: W / 2 - long / 2, y: inset - thick / 2, w: long, h: thick };
+            if (edge === 'bottom') return { x: W / 2 - long / 2, y: H - inset - thick / 2, w: long, h: thick };
+            if (edge === 'left') return { x: inset - thick / 2, y: H / 2 - long / 2, w: thick, h: long };
+            return { x: W - inset - thick / 2, y: H / 2 - long / 2, w: thick, h: long };
+        }
+
+        function drawTearOverlay() {
+            if (tool !== 'tear' || hideOverlays) return;
+            ctx.save();
+            for (const edge of TEAR_EDGES) {
+                const g = tearGrip(edge);
+                const on = !!tear[edge];
+                const radius = Math.min(g.w, g.h) / 2;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(g.x, g.y, g.w, g.h, radius);
+                else ctx.rect(g.x, g.y, g.w, g.h);
+                ctx.fillStyle = on ? '#3b8eed' : 'rgba(255,255,255,0.9)';
+                ctx.fill();
+                ctx.lineWidth = screenPxToCanvas(1.5);
+                ctx.strokeStyle = on ? 'rgba(255,255,255,0.85)' : '#3b8eed';
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function tearEdgeDistance(edge, x, y) {
+            if (edge === 'top') return y;
+            if (edge === 'bottom') return canvas.height - y;
+            if (edge === 'left') return x;
+            return canvas.width - x;
+        }
+
+        // Which edge a press belongs to: the nearest one, within a band wide
+        // enough to hold the grip and whatever is already torn away.
+        function tearEdgeAt(x, y) {
+            const band = Math.max(
+                screenPxToCanvas(isCoarsePointer() ? 46 : 32),
+                fitPxToCanvas(tear.depth) * 1.25);
+            let best = null, bestDistance = Infinity;
+            for (const edge of TEAR_EDGES) {
+                const d = tearEdgeDistance(edge, x, y);
+                if (d >= 0 && d <= band && d < bestDistance) { best = edge; bestDistance = d; }
+            }
+            return best;
+        }
+
+        // Deep enough to read as a tear, never so deep it eats the picture.
+        function tearMaxDepth() {
+            return Math.min(TEAR_MAX_DEPTH,
+                Math.max(TEAR_MIN_DEPTH, canvasToFitPx(Math.min(canvas.width, canvas.height) / 4)));
+        }
+
+        function setTearDepth(value) {
+            tear.depth = Math.round(Math.max(TEAR_MIN_DEPTH, Math.min(tearMaxDepth(), value)));
+        }
+
+        function syncTearControls() {
+            for (const edge of TEAR_EDGES) {
+                const button = document.getElementById('tear-' + edge);
+                if (button) {
+                    button.classList.toggle('active', !!tear[edge]);
+                    button.setAttribute('aria-pressed', tear[edge] ? 'true' : 'false');
+                }
+            }
+            const depth = document.getElementById('tearDepth');
+            if (depth) {
+                depth.max = Math.round(tearMaxDepth());
+                depth.value = tear.depth;
+            }
+        }
+
+        function toggleTearEdge(edge) {
+            recordUndo(() => { tear[edge] = !tear[edge]; });
+            syncTearControls();
+            redraw();
+        }
+
         // ===== POLYLINE FUNCTIONS =====
         // Pressing only ever starts a line. Whether a gesture extends the line
         // or ends it is decided on release, so a drag can add a segment and a
@@ -3769,6 +4193,16 @@
             // through, so it still looks like paper while editing.
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // A torn edge takes its strip out of the picture, so the shadow
+            // that gives it depth is laid into that strip first and everything
+            // that follows is clipped to what is left of the page.
+            const torn = tearPaths();
+            if (torn) {
+                drawTearShadow(torn);
+                ctx.save();
+                ctx.clip(torn.paper);
+            }
+
             if (img) {
                 // Drawn at natural size at its offset: the canvas is either the
                 // image's own size or a crop of it, so scaling here would shrink
@@ -3785,6 +4219,16 @@
                 drawShape(s, false);
             }
 
+            if (torn) {
+                drawTearLip(torn);
+                ctx.restore();
+            }
+
+            // Outside the tear clip: the handles belong to the interface, and a
+            // shape selected against a torn edge must not have them trimmed.
+            if (selectedShape) drawSelectionHandles(selectedShape);
+
+            drawTearOverlay();
             drawCropOverlay();
 
             // Debounced, so a drag that redraws every frame writes once it
@@ -3821,14 +4265,20 @@
             // straight away rather than only after switching to select. Only
             // handles, not the shape's body - dragging inside a shape has to go
             // on drawing a new one.
-            if (selectedShape && tool !== 'select' && tool !== 'crop' &&
+            if (selectedShape && tool !== 'select' && tool !== 'crop' && tool !== 'tear' &&
                 (isPointNearResizeHandle(x, y, selectedShape) ||
                  isPointNearRotationHandle(x, y, selectedShape))) {
                 handleSelectMouseDown(x, y);
                 return;
             }
 
-            if (tool === 'crop') {
+            if (tool === 'tear') {
+                // Which edge this gesture is about is settled on the press; the
+                // release decides whether it was a tap to tear that edge or a
+                // drag to set how deep the rip goes.
+                const edge = tearEdgeAt(x, y);
+                tearDrag = edge ? { edge, changed: false } : null;
+            } else if (tool === 'crop') {
                 const handle = getCropHandleAt(x, y);
                 cropDrag = handle
                     ? { mode: 'resize', handle: handle.name }
@@ -4013,6 +4463,16 @@
                 updateButtonStates();
                 return;
             }
+            if (tool === 'tear') {
+                const drag = tearDrag;
+                tearDrag = null;
+                if (drag && !drag.changed) {
+                    tear[drag.edge] = !tear[drag.edge];
+                    syncTearControls();
+                    redraw();
+                }
+                return;
+            }
             if (tool === 'crop') {
                 cropDrag = null;
                 return;
@@ -4186,6 +4646,26 @@
             
             updateStatusLine(e);
             updateCursor(x, y);
+
+            if (tool === 'tear') {
+                // activePointers guards a stale drag: a long press opens the
+                // context menu and swallows the release, and without this the
+                // next mouse move - with no button down - went on setting the
+                // depth.
+                if (tearDrag && activePointers.size &&
+                    Math.hypot(x - mouseDownPos.x, y - mouseDownPos.y) > dragThreshold()) {
+                    const wanted = canvasToFitPx(tearEdgeDistance(tearDrag.edge, x, y));
+                    const before = tear.depth;
+                    setTearDepth(wanted);
+                    if (tear.depth !== before || !tear[tearDrag.edge]) {
+                        tear[tearDrag.edge] = true;
+                        tearDrag.changed = true;
+                        syncTearControls();
+                        redraw();
+                    }
+                }
+                return;
+            }
 
             if (tool === 'crop') {
                 if (cropDrag && cropDrag.mode === 'resize') {
@@ -4483,6 +4963,10 @@
             } else if (tool === 'arrow' && !drawing) {
                 const hoverSnap = getSnapTargetAtPoint(x, y);
                 canvas.style.cursor = hoverSnap ? 'pointer' : 'crosshair';
+            } else if (tool === 'tear') {
+                const edge = tearDrag ? tearDrag.edge : tearEdgeAt(x, y);
+                canvas.style.cursor = !edge ? 'default'
+                    : (edge === 'top' || edge === 'bottom') ? 'ns-resize' : 'ew-resize';
             } else {
                 canvas.style.cursor = 'crosshair';
             }
@@ -4564,16 +5048,23 @@
         let undoBefore = null;
         let editUndoBefore = null;
 
+        // The drawing and the torn edges both, in one step: tearing an edge is
+        // a change to the picture like any other, and undo has to take it back.
         function snapshotShapes() {
-            return shapes.map(s => {
-                const copy = { ...s };
-                if (Array.isArray(s.points)) copy.points = s.points.map(p => ({ ...p }));
-                return copy;
-            });
+            return {
+                shapes: shapes.map(s => {
+                    const copy = { ...s };
+                    if (Array.isArray(s.points)) copy.points = s.points.map(p => ({ ...p }));
+                    return copy;
+                }),
+                tear: { ...tear },
+            };
         }
 
         function pushUndo(before) {
-            if (!before || JSON.stringify(before) === JSON.stringify(shapes)) return;
+            if (!before) return;
+            if (JSON.stringify(before.shapes) === JSON.stringify(shapes) &&
+                JSON.stringify(before.tear) === JSON.stringify(tear)) return;
             undoStack.push(before);
             if (undoStack.length > UNDO_LIMIT) undoStack.shift();
             updateButtonStates();
@@ -4611,9 +5102,12 @@
 
         function undoLastAction() {
             if (!undoStack.length) return;
-            shapes = undoStack.pop();
+            const before = undoStack.pop();
+            shapes = before.shapes;
+            if (before.tear) tear = before.tear;
             selectedShape = null;
             undoBefore = null;
+            syncTearControls();
             redraw();
             updateButtonStates();
         }
@@ -4803,22 +5297,25 @@
         }
         
         // ===== COPY/PASTE HANDLERS =====
-        // The canvas carries the selection outline, its handles and the crop
-        // frame. None of that belongs in a picture you save or paste somewhere
-        // else, so the export redraws once without them, grabs the bitmap, and
-        // puts the selection back. toBlob captures the bitmap when it is called,
-        // so it is safe to restore before the encoding finishes.
+        // The canvas carries the selection outline, its handles, the crop frame
+        // and the tear grips. None of that belongs in a picture you save or
+        // paste somewhere else, so the export redraws once without them, grabs
+        // the bitmap, and puts the selection back. toBlob captures the bitmap
+        // when it is called, so it is safe to restore before the encoding
+        // finishes.
         function withCleanCanvas(fn) {
             const heldSelection = selectedShape;
             const heldCrop = cropRect;
             selectedShape = null;
             cropRect = null;
+            hideOverlays = true;
             redraw();
             try {
                 return fn();
             } finally {
                 selectedShape = heldSelection;
                 cropRect = heldCrop;
+                hideOverlays = false;
                 redraw();
             }
         }
@@ -4986,6 +5483,28 @@
             // Crop / expand
             document.getElementById('cropApply').addEventListener('click', applyCrop);
             document.getElementById('cropReset').addEventListener('click', resetCrop);
+
+            // Torn page
+            TEAR_EDGES.forEach(edge => {
+                document.getElementById('tear-' + edge)
+                    .addEventListener('click', () => toggleTearEdge(edge));
+            });
+            const tearDepthInput = document.getElementById('tearDepth');
+            tearDepthInput.addEventListener('input', () => {
+                setTearDepth(parseInt(tearDepthInput.value, 10) || TEAR_MIN_DEPTH);
+                // A depth on its own has nothing to show, so setting one before
+                // choosing an edge tears the bottom rather than doing nothing.
+                if (!hasTear()) tear.bottom = true;
+                syncTearControls();
+                redraw();
+            });
+            document.getElementById('tearShuffle').addEventListener('click', () => {
+                if (!hasTear()) tear.bottom = true;
+                // Never the same seed twice running, or the button looks broken.
+                tear.seed = (tear.seed + 1 + Math.floor(Math.random() * 100000)) | 0;
+                syncTearControls();
+                redraw();
+            });
 
             // About / build info
             document.getElementById('zoomLevel').addEventListener('click', resetZoom);
@@ -5181,7 +5700,7 @@
             // pushed when it settles. Dragging a colour picker or a slider fires
             // input continuously, which would otherwise fill the stack.
             ['color', 'size', 'fillColor', 'fillToggle', 'fontFamily', 'fontSize',
-             'startStyleSelect', 'endStyleSelect'].forEach(id => {
+             'startStyleSelect', 'endStyleSelect', 'tearDepth'].forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.addEventListener('pointerdown', beginUndo);
@@ -5190,7 +5709,8 @@
             });
             // The format buttons change the shape on click, so they commit there
             // - a colour input must not, because its click only opens the picker.
-            ['boldToggle', 'italicToggle', 'alignLeft', 'alignCenter', 'alignRight']
+            ['boldToggle', 'italicToggle', 'alignLeft', 'alignCenter', 'alignRight',
+             'tearShuffle']
                 .forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
@@ -5272,6 +5792,14 @@
                 startCropMode();
             } else if (cropRect) {
                 exitCropMode();
+            }
+
+            // Picking the tear tool with nothing torn tears the bottom edge, so
+            // the tool shows what it does rather than asking you to guess which
+            // of the grips to press first. Tapping that edge again mends it.
+            if (toolName === 'tear' && !hasTear()) {
+                recordUndo(() => { tear.bottom = true; });
+                showToast('Bottom edge torn - tap an edge to change');
             }
 
             updateButtonStates();

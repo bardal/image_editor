@@ -19,6 +19,14 @@ uploaded - it all runs on your device.
 - **Arrow**: Click and drag to draw arrows with arrowheads
 - **Text**: Click anywhere to add text annotations
 
+### 📄 **Page Edges**
+- **Tear**: Rip the top, bottom or either side of the picture for a torn-paper look
+- **Any combination**: Tear one edge or all four; tap an edge again to mend it
+- **Depth**: Drag an edge inwards, or use the slider, to set how far the rip bites
+- **Again**: Not happy with the rip? Tear it again for a different one
+- **Transparent**: What the tear takes is gone from the saved PNG too, so it drops
+  onto a slide or a document as paper would
+
 ### ✨ **Selection & Manipulation**
 - **Select tool**: Click to select shapes
 - **Drag & drop**: Move selected shapes by dragging
