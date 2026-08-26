@@ -2904,7 +2904,9 @@
 
         // ===== UI UPDATES =====
         function updateButtonStates() {
-            undoBtn.disabled = undoStack.length === 0;
+            // Enabled while a line is being drawn too: there is something to
+            // take back - the line in hand - before anything on the stack.
+            undoBtn.disabled = undoStack.length === 0 && !isDrawingPolyline && !editingBlock;
             // The bin says which of its two jobs it will do if pressed now.
             const binDeletes = selectedShape !== null;
             clearBtn.querySelector('.btn-label').textContent = binDeletes ? 'Delete' : 'Clear';
@@ -4278,6 +4280,7 @@
             if (!isDrawingPolyline) {
                 isDrawingPolyline = true;
                 polylinePoints = [{x, y}];
+                updateButtonStates();
             }
         }
 
@@ -4290,6 +4293,7 @@
                 polylinePoints.push({ x, y });
                 redraw();
                 drawPolylinePreview(x, y);
+                updateButtonStates();
                 return;
             }
 
@@ -5302,8 +5306,36 @@
             commitUndo();
         }
 
+        // Anything half-done is put down before the step is taken back. A drag
+        // with the line tool leaves the line open, waiting for the tap that
+        // ends it, so undo lands in the middle of a gesture: without this the
+        // shapes went back but the half-drawn line stayed in hand, and the
+        // next press carried on from where it had got to - the undone line
+        // reappearing, joined onto the new one.
+        function cancelGestureInProgress() {
+            if (editingBlock) finishBlockEditing(true);
+            polylinePoints = [];
+            isDrawingPolyline = false;
+            pendingBlockEdit = null;
+            drawing = false;
+            isDragging = false;
+            isRotating = false;
+            isResizing = false;
+        }
+
         function undoLastAction() {
+            // A line still being drawn is the most recent thing done, even
+            // though it is not on the shapes list yet - it goes on living in
+            // polylinePoints until the tap that ends it. So it is what undo
+            // takes back first, and the stack is left alone.
+            if (isDrawingPolyline || editingBlock) {
+                cancelGestureInProgress();
+                redraw();
+                updateButtonStates();
+                return;
+            }
             if (!undoStack.length) return;
+            cancelGestureInProgress();
             const before = undoStack.pop();
             shapes = before.shapes;
             if (before.tear) tear = before.tear;

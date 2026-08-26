@@ -67,6 +67,52 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await tap(P(0.8, 0.85));
   r.afterSecondLineEnd = await state();
 
+  // ---- Undo in the middle of a line ----
+  // Reported: draw a line, undo it, draw another, and the undone one is back -
+  // joined onto the new one. A drag leaves the line open, waiting for the tap
+  // that ends it, so undo lands while the gesture is still running. Undo put
+  // the shapes back but left the half-drawn line in hand, and the next press
+  // carried on from where that one had got to.
+  await page.evaluate(() => { shapes.length = 0; undoStack.length = 0;
+                              selectedShape = null; redraw(); updateButtonStates(); });
+  await page.waitForTimeout(150);
+  // Measured again here: the property bar takes a different number of rows for
+  // different tools, so the canvas is not where it was at the top of the file.
+  const box2 = await page.evaluate(() => {
+    const b = canvas.getBoundingClientRect();
+    return { x: b.x, y: b.y, w: b.width, h: b.height };
+  });
+  const Q = (fx, fy) => ({ x: box2.x + box2.w * fx, y: box2.y + box2.h * fy });
+  // One finished line to sit behind the open one, so it is clear which of the
+  // two undo takes back.
+  await drag(Q(0.2, 0.15), Q(0.5, 0.18));
+  await tap(Q(0.75, 0.25));
+  await drag(Q(0.2, 0.25), Q(0.55, 0.3));
+  r.openLineBeforeUndo = await state();
+  r.undoOfferedMidLine = await page.evaluate(() =>
+    !document.getElementById('undo').disabled);
+  await page.evaluate(() => undoLastAction());
+  await page.waitForTimeout(200);
+  r.afterUndoMidLine = await state();
+
+  await drag(Q(0.25, 0.7), Q(0.6, 0.75));
+  await tap(Q(0.8, 0.9));
+  r.lineAfterUndo = await state();
+
+  // And the whole thing again with a line that was finished first, which is
+  // the way the report was worded.
+  await page.evaluate(() => { shapes.length = 0; undoStack.length = 0;
+                              selectedShape = null; redraw(); updateButtonStates(); });
+  await page.waitForTimeout(150);
+  await drag(Q(0.2, 0.2), Q(0.5, 0.25));
+  await tap(Q(0.75, 0.4));
+  const madeOne = await state();
+  await page.evaluate(() => undoLastAction());
+  await page.waitForTimeout(200);
+  await drag(Q(0.2, 0.6), Q(0.5, 0.65));
+  await tap(Q(0.75, 0.8));
+  r.finishedThenUndone = { madeOne: madeOne.committed, ...(await state()) };
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'afterStartTap.drawing': isFalse,
@@ -79,6 +125,19 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'afterSecondLineDrag.drawing': isTrue,
     'afterSecondLineEnd.committed': 2,
     'afterSecondLineEnd.lastPts': 2,
+    'openLineBeforeUndo.drawing': isTrue,
+    // Undo takes the half-drawn line out of your hand as well as off the page.
+    'undoOfferedMidLine': isTrue,
+    'afterUndoMidLine.drawing': isFalse,
+    'afterUndoMidLine.pending': 0,
+    // It took back the line in hand, not the finished one behind it.
+    'afterUndoMidLine.committed': 1,
+    'lineAfterUndo.committed': 2,
+    // Two points: the new line only, not the undone one joined onto it.
+    'lineAfterUndo.lastPts': 2,
+    'finishedThenUndone.madeOne': 1,
+    'finishedThenUndone.committed': 1,
+    'finishedThenUndone.lastPts': 2,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
