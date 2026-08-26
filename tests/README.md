@@ -9,6 +9,12 @@ step for the app itself; these only need Node and Playwright.
 `run-all.sh` serves the repo over HTTP and runs every `*-test.js`. Override the
 target with `APP_URL`, or the browser binary with `CHROME_PATH`.
 
+Without `CHROME_PATH`, `browser.js` picks the browser: Playwright's own where it
+has been downloaded, otherwise one the sandbox ships at a fixed path. Some
+containers carry a Chromium built for a different Playwright and switch
+downloads off, and every suite then failed at launch - 26 identical failures
+that read like the app was broken rather than the browser being elsewhere.
+
 Every push and pull request runs the same command in CI, and nothing is
 published to Pages until it passes — see `.github/workflows/pages.yml`.
 

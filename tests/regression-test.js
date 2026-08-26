@@ -7,7 +7,7 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
   endStyle:'closedArrow',rotation:0,tipX:canvas.width*0.6,tipY:canvas.height*0.55,id:11}`;
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  const browser = await chromium.launch({ executablePath: require('./browser').path() });
   const r = {};
 
   // ---- Finding 1a: touch, hesitating on a handle ----

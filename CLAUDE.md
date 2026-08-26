@@ -4,13 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Etch** - a browser-based image annotation/editing tool built as a single-file HTML application (`index.html`) with embedded CSS and JavaScript. No build tools, no framework, no npm dependencies. It's a PWA with offline support via service worker.
+**Etch** - a browser-based image annotation/editing tool built as a single-file HTML application (`index.html`) with embedded CSS and JavaScript. No build tools, no framework, no npm dependencies in the app itself - the only `package.json` entry is the test runner. It's a PWA with offline support via service worker.
 
 ## Development
 
 No build step required. Open `index.html` in a browser to run the app.
 
-**Deploy:** `./deploy.sh` — deploys via SSH (default) or FTP to barney.daltons.net/image_editor. Requires `.env` with `DEPLOY_USER` (see `.env.example`).
+**Test:** `npm test` (or `./tests/run-all.sh`) — 26 Playwright suites driving a real Chromium against a served copy of the app, about two minutes in all. **Run the whole suite before pushing any change to `index.html`.** The same command gates the deploy in CI, so a change that fails here never reaches the site; finding that out locally costs two minutes, finding it out from CI costs a round trip.
+
+There is a suite per area — `zoom`, `pinch`, `rotate`, `line`, `crop`, `tear`, `undo`, `persist`, `units` and the rest. To iterate on one, serve the repo (`python3 -m http.server 8080 &`) and run it alone: `node tests/zoom-test.js`. It needs a real origin, not `file://` — IndexedDB, the clipboard and the service worker are all unavailable there. A suite passes by asserting its own report, not merely by the page not throwing, so a failure means behaviour changed. `tests/README.md` explains how a suite is written and the two-unit rule (`fitPxToCanvas` vs `screenPxToCanvas`) that most visual faults here have come down to.
+
+`npm install` first if `node_modules` is missing; web sessions get that from `.claude/hooks/session-start.sh`. The browser is found by `tests/browser.js` — Playwright's own if it has one, otherwise whatever the sandbox ships — so `CHROME_PATH` only needs setting to override that choice.
+
+**Deploy:** `./deploy.sh` — deploys via SSH (default) or FTP to barney.daltons.net/image_editor. Requires `.env` with `DEPLOY_USER` (see `.env.example`). CI publishes to GitHub Pages from `main` once the suites pass (`.github/workflows/pages.yml`).
 
 ## Architecture
 

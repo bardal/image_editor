@@ -12,7 +12,7 @@ const TEXT = `{type:'text',x:200,y:150,w:260,h:0,text:'Rotate me please',color:'
   rotation:0,id:3}`;
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  const browser = await chromium.launch({ executablePath: require('./browser').path() });
   const r = {};
 
   // ---- Mouse: drag the handle round and check the angle follows ----
