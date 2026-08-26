@@ -5328,7 +5328,28 @@
             // though it is not on the shapes list yet - it goes on living in
             // polylinePoints until the tap that ends it. So it is what undo
             // takes back first, and the stack is left alone.
-            if (isDrawingPolyline || editingBlock) {
+            //
+            // A line is drawn a segment at a time and comes back the same way:
+            // the last segment goes and the rest stays in hand, so the line can
+            // be carried on from where it now ends. Taking the whole line away
+            // at once made undo mean something different in the middle of a
+            // line than it means everywhere else.
+            if (isDrawingPolyline) {
+                if (polylinePoints.length > 1) {
+                    polylinePoints.pop();
+                    redraw();
+                    const last = polylinePoints[polylinePoints.length - 1];
+                    drawPolylinePreview(last.x, last.y);
+                    updateButtonStates();
+                    return;
+                }
+                // Nothing left of it but the point it started from.
+                cancelGestureInProgress();
+                redraw();
+                updateButtonStates();
+                return;
+            }
+            if (editingBlock) {
                 cancelGestureInProgress();
                 redraw();
                 updateButtonStates();

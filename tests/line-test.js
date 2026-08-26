@@ -70,9 +70,9 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // ---- Undo in the middle of a line ----
   // Reported: draw a line, undo it, draw another, and the undone one is back -
   // joined onto the new one. A drag leaves the line open, waiting for the tap
-  // that ends it, so undo lands while the gesture is still running. Undo put
-  // the shapes back but left the half-drawn line in hand, and the next press
-  // carried on from where that one had got to.
+  // that ends it, so undo lands while the gesture is still running. Undo went
+  // to the stack, took back the shape before it, and left the half-drawn line
+  // in hand for the next press to carry on from.
   await page.evaluate(() => { shapes.length = 0; undoStack.length = 0;
                               selectedShape = null; redraw(); updateButtonStates(); });
   await page.waitForTimeout(150);
@@ -113,6 +113,44 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await tap(Q(0.75, 0.8));
   r.finishedThenUndone = { madeOne: madeOne.committed, ...(await state()) };
 
+  // ---- Undo takes back one segment, not the whole line ----
+  // A line is drawn a segment at a time, so undo works the same way: the last
+  // segment goes, the rest of the line stays in hand and can be carried on.
+  // Only when there is nothing left of it does undo move on to the stack.
+  await page.evaluate(() => { shapes.length = 0; undoStack.length = 0;
+                              selectedShape = null; redraw(); updateButtonStates(); });
+  await page.waitForTimeout(150);
+  await drag(Q(0.15, 0.2), Q(0.4, 0.25));
+  await tap(Q(0.7, 0.35));
+  const behind = await state();
+  await drag(Q(0.15, 0.5), Q(0.4, 0.55));
+  await drag(Q(0.4, 0.55), Q(0.6, 0.7));
+  await drag(Q(0.6, 0.7), Q(0.8, 0.55));
+  r.threeSegments = await state();
+  const undo = async () => { await page.evaluate(() => undoLastAction());
+                             await page.waitForTimeout(150); return state(); };
+  r.backOne = await undo();
+  r.backTwo = await undo();
+  // Nothing but the point it started from now; the next takes the line away.
+  r.backToStart = await undo();
+  r.lineGone = await undo();
+  // Only now does it reach the finished line behind it.
+  r.thenTheStack = await undo();
+  r.behindCommitted = behind.committed;
+
+  // What is left in hand after taking a segment back must still be a line you
+  // can carry on drawing, not a stub that starts a new one.
+  await page.evaluate(() => { shapes.length = 0; undoStack.length = 0;
+                              selectedShape = null; redraw(); updateButtonStates(); });
+  await page.waitForTimeout(150);
+  await drag(Q(0.2, 0.3), Q(0.45, 0.35));
+  await drag(Q(0.45, 0.35), Q(0.65, 0.5));
+  await page.evaluate(() => undoLastAction());
+  await page.waitForTimeout(150);
+  await drag(Q(0.45, 0.35), Q(0.7, 0.3));
+  await tap(Q(0.85, 0.2));
+  r.carriedOn = await state();
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'afterStartTap.drawing': isFalse,
@@ -128,9 +166,10 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'openLineBeforeUndo.drawing': isTrue,
     // Undo takes the half-drawn line out of your hand as well as off the page.
     'undoOfferedMidLine': isTrue,
-    'afterUndoMidLine.drawing': isFalse,
-    'afterUndoMidLine.pending': 0,
-    // It took back the line in hand, not the finished one behind it.
+    // One segment of the open line goes; what is left stays in hand.
+    'afterUndoMidLine.drawing': isTrue,
+    'afterUndoMidLine.pending': 1,
+    // It took back part of the line in hand, not the finished one behind it.
     'afterUndoMidLine.committed': 1,
     'lineAfterUndo.committed': 2,
     // Two points: the new line only, not the undone one joined onto it.
@@ -138,6 +177,20 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'finishedThenUndone.madeOne': 1,
     'finishedThenUndone.committed': 1,
     'finishedThenUndone.lastPts': 2,
+    'behindCommitted': 1,
+    'threeSegments.pending': 4,
+    'backOne.pending': 3,
+    'backOne.drawing': isTrue,
+    'backTwo.pending': 2,
+    'backToStart.pending': 1,
+    'backToStart.drawing': isTrue,
+    'lineGone.drawing': isFalse,
+    'lineGone.pending': 0,
+    // The finished line behind it is still there until one more undo.
+    'lineGone.committed': 1,
+    'thenTheStack.committed': 0,
+    'carriedOn.committed': 1,
+    'carriedOn.lastPts': 3,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
