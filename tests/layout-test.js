@@ -100,14 +100,18 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     anchors[t] = await page.evaluate(() => {
       const props = document.querySelector('.toolbar-props');
       const pr = props.getBoundingClientRect();
-      const rows = new Map();
+      // Grouped by where a row sits, not by an exact top: controls of
+      // different heights on the same row have tops a pixel or two apart.
+      const rows = [];
       [...props.children].forEach(el => {
         const b = el.getBoundingClientRect();
         if (!b.width) return;
-        const key = Math.round(b.top);
-        if (!rows.has(key) || b.left < rows.get(key)) rows.set(key, b.left);
+        const mid = b.top + b.height / 2;
+        const row = rows.find(r => Math.abs(r.mid - mid) < 12);
+        if (row) row.left = Math.min(row.left, b.left);
+        else rows.push({ mid, left: b.left });
       });
-      const starts = [...rows.values()].map(x => Math.round(x - pr.left));
+      const starts = rows.map(r => Math.round(r.left - pr.left));
       return {
         rowStarts: starts,
         // Every row begins at the bar's own edge, not wherever its width
@@ -176,8 +180,56 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await setSwitch(false);
   const fillSwitch = { off: switchOff, on: switchOn };
 
+  // ---- Every control, under every tool: big enough, and drawn inside itself
+  // A styled control can render as nonsense while every assertion about its
+  // state still passes - the fill switch was a grey blob for weeks. So this
+  // checks the shapes: nothing a control paints inside itself escapes its box,
+  // and a finger has 44px to land on. The tap target is the label around a
+  // control where there is one, since that is what a tap actually hits.
+  const controlGeometry = {};
+  for (const t of ['select', 'rect', 'arrow', 'text', 'callout', 'crop']) {
+    await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
+    await page.waitForTimeout(180);
+    controlGeometry[t] = await page.evaluate(() => {
+      const px = v => parseFloat(v) || 0;
+      const tooSmall = [], escapes = [];
+      document.querySelectorAll(
+        '.toolbar button, .toolbar input, .toolbar select, .tool-strip button')
+        .forEach(el => {
+          if (el.type === 'file') return;
+          const target = el.closest('label') || el;
+          const t = target.getBoundingClientRect();
+          if (!t.width && !t.height) return;
+          const name = el.id || el.className.split(' ')[0];
+          // Height is the figure that has to hold; a dense row of glyph
+          // buttons is allowed to be narrower, as the iOS keyboard is.
+          if (t.width < 39.5 || t.height < 43.5) {
+            tooSmall.push(`${name} ${Math.round(t.width)}x${Math.round(t.height)}`);
+          }
+          const b = el.getBoundingClientRect();
+          [...el.children].forEach(c => {
+            const k = c.getBoundingClientRect();
+            if (!k.width && !k.height) return;
+            if (k.left < b.left - 0.5 || k.right > b.right + 0.5 ||
+                k.top < b.top - 0.5 || k.bottom > b.bottom + 0.5) escapes.push(name);
+          });
+          for (const pseudo of ['::before', '::after']) {
+            const st = getComputedStyle(el, pseudo);
+            if (st.content === 'none' || !st.width || st.width === 'auto') continue;
+            const shift = new DOMMatrixReadOnly(st.transform).m41;
+            const l = px(st.left) + shift, w = px(st.width);
+            const tp = px(st.top), h = px(st.height);
+            if (l < -0.5 || l + w > b.width + 0.5 || tp < -0.5 || tp + h > b.height + 0.5) {
+              escapes.push(`${name}${pseudo}`);
+            }
+          }
+        });
+      return { tooSmall, escapes };
+    });
+  }
+
   finish({
-    byTool, swatches, anchors, chips, fillSwitch,
+    byTool, swatches, anchors, chips, fillSwitch, controlGeometry,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
@@ -220,6 +272,18 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'fillSwitch.on.knobInside': isTrue,
     // It has to actually move, or the two states look the same.
     'fillSwitch.on.travels': atLeast(8),
+    'controlGeometry.select.tooSmall': isEmpty,
+    'controlGeometry.select.escapes': isEmpty,
+    'controlGeometry.rect.tooSmall': isEmpty,
+    'controlGeometry.rect.escapes': isEmpty,
+    'controlGeometry.arrow.tooSmall': isEmpty,
+    'controlGeometry.arrow.escapes': isEmpty,
+    'controlGeometry.text.tooSmall': isEmpty,
+    'controlGeometry.text.escapes': isEmpty,
+    'controlGeometry.callout.tooSmall': isEmpty,
+    'controlGeometry.callout.escapes': isEmpty,
+    'controlGeometry.crop.tooSmall': isEmpty,
+    'controlGeometry.crop.escapes': isEmpty,
     'byTool.select.toolsAllVisible': isTrue,
     'byTool.select.unreachableInProps': isEmpty,
     'byTool.select.canvasClearOfBars': isTrue,

@@ -39,6 +39,40 @@ Each shape is a plain object with `type`, position/size fields, `color`, `size`,
 - **Canvas redraw**: `redraw()` clears canvas, draws the base image, then iterates all shapes. Called after every state change.
 - **Torn page**: `tearPaths()` builds the ragged page outline from a seeded noise function (`tearRandom`/`tearSample`), cached against the canvas size and settings. `redraw()` clips the picture to it, so the strip a tear takes is cleared rather than painted — an export keeps the alpha. Depth is in `fitPx`, like stroke widths.
 
+## Working on this app
+
+Written down because the same mistakes keep recurring, and nothing carries
+between sessions except this file and the tests.
+
+**Two units, and using the wrong one is the commonest fault here.**
+`fitPxToCanvas` is part of the picture — strokes, text, padding, arrowheads,
+the geometry a gesture creates — and grows on screen as you zoom.
+`screenPxToCanvas` is furniture — handles, hit tolerances, previews — and stays
+finger-sized at any zoom. A raw number means canvas units and is nearly always
+wrong: 20 of them is 2 screen pixels on a 4032px photo. Getting it backwards is
+invisible at 100% and only shows on a zoomed-in phone. See `tests/README.md`.
+
+**Write the failing test first.** Every bug fixed this way stayed fixed. Watch
+it fail for the reason you think, not just fail. When a fix is subtle, put the
+old code back afterwards and check the test goes red again.
+
+**Tests assert state; faults are often visual.** A control can render as
+nonsense while every assertion about its state passes — a touch rule sized the
+fill switch 20x20, which turned the pill into a circle with its knob hanging
+outside, and it survived weeks of green runs. So: assert the *geometry* of
+custom controls (nothing painted inside a control escapes its box, a tap target
+is 44px tall), and when you take a screenshot, look at it once with no question
+in mind before checking the thing you meant to check.
+
+**Fix the family, not the instance.** Every bug here has turned out to be one
+of several. One wrong unit meant six. One touch override that stopped short of
+44px meant five. After fixing one, grep for its shape.
+
+**Chromium emulating an iPhone is not Safari.** The two worst faults this app
+has had were Safari behaviours Chromium does not reproduce: the page-zoom on a
+sub-16px focused field, and the synthesised mouse events after a tap. When a
+change rests on iOS behaviour, say plainly that the suites cannot confirm it.
+
 ### External dependency
 Only one: `heic2any` loaded async from unpkg CDN for HEIC/HEIF to JPEG conversion (iPhone photos).
 

@@ -291,6 +291,10 @@
             cursor: pointer;
         }
 
+        /* Was an inline width on the element, which no layout rule could get
+           at when the row needed to be narrower. */
+        #fontSize { width: 3.5rem; }
+
         .size-value {
             font-size: 11px;
             font-weight: 600;
@@ -1050,25 +1054,45 @@
                 margin: 0 4px;
             }
 
-            /* A contextual group keeps its own controls together on one line
-               and takes a row of its own when it needs one. order: -1 puts it
-               above the line and fill controls, so picking the text or arrow
-               tool shows what that tool offers first. */
+            /* The size box is as narrow as a finger allows: the font row fits
+               across a phone with only a few pixels to spare. */
+            #fontSize { flex: 0 0 2.75rem; min-width: 0; }
+
+            /* A contextual group keeps its own controls together and takes a
+               row of its own when it needs one. It used to be ordered above
+               the line and fill controls, because the bar scrolled sideways
+               and whatever came second was off the edge. The bar wraps now, so
+               second means the row below - and colour can stay where it always
+               is, at the top left, whatever tool is in hand. */
             .text-format-group.visible,
             .arrow-style-group.visible,
             .crop-group.visible,
             .tear-group.visible {
                 display: flex;
-                flex-wrap: nowrap;
-                gap: 6px;
-                order: -1;
+                /* Wraps only if it has to. On a 390px screen the font controls
+                   fit across one row; on a narrower handset they take two
+                   rather than running off the edge. */
+                flex-wrap: wrap;
+                gap: var(--gap-tight);
+                /* Takes the width of the row it lands on rather than only the
+                   width of its contents: a group sized to its content was a
+                   dozen pixels short of what it needed and wrapped inside
+                   itself, turning one row into two. */
+                flex: 1 1 auto;
             }
 
             /* The tear controls are the one contextual group that may not fit
                a narrow phone on one line, so this is the one that is allowed
                to wrap onto a second rather than run off the edge. */
             .tear-group.visible { flex-wrap: wrap; }
-            .tear-edge { width: 40px; height: 36px; }
+            /* 44 tall like everything else a finger has to hit. */
+            .tear-edge { width: 40px; height: 44px; }
+
+            /* The two arrow dropdowns stay on one line: they fit across a
+               phone now that their options are short, and letting them wrap
+               made the group two lines tall with the line controls beside it,
+               which put the colour chip halfway across the row. */
+            .arrow-style-group.visible { flex-wrap: nowrap; }
 
             /* Cropping has no use for the line and fill controls, and hiding
                them keeps Apply and Reset on screen without scrolling. */
@@ -1083,8 +1107,8 @@
 
             /* Caps in rem, so they hold their proportion to the text rather
                than to a screen this was measured on once. */
-            #fontFamily { flex: 0 1 6.5rem; min-width: 0; }
-            .arrow-style-select { flex: 0 1 6.5rem; min-width: 0; }
+            #fontFamily { flex: 0 1 5rem; min-width: 0; }
+            .arrow-style-select { flex: 0 1 4.75rem; min-width: 0; }
             .size-slider { flex: 1 1 3rem; width: 3rem; min-width: 2.5rem; }
 
             /* No rule between the groups: at 24px against 44px swatches it
@@ -1138,7 +1162,7 @@
                thin rail - setting height on the input alone inflates the track
                itself into a large empty box. */
             .size-slider {
-                height: 36px;
+                height: 44px;
                 background: transparent;
             }
             .size-slider::-webkit-slider-runnable-track {
@@ -1186,7 +1210,7 @@
             .arrow-style-select,
             #fontFamily {
                 font-size: 11px;
-                min-height: 36px;
+                min-height: 44px;
             }
 
             /* These take typed input. Below 16px iOS zooms the page on focus,
@@ -1194,11 +1218,21 @@
             #fontSize,
             .canvas-text-input {
                 font-size: 16px;
-                min-height: 36px;
+                min-height: 44px;
             }
+            /* 44 is the figure a finger needs, and everything here had stopped
+               somewhere short of it - 40 for these, 36 for the dropdowns and
+               the slider, 32 for the crop buttons. They were each written on
+               their own and each settled for whatever looked about right.
+               Height is the part that has to hold: seven font controls at 44
+               wide do not fit across a 390px screen, and iOS sets its own
+               keyboard keys about 32 wide by 44 tall for the same reason. */
             .format-btn {
                 min-width: 40px;
-                min-height: 40px;
+                min-height: 44px;
+            }
+            .crop-btn {
+                min-height: 44px;
             }
         }
     </style>
@@ -1339,16 +1373,19 @@
                 </div>
                 <div class="arrow-style-group" id="arrowStyleGroup">
                     <span class="arrow-style-label">Start:</span>
+                    <!-- Short names on purpose: "Closed Arrow" made the two
+                         dropdowns wide enough that the pair no longer fitted
+                         across a phone, and took a row of their own. -->
                     <select id="startStyleSelect" class="arrow-style-select">
                         <option value="none">None</option>
-                        <option value="openArrow">Open Arrow</option>
-                        <option value="closedArrow">Closed Arrow</option>
+                        <option value="openArrow">Open</option>
+                        <option value="closedArrow">Filled</option>
                     </select>
                     <span class="arrow-style-label">End:</span>
                     <select id="endStyleSelect" class="arrow-style-select">
                         <option value="none">None</option>
-                        <option value="openArrow">Open Arrow</option>
-                        <option value="closedArrow" selected>Closed Arrow</option>
+                        <option value="openArrow">Open</option>
+                        <option value="closedArrow" selected>Filled</option>
                     </select>
                 </div>
                 <div id="cropGroup" class="crop-group">
@@ -1379,13 +1416,16 @@
                     <button type="button" id="tearShuffle" class="crop-btn" title="Tear it again, differently">Again</button>
                 </div>
                 <div id="textFormatGroup" class="text-format-group">
+                    <!-- Short names, like the arrow ends: the full ones needed
+                         a dropdown wide enough to push the font row onto a
+                         second line, and were then truncated anyway. -->
                     <select id="fontFamily" title="Font family">
-                        <option value="sans-serif">Sans-serif</option>
+                        <option value="sans-serif">Sans</option>
                         <option value="serif">Serif</option>
-                        <option value="monospace">Monospace</option>
+                        <option value="monospace">Mono</option>
                         <option value="cursive">Cursive</option>
                     </select>
-                    <input type="number" id="fontSize" title="Font size" min="8" max="120" value="16" style="width:50px">
+                    <input type="number" id="fontSize" title="Font size" min="8" max="120" value="16">
                     <button id="boldToggle" class="tb-btn format-btn" title="Bold"><b>B</b></button>
                     <button id="italicToggle" class="tb-btn format-btn" title="Italic"><i>I</i></button>
                     <button id="alignLeft" class="tb-btn format-btn active" title="Align left">&#9776;</button>
