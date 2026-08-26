@@ -64,6 +64,19 @@ The app must be served over HTTP rather than opened as a file: IndexedDB, the
 clipboard and the service worker are all unavailable over `file://`, so
 persistence and paste cannot be exercised there.
 
+## Shape, not just state
+
+A control can render as nonsense while every assertion about its state passes.
+The fill switch was sized 20x20 by a touch rule, which turned the pill into a
+circle and left its knob hanging outside the body when on: a grey blob that
+read as nothing. Nothing failed, because nothing looked.
+
+`layout-test` therefore checks the shapes: nothing a control paints inside
+itself - a child or a pseudo-element - escapes its box, every tap target is
+44px tall, both colour chips are the same size, and the switch's knob stays
+inside its body at both ends of its travel. Height is the tap figure that has
+to hold; a dense row of glyph buttons may be narrower, as the iOS keyboard is.
+
 ## Why both touch and mouse
 
 Several bugs have only ever appeared on one of the two:
