@@ -670,6 +670,10 @@
             color: #9a9a9e;
             flex-shrink: 0;
             height: 24px;
+            /* Space-between alone gives no space at all once the readouts fill
+               the bar: on a phone with a 3024x4032 photo the size and the
+               pointer position printed as one run of digits. */
+            gap: 10px;
         }
 
         .status-item {
@@ -681,6 +685,18 @@
         #statusLine {
             font-variant-numeric: tabular-nums;
             letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        /* The size readout is the one that can be any length, so it is the one
+           that gives way - shortened with an ellipsis rather than pushing the
+           rest of the bar off the end. */
+        .status-item:first-child { min-width: 0; }
+
+        #imageInfo {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .zoom-chip {
@@ -899,6 +915,13 @@
         }
 
         .close:hover { color: #c8c8cc; }
+
+        /* Glyphs that differ by input: see the save button. */
+        .icon-coarse { display: none; }
+        @media (pointer: coarse) {
+            .icon-fine { display: none; }
+            .icon-coarse { display: inline-flex; }
+        }
 
         /* ===== RESPONSIVE ===== */
         @media (max-width: 900px) {
@@ -1121,6 +1144,11 @@
                build chip and wraps the bar onto two lines. */
             .heic-info { display: none; }
 
+            /* The share sheet Save opens carries Copy in it, so the separate
+               button is a second way to do the same thing in a bar with no
+               room to spare. Ctrl-C still works for anyone with a keyboard. */
+            #copyImage { display: none; }
+
             /* Clear of the pinned property and tool bars. */
             .toast {
                 bottom: calc(76px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
@@ -1243,6 +1271,7 @@
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
         <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
         <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 12l4 4 4-4"/><path d="M5 20h14"/></symbol>
+        <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></symbol>
         <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
         <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="M12 10v6"/><path d="M9.5 13.5L12 16l2.5-2.5"/></symbol>
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10a5 5 0 0 1 0 10H8"/><path d="M4 10l5-5"/><path d="M4 10l5 5"/></symbol>
@@ -1276,8 +1305,12 @@
                 <span class="btn-label">Open</span>
             </button>
             <input type="file" id="imgLoader" accept="image/*,.heic,.heif" style="display: none;">
-            <button class="tb-btn" id="download" title="Save Image">
-                <span class="btn-icon"><svg><use href="#i-save"/></svg></span>
+            <!-- One button, two glyphs: on a phone it opens the share sheet,
+                 where the picture can go to Photos, and the arrow-into-a-tray
+                 of a download says the wrong thing about that. -->
+            <button class="tb-btn" id="download" title="Save the picture">
+                <span class="btn-icon icon-fine"><svg><use href="#i-save"/></svg></span>
+                <span class="btn-icon icon-coarse"><svg><use href="#i-share"/></svg></span>
                 <span class="btn-label">Save</span>
             </button>
             <button class="tb-btn" id="copyImage" title="Copy Image to Clipboard (Ctrl+C)">
@@ -1604,6 +1637,9 @@
         // Set when a text tool presses an existing block: the release turns it
         // into an edit if the finger did not move.
         let pendingBlockEdit = null;
+        // What the picture was called when it came in, so what goes out can be
+        // named after it rather than being edited-image.png every time.
+        let sourceFileName = '';
         let hasEdited = false;
         let hadSelectionBeforeMouseDown = false;
 
@@ -2202,6 +2238,27 @@
         function canFill(s) {
             return !!s && (s.type === 'rect' || s.type === 'ellipse' || s.type === 'callout' ||
                           (s.type === 'polyline' && s.closed));
+        }
+
+        // ===== SAVING =====
+        // Named after the picture it came from: a phone full of files called
+        // edited-image.png is a phone full of files you cannot tell apart.
+        function exportFileName() {
+            const base = (sourceFileName || 'etch').replace(/\.[^.]+$/, '').trim();
+            return `${base || 'etch'}-etch.png`;
+        }
+
+        let exportPending = null;
+
+        // The PNG, without the selection outline, handles or crop frame drawn
+        // into it. Started on the press and awaited on the click.
+        function warmExport() {
+            if (!exportPending) {
+                exportPending = new Promise(resolve => {
+                    withCleanCanvas(() => canvas.toBlob(resolve, 'image/png'));
+                });
+            }
+            return exportPending;
         }
 
         // ===== BUILD INFO =====
@@ -5444,6 +5501,7 @@
         // ===== IMAGE LOADING =====
         async function processImageFile(file) {
             if (!file) return;
+            sourceFileName = file.name || '';
             
             try {
                 let processedFile = file;
@@ -5986,34 +6044,64 @@
             };
             document.getElementById('clearShapesBtn').addEventListener('click', clearShapesOnly);
             document.getElementById('clearAllBtn').addEventListener('click', clearEverything);
-            document.getElementById('download').onclick = async () => {
-                withCleanCanvas(() => canvas.toBlob(async (blob) => {
-                    if (window.showSaveFilePicker) {
-                        try {
-                            const handle = await showSaveFilePicker({
-                                suggestedName: 'edited-image.png',
-                                types: [{
-                                    description: 'PNG Image',
-                                    accept: { 'image/png': ['.png'] }
-                                }, {
-                                    description: 'JPEG Image',
-                                    accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
-                                }]
-                            });
-                            const writable = await handle.createWritable();
-                            await writable.write(blob);
-                            await writable.close();
-                        } catch (e) {
-                            if (e.name !== 'AbortError') throw e;
-                        }
-                    } else {
-                        const link = document.createElement('a');
-                        link.download = 'edited-image.png';
-                        link.href = URL.createObjectURL(blob);
-                        link.click();
-                        URL.revokeObjectURL(link.href);
+            // Rendering starts on the press rather than the click, so the
+            // blob is usually ready by the time the handler runs: sharing and
+            // the save picker both need the user's tap still to be counted as
+            // a gesture, and a long await can spend it.
+            const saveBtn = document.getElementById('download');
+            saveBtn.addEventListener('pointerdown', () => { warmExport(); });
+            saveBtn.onclick = async () => {
+                const blob = await warmExport();
+                exportPending = null;
+                const name = exportFileName();
+
+                // 1. A phone. The share sheet is the only way a picture can
+                //    reach Photos - a download lands in Files and stays there -
+                //    and it carries AirDrop, Messages and Copy with it.
+                const file = new File([blob], name, { type: 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({ files: [file], title: name });
+                        return;
+                    } catch (e) {
+                        // Dismissing the sheet is a decision, not a failure.
+                        if (e.name === 'AbortError') return;
+                        // Anything else - a browser that says it can share and
+                        // then will not - falls through to a download rather
+                        // than leaving you with nothing.
                     }
-                }, 'image/png'));
+                }
+
+                // 2. Desktop Chromium: a real save dialogue, and the file
+                //    lands where you put it.
+                if (window.showSaveFilePicker) {
+                    try {
+                        const handle = await showSaveFilePicker({
+                            suggestedName: name,
+                            types: [{
+                                description: 'PNG Image',
+                                accept: { 'image/png': ['.png'] }
+                            }, {
+                                description: 'JPEG Image',
+                                accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                            }]
+                        });
+                        const writable = await handle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                        return;
+                    } catch (e) {
+                        if (e.name === 'AbortError') return;
+                        // Fall through: better a download than an error.
+                    }
+                }
+
+                // 3. Everything else.
+                const link = document.createElement('a');
+                link.download = name;
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
             };
             document.getElementById('copyImage').onclick = copyImageToClipboard;
             document.getElementById('pasteImage').onclick = pasteFromClipboard;

@@ -92,8 +92,10 @@ both.
 
 ## Not covered
 
-Two things are deliberately absent. HEIC conversion needs the CDN library and a
-real HEIC file. And every "phone" suite is Chromium emulating an iPhone, not
+Three things are deliberately absent. HEIC conversion needs the CDN library and
+a real HEIC file. The iOS share sheet cannot be opened by Chromium, so what
+`export` checks is the branch taken and the file handed to `navigator.share` -
+whether Apple's sheet then offers Save Image is for a real phone. And every "phone" suite is Chromium emulating an iPhone, not
 Safari: the two worst faults this app has had were Safari behaviours Chromium
 does not reproduce - the force-zoom on a sub-16px field, and the synthesised
 mouse events after a tap. What the suites assert there are proxies for what
@@ -121,7 +123,7 @@ does not.
 | `desktop` | Mouse drawing, text entry, labels |
 | `layout` | Phone layout: pinned bars, every control on screen without scrolling sideways, tap targets |
 | `rotate` | Rotating a rect, an ellipse and a text block by mouse and by touch, and the handle staying clear of the shape |
-| `export` | The saved PNG: full resolution, follows a crop, and carries no selection outline or handles |
+| `export` | The saved PNG: full resolution, follows a crop, carries no selection outline or handles, is named after the picture it came from, and goes to the share sheet where there is one |
 | `undo` | Every kind of change being its own step - draw, move, resize, delete, text edit, colour |
 | `controls` | Colour, stroke width, fill, font family and size, bold, italic, alignment, arrow ends, and a fill colour chosen on a phone reaching the shape |
 | `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |

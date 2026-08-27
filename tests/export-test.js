@@ -156,6 +156,58 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
   await page.waitForTimeout(200);
 
+  // ---- Saving on a phone goes through the share sheet ----
+  // A download on iOS lands in Files > Downloads and can never reach Photos.
+  // The share sheet is the only route to "Save Image", so where the browser
+  // can share a file, that is what Save does. Chromium cannot open Apple's
+  // sheet, so what is checked here is the branch taken and the file handed
+  // over - whether the sheet then offers Save Image is for a real phone.
+  r.shareBranch = await page.evaluate(async () => {
+    const seen = [];
+    const realShare = navigator.share, realCanShare = navigator.canShare;
+    navigator.canShare = data => !!(data && data.files && data.files.length);
+    navigator.share = async data => { seen.push(data); };
+    document.getElementById('download').click();
+    await new Promise(res => setTimeout(res, 600));
+    navigator.share = realShare; navigator.canShare = realCanShare;
+    const f = seen.length ? seen[0].files[0] : null;
+    return {
+      shared: seen.length,
+      name: f && f.name,
+      type: f && f.type,
+      hasBytes: !!(f && f.size > 1000),
+    };
+  });
+
+  // The name follows the picture it came from rather than being the same
+  // word every time, so a phone full of them can be told apart.
+  r.nameFromSource = await page.evaluate(() => exportFileName());
+
+  // Sharing refused or dismissed must not leave you with nothing: it falls
+  // through to a download.
+  await page.evaluate(() => {
+    navigator.canShare = () => true;
+    navigator.share = async () => { const e = new Error('no'); e.name = 'NotAllowedError'; throw e; };
+  });
+  const [refusedDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.click('#download'),
+  ]);
+  r.shareRefusedFallsBack = { filename: refusedDownload.suggestedFilename() };
+
+  // A dismissed sheet is not a failure and must not then download behind it.
+  r.shareCancelled = await page.evaluate(async () => {
+    let downloaded = false;
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () { downloaded = true; };
+    navigator.canShare = () => true;
+    navigator.share = async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; };
+    document.getElementById('download').click();
+    await new Promise(res => setTimeout(res, 600));
+    HTMLAnchorElement.prototype.click = realClick;
+    return { downloaded };
+  });
+
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
     'selectedWhileExporting': isTrue,
@@ -171,7 +223,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'afterExport.shapes': 1,
     'croppedExport.size': [600, 500],
     'croppedExport.canvasSize': [600, 500],
-    'anchorFallback.filename': 'edited-image.png',
+    'anchorFallback.filename': 'photo-etch.png',
+    'shareBranch.shared': 1,
+    'shareBranch.name': 'photo-etch.png',
+    'shareBranch.type': 'image/png',
+    'shareBranch.hasBytes': isTrue,
+    'nameFromSource': 'photo-etch.png',
+    'shareRefusedFallsBack.filename': 'photo-etch.png',
+    'shareCancelled.downloaded': isFalse,
     'copyLeavesSelectionAlone': isTrue,
   });
   await browser.close();

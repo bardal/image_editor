@@ -228,8 +228,35 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     });
   }
 
+  // The status bar's three items ran into each other on a phone: the image
+  // size and the pointer coordinates printed as one string with no gap -
+  // "Display: 402 x 536 1710, 3335".
+  const statusBar = await page.evaluate(async () => {
+    const cv = document.createElement('canvas');
+    cv.width = 3024; cv.height = 4032;
+    const g = cv.getContext('2d'); g.fillStyle = '#456'; g.fillRect(0, 0, 40, 40);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    await processImageFile(new File([blob], 'big.png', { type: 'image/png' }));
+    await new Promise(res => setTimeout(res, 700));
+    document.getElementById('statusLine').textContent = '1710, 3335';
+    const items = [...document.querySelectorAll('.status-bar .status-item')]
+      .map(el => el.getBoundingClientRect())
+      .filter(b => b.width > 0);
+    let touching = false;
+    for (let i = 1; i < items.length; i++) {
+      if (items[i].left - items[i - 1].right < 6) touching = true;
+    }
+    const bar = document.querySelector('.status-bar').getBoundingClientRect();
+    return {
+      items: items.length,
+      touching,
+      insideBar: items.every(b => b.left >= bar.left - 0.5 && b.right <= bar.right + 0.5),
+      text: document.getElementById('imageInfo').textContent,
+    };
+  });
+
   finish({
-    byTool, swatches, anchors, chips, fillSwitch, controlGeometry,
+    byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
@@ -284,6 +311,10 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'controlGeometry.callout.escapes': isEmpty,
     'controlGeometry.crop.tooSmall': isEmpty,
     'controlGeometry.crop.escapes': isEmpty,
+    // Six pixels of daylight between the readouts, and none of them hanging
+    // off the end of the bar.
+    'statusBar.touching': isFalse,
+    'statusBar.insideBar': isTrue,
     'byTool.select.toolsAllVisible': isTrue,
     'byTool.select.unreachableInProps': isEmpty,
     'byTool.select.canvasClearOfBars': isTrue,
