@@ -16,6 +16,11 @@ There is a suite per area — `zoom`, `pinch`, `rotate`, `line`, `crop`, `tear`,
 
 `npm install` first if `node_modules` is missing; web sessions get that from `.claude/hooks/session-start.sh`. The browser is found by `tests/browser.js` — Playwright's own if it has one, otherwise whatever the sandbox ships — so `CHROME_PATH` only needs setting to override that choice.
 
+**Branch:** work on `main` and push there. Pages deploys from `main` once the
+suites pass, and the phone this app is tested on loads the deployed build - so
+a change parked on a side branch is a change nobody can try. Feature branches
+have only ever meant pushing the same commits twice.
+
 **Deploy:** `./deploy.sh` — deploys via SSH (default) or FTP to barney.daltons.net/image_editor. Requires `.env` with `DEPLOY_USER` (see `.env.example`). CI publishes to GitHub Pages from `main` once the suites pass (`.github/workflows/pages.yml`).
 
 ## Architecture
