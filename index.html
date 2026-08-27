@@ -1062,6 +1062,143 @@
             }
 
             .toolbar-props > * { flex-shrink: 0; }
+
+            /* ===== THE PROPERTY TRACK =====
+               The row measured perfectly straight and still looked crooked:
+               every element on it reported the same centre, because the eye
+               aligns edges and the row carried boxes 30, 28, 24, 16 and 4
+               pixels tall. So every box now takes one height and one radius
+               from the same kit, fused edge to edge inside a single inset
+               track, with the groups separated by a rule rather than a gap.
+
+               The track clips its own corners, which is what rounds the ends
+               of a run. The alternative - rounding the first and last visible
+               box - has to be recomputed every time a group hides, and leaves
+               a square corner mid-row when it goes wrong, silently. */
+            .toolbar-props {
+                --ctl-h: 44px;
+                --ctl-bd: rgba(255,255,255,0.13);
+                --ctl-bg: rgba(255,255,255,0.06);
+                column-gap: 0;
+                row-gap: 4px;
+                padding: 4px 8px;
+                align-items: stretch;
+            }
+
+            /* The inset panel the controls sit in. */
+            .toolbar-props .prop-group,
+            .toolbar-props .text-format-group.visible,
+            .toolbar-props .arrow-style-group.visible,
+            .toolbar-props .crop-group.visible,
+            .toolbar-props .tear-group.visible {
+                gap: 0;
+                align-items: stretch;
+            }
+
+            /* Every box on the row: one height, no radius of its own, and a
+               rule where it meets the box before it. */
+            .toolbar-props .swatch,
+            .toolbar-props .swatch-label,
+            .toolbar-props .slider-box,
+            .toolbar-props .fill-toggle,
+            .toolbar-props .arrow-style-label,
+            .toolbar-props .arrow-style-select,
+            .toolbar-props #fontFamily,
+            .toolbar-props #fontSize,
+            .toolbar-props .format-btn,
+            .toolbar-props .crop-btn,
+            .toolbar-props .tear-edge {
+                height: var(--ctl-h);
+                min-height: var(--ctl-h);
+                border-radius: 0;
+                border: 0;
+                background: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Labels read as part of the track rather than floating beside it,
+               and in one voice: the sentence-case ones with colons are gone. */
+            .toolbar-props .swatch-label,
+            .toolbar-props .arrow-style-label {
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: #8a8a90;
+                padding: 0 8px;
+            }
+
+            .toolbar-props .slider-box {
+                gap: 8px;
+                padding: 0 10px;
+                flex: 1 1 4rem;
+                min-width: 0;
+            }
+
+            /* A width, not auto: a range input reports its default 129px as
+               its content size, so the group asks for far more room than it
+               needs and the row wraps with space to spare. */
+            .toolbar-props .size-slider { flex: 1 1 3rem; min-width: 2.5rem; width: 3rem; }
+            /* Spans the box it sits in rather than floating in the middle of
+               it: on a track, a short box is the thing the eye catches. */
+            .toolbar-props .size-value:not(.hidden) {
+                min-width: 2ch;
+                height: var(--ctl-h);
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+            }
+
+            /* With no thickness to set - text takes its size from the font
+               controls - the box goes rather than standing empty. */
+            .slider-box.hidden { display: none; }
+
+            .toolbar-props .fill-toggle { padding: 0 10px; }
+            .toolbar-props #fontSize { width: 3rem; text-align: center; }
+            .toolbar-props .arrow-style-select,
+            .toolbar-props #fontFamily { padding: 0 4px; }
+            .toolbar-props .format-btn { width: 40px; min-width: 40px; }
+
+            /* The one on is filled, like the tool that is in hand: the block
+               rule above turned every box transparent, which took the state
+               with it. */
+            .toolbar-props .format-btn.active {
+                background: #3b8eed;
+                color: #fff;
+            }
+
+            /* Rules where one job ends and the next begins - family, size,
+               weight, alignment - so the track reads as an instrument rather
+               than a panel of loose glyphs. Bold and italic were bare letters
+               with nothing to say they were controls at all. */
+            .toolbar-props #fontSize,
+            .toolbar-props #boldToggle,
+            .toolbar-props #alignLeft,
+            .toolbar-props .arrow-style-label + .arrow-style-select,
+            .toolbar-props .arrow-style-select + .arrow-style-label {
+                border-left: 1px solid var(--ctl-bd);
+            }
+
+            /* The track itself, and the rules between what it holds. */
+            .toolbar-props .prop-group,
+            .toolbar-props .text-format-group.visible,
+            .toolbar-props .arrow-style-group.visible,
+            .toolbar-props .crop-group.visible,
+            .toolbar-props .tear-group.visible {
+                background: var(--ctl-bg);
+                border: 1px solid var(--ctl-bd);
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            /* Groups that share a row fuse into one track: the rule between
+               them is the only thing separating them. */
+            .toolbar-props > * + *:not(.toolbar-divider) {
+                margin-left: -1px;
+            }
+
             .toolbar-props .prop-group { gap: var(--gap-tight); }
 
             /* Chip first, word second. With the label leading, the swatch sat
@@ -1072,8 +1209,7 @@
                anything. */
             .toolbar-props .prop-group .swatch { order: 0; }
             .toolbar-props .prop-group .swatch-label { order: 1; }
-            .toolbar-props .prop-group .size-slider { order: 2; }
-            .toolbar-props .prop-group .size-value { order: 3; }
+            .toolbar-props .prop-group .slider-box { order: 2; }
             .toolbar-props .prop-group .fill-toggle { order: 3; }
 
             /* The chip says which state it is in - chequerboard for off, the
@@ -1085,7 +1221,10 @@
                slider grows into a wide screen and gives way on a narrow one,
                and fill sits at the far edge without being positioned there.
                No control has a place of its own to be knocked out of. */
-            .toolbar-props #lineGroup { flex: 1 1 auto; min-width: 0; }
+            /* Sized to what it holds, with the slider taking the slack
+               inside it: a group that grew to fill the row pushed fill off
+               the end of it. */
+            .toolbar-props #lineGroup { flex: 0 1 auto; min-width: 0; }
 
             /* The tools share the width between them rather than each holding a
                size of its own. At a fixed 52px the strip was wider than the
@@ -1449,8 +1588,10 @@
                         <input type="color" id="color" value="#333333">
                         <span class="swatch-preview" id="strokePreview"></span>
                     </label>
-                    <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Line thickness">
-                    <span class="size-value">3</span>
+                    <span class="slider-box">
+                        <input type="range" id="size" value="3" min="1" max="20" class="size-slider" title="Line thickness">
+                        <span class="size-value">3</span>
+                    </span>
                 </div>
                 <div class="toolbar-divider" id="propDivider"></div>
                 <div class="prop-group" id="fillGroup">
@@ -1465,7 +1606,7 @@
                     </label>
                 </div>
                 <div class="arrow-style-group" id="arrowStyleGroup">
-                    <span class="arrow-style-label">Start:</span>
+                    <span class="arrow-style-label">Start</span>
                     <!-- Short names on purpose: "Closed Arrow" made the two
                          dropdowns wide enough that the pair no longer fitted
                          across a phone, and took a row of their own. -->
@@ -1474,7 +1615,7 @@
                         <option value="openArrow">Open</option>
                         <option value="closedArrow">Filled</option>
                     </select>
-                    <span class="arrow-style-label">End:</span>
+                    <span class="arrow-style-label">End</span>
                     <select id="endStyleSelect" class="arrow-style-select">
                         <option value="none">None</option>
                         <option value="openArrow">Open</option>
@@ -3094,6 +3235,7 @@
             document.getElementById('lineGroupLabel').textContent = textMode ? 'Colour' : 'Line';
             document.getElementById('size').classList.toggle('hidden', !!textMode);
             document.querySelector('.size-value').classList.toggle('hidden', !!textMode);
+            document.querySelector('.slider-box').classList.toggle('hidden', !!textMode);
 
             // With nothing left in it, the bar itself goes, handing the space
             // back to the picture.

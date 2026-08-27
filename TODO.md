@@ -10,6 +10,17 @@ than deleting it quietly.
 
 ## Next
 
+### Give the desktop row the same track
+
+The phone row is fused (see below - built). The desktop one still carries the
+old mixed heights, dividers and per-control borders, and has the same fault:
+the eye aligns edges, and that row has none. It is a different arrangement -
+inline in the top toolbar rather than a bar of its own - so the kit transfers
+but the container does not. `layout-test` asserts the edges on a phone only;
+the desktop assertion wants writing at the same time.
+
+## Built
+
 ### Fuse the property row into one track
 
 The drawing property row (`.toolbar-props` — line colour, thickness, fill, arrow
@@ -63,6 +74,10 @@ Three things to get right, in the order they will bite:
 - **One label voice.** `LINE` is 10px/600 caps in `#8a8a90`; `Start:` is 11px/500
   sentence case in `#adadb2`; the width readout is a third setting again. Pick the
   caps one, and drop the colons from `Start:` and `End:`.
+
+Built on a phone. The fused-corner risk below was designed out rather than
+solved: the track clips its own corners, so no rule has to work out which box
+is first or last in a visible run.
 
 **Write the failing test first, and not on centres — the row already passes
 those.** Collect every box in `.toolbar-props` and assert they share a top edge

@@ -313,8 +313,49 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return { visible };
   });
 
+  // ---- The property row has to line up on its edges ----
+  // It measures perfectly straight and still looks crooked: every element on it
+  // reports the same centre, because the eye aligns edges and the row carries
+  // boxes 30, 28, 24, 16 and 4 pixels tall. A test on midpoints goes green on
+  // the broken row, which is why one never caught this.
+  const rowEdges = {};
+  for (const t of ['rect', 'arrow', 'text', 'callout']) {
+    await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
+    await page.waitForTimeout(200);
+    rowEdges[t] = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll(
+        '.toolbar-props .swatch, .toolbar-props .swatch-label, .toolbar-props .size-slider,'
+        + ' .toolbar-props .size-value, .toolbar-props .fill-toggle, .toolbar-props select,'
+        + ' .toolbar-props input[type="number"], .toolbar-props .format-btn,'
+        + ' .toolbar-props .arrow-style-label, .toolbar-props .crop-btn')]
+        .map(el => ({ id: el.id || el.className.split(' ')[0],
+                      b: el.getBoundingClientRect() }))
+        .filter(x => x.b.width > 0);
+      // Grouped into rows by where they sit, since the bar wraps.
+      const rows = [];
+      for (const x of boxes) {
+        const mid = x.b.top + x.b.height / 2;
+        const row = rows.find(r => Math.abs(r.mid - mid) < 14);
+        if (row) row.items.push(x); else rows.push({ mid, items: [x] });
+      }
+      return rows.map(r => ({
+        count: r.items.length,
+        tops: [...new Set(r.items.map(x => Math.round(x.b.top)))].sort((a, b) => a - b),
+        bottoms: [...new Set(r.items.map(x => Math.round(x.b.bottom)))].sort((a, b) => a - b),
+        heights: [...new Set(r.items.map(x => Math.round(x.b.height)))].sort((a, b) => a - b),
+      }));
+    });
+  }
+  // One top edge and one bottom edge per row, give or take a pixel.
+  const linedUp = rows => rows.every(r =>
+    r.tops[r.tops.length - 1] - r.tops[0] <= 1 &&
+    r.bottoms[r.bottoms.length - 1] - r.bottoms[0] <= 1);
+  const edgesLineUp = Object.fromEntries(
+    Object.entries(rowEdges).map(([k, v]) => [k, linedUp(v)]));
+
   finish({
     byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar,
+    rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
@@ -374,6 +415,10 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     // off the end of the bar.
     'statusBar.touching': isFalse,
     'statusBar.insideBar': isTrue,
+    'edgesLineUp.rect': isTrue,
+    'edgesLineUp.arrow': isTrue,
+    'edgesLineUp.text': isTrue,
+    'edgesLineUp.callout': isTrue,
     'floatActions.bothOnScreen': isTrue,
     'floatActions.bigEnough': isTrue,
     'floatActions.apart': isTrue,
