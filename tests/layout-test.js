@@ -255,8 +255,67 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     };
   });
 
+  // ---- Undo and the bin, within reach ----
+  // They were in the top corners, which is the hardest place to reach on a
+  // phone, and they are the two most used things in the app. They float over
+  // the picture at the bottom right instead - clear of the readouts under it,
+  // clear of each other, and out of the top bar altogether.
+  await page.evaluate(() => {
+    document.querySelector('[data-tool="rect"]').click();
+    shapes.push({ type: 'rect', x: 100, y: 100, w: 200, h: 150, rotation: 0,
+      color: '#e33', size: 5, fill: false, id: newShapeId() });
+    redraw(); updateButtonStates();
+  });
+  await page.waitForTimeout(250);
+  const floatActions = await page.evaluate(() => {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const u = document.getElementById('floatUndo').getBoundingClientRect();
+    const c = document.getElementById('floatClear').getBoundingClientRect();
+    const status = document.querySelector('.status-bar').getBoundingClientRect();
+    const props = document.querySelector('.toolbar-props').getBoundingClientRect();
+    const onScreen = b => b.width > 0 && b.left >= 0 && b.right <= vw
+                       && b.top >= 0 && b.bottom <= vh;
+    const clearOf = (b, o) => o.height === 0 || b.bottom <= o.top + 0.5;
+    return {
+      sizes: [Math.round(u.width), Math.round(u.height)],
+      bothOnScreen: onScreen(u) && onScreen(c),
+      bigEnough: u.width >= 43.5 && u.height >= 43.5 && c.width >= 43.5 && c.height >= 43.5,
+      apart: Math.abs(u.bottom - c.top) > 4 || Math.abs(c.bottom - u.top) > 4,
+      clearOfReadouts: clearOf(u, status) && clearOf(c, status)
+                    && clearOf(u, props) && clearOf(c, props),
+      // The top bar keeps the things you do once: open, save, paste.
+      topBarButtons: [...document.querySelectorAll('.toolbar .tb-btn')]
+        .filter(b => b.getBoundingClientRect().width > 0).map(b => b.id),
+    };
+  });
+
+  // They are live, not decoration.
+  const floatUndoWorks = await page.evaluate(async () => {
+    const before = shapes.length;
+    document.getElementById('floatUndo').click();
+    await new Promise(res => setTimeout(res, 250));
+    return { before, after: shapes.length };
+  });
+
+  // And they get out of the way of the editor's own buttons.
+  const floatsWhileEditing = await page.evaluate(async () => {
+    document.querySelector('[data-tool="callout"]').click();
+    const b = canvas.getBoundingClientRect();
+    const block = { type: 'callout', x: canvas.width * 0.2, y: canvas.height * 0.2,
+      w: canvas.width * 0.4, h: canvas.height * 0.08, text: '', tipX: canvas.width * 0.6,
+      tipY: canvas.height * 0.5, color: '#333', size: 3, fill: true, fillColor: '#ffd54a',
+      fontSize: 16, fontFamily: 'sans-serif', id: newShapeId() };
+    shapes.push(block);
+    startBlockEditing(block);
+    await new Promise(res => setTimeout(res, 300));
+    const visible = document.getElementById('floatActions').getBoundingClientRect().height > 0;
+    finishBlockEditing(true);
+    return { visible };
+  });
+
   finish({
     byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar,
+    floatActions, floatUndoWorks, floatsWhileEditing,
     errors: errors.filter(e => !e.includes('ServiceWorker')),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
@@ -315,6 +374,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     // off the end of the bar.
     'statusBar.touching': isFalse,
     'statusBar.insideBar': isTrue,
+    'floatActions.bothOnScreen': isTrue,
+    'floatActions.bigEnough': isTrue,
+    'floatActions.apart': isTrue,
+    'floatActions.clearOfReadouts': isTrue,
+    'floatActions.topBarButtons': ['openFile', 'download', 'pasteImage'],
+    'floatUndoWorks.before': 1,
+    'floatUndoWorks.after': 0,
+    'floatsWhileEditing.visible': isFalse,
     'byTool.select.toolsAllVisible': isTrue,
     'byTool.select.unreachableInProps': isEmpty,
     'byTool.select.canvasClearOfBars': isTrue,

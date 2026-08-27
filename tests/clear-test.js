@@ -11,6 +11,10 @@ const seed = async (page) => page.evaluate(async () => {
   await processImageFile(new File([blob], 't.png', { type: 'image/png' }));
 });
 
+// The bin a finger actually lands on. On a phone it is the one floating over
+// the picture: the top bar keeps only what you do once a session.
+const BIN = '#floatClear';
+
 (async () => {
   const browser = await chromium.launch({ executablePath: require('./browser').path() });
   const ctx = await browser.newContext({ ...devices['iPhone 13'] });
@@ -26,7 +30,7 @@ const seed = async (page) => page.evaluate(async () => {
   await page.waitForTimeout(500);
 
   // 1. Empty canvas: no dialog, just a toast.
-  await page.click('#clear');
+  await page.click(BIN);
   await page.waitForTimeout(250);
   r.emptyCanvas = await page.evaluate(() => ({
     dialogShown: document.getElementById('clearModal').style.display === 'block',
@@ -41,7 +45,7 @@ const seed = async (page) => page.evaluate(async () => {
     redraw();
   });
   await page.waitForTimeout(900);
-  await page.click('#clear');
+  await page.click(BIN);
   await page.waitForTimeout(250);
   r.withBoth = await page.evaluate(() => ({
     dialogShown: document.getElementById('clearModal').style.display === 'block',
@@ -58,7 +62,7 @@ const seed = async (page) => page.evaluate(async () => {
   }));
 
   // 4. Image only: the drawing-only option is unavailable.
-  await page.click('#clear');
+  await page.click(BIN);
   await page.waitForTimeout(250);
   r.imageOnly = await page.evaluate(() => ({
     summary: document.getElementById('clearSummary').textContent,
@@ -94,9 +98,12 @@ const seed = async (page) => page.evaluate(async () => {
   await page.waitForTimeout(200);
   r.binWithSelection = await page.evaluate(() => ({
     label: document.querySelector('#clear .btn-label').textContent,
-    title: document.getElementById('clear').title,
+    title: document.getElementById('floatClear').title,
+    // Red when it will take the shape you have picked rather than offer to
+    // clear: there is no room for a word over the picture.
+    armed: document.getElementById('floatClear').classList.contains('armed'),
   }));
-  await page.click('#clear');
+  await page.click(BIN);
   await page.waitForTimeout(250);
   r.binTakesSelection = await page.evaluate(() => ({
     left: shapes.map(s => s.id),
@@ -112,9 +119,12 @@ const seed = async (page) => page.evaluate(async () => {
 
   r.binWithoutSelection = await page.evaluate(() => ({
     label: document.querySelector('#clear .btn-label').textContent,
-    title: document.getElementById('clear').title,
+    title: document.getElementById('floatClear').title,
+    // Red when it will take the shape you have picked rather than offer to
+    // clear: there is no room for a word over the picture.
+    armed: document.getElementById('floatClear').classList.contains('armed'),
   }));
-  await page.click('#clear');
+  await page.click(BIN);
   await page.waitForTimeout(250);
   r.binOffersClear = await page.evaluate(() => ({
     dialogShown: document.getElementById('clearModal').style.display === 'block',
@@ -130,6 +140,8 @@ const seed = async (page) => page.evaluate(async () => {
 
   r.errors = errors.filter(e => !e.includes('ServiceWorker'));
   finish(r, {
+    'binWithSelection.armed': isTrue,
+    'binWithoutSelection.armed': isFalse,
     'binWithSelection.label': 'Delete',
     'binWithSelection.title': v => /selected/i.test(v),
     'binTakesSelection.left': [71],

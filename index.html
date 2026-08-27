@@ -627,6 +627,60 @@
 
         .block-edit-bar.open { display: flex; }
 
+        /* Positioned against the picture's own box rather than the window, so
+           they clear the readouts and the property bar without knowing how
+           tall either of those happens to be. Off on a mouse, where the top
+           bar is a fine place for them. */
+        .float-actions {
+            display: none;
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            z-index: 20;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .float-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(30,30,34,0.86);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            color: #d4d4d8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+            transition: opacity 0.12s, background 0.12s;
+        }
+
+        .float-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .float-btn:disabled { opacity: 0.35; }
+
+        /* Deleting the shape you have picked, rather than offering to clear
+           the drawing: the same difference the label carries on a desktop,
+           where there is room for a word. */
+        .float-btn.armed {
+            background: rgba(196,60,60,0.9);
+            color: #fff;
+        }
+
+        /* The editor has its own Done and Cancel in this corner. */
+        body.editing-block .float-actions { display: none !important; }
+
         .block-edit-bar button {
             font-family: inherit;
             font-size: 13px;
@@ -1156,6 +1210,12 @@
 
             /* Nothing in the property bar applies right now, so drop it and
                give the room back to the canvas. */
+            .float-actions { display: flex; }
+
+            /* The top bar keeps what you do once a session; what you do all
+               the time has come down to the picture. */
+            #undo, #clear { display: none; }
+
             body.props-empty .toolbar-props { display: none; }
         }
 
@@ -1477,6 +1537,18 @@
                 <input type="text" id="canvasTextInput" class="canvas-text-input" placeholder="Type here...">
                 <textarea id="calloutTextInput" class="callout-text-input" placeholder="Type your note…"></textarea>
                 <div id="blockEditBar" class="block-edit-bar"><button type="button" id="blockCancel">Cancel</button><button type="button" id="blockDone" class="primary">Done</button></div>
+                <!-- Undo and the bin, floating over the picture on a phone.
+                     They were in the top corners, which is the furthest part
+                     of the screen from a thumb, and they are the two things
+                     used most while drawing. -->
+                <div id="floatActions" class="float-actions">
+                    <button type="button" id="floatUndo" class="float-btn" title="Undo">
+                        <svg><use href="#i-undo"/></svg>
+                    </button>
+                    <button type="button" id="floatClear" class="float-btn" title="Clear">
+                        <svg><use href="#i-clear"/></svg>
+                    </button>
+                </div>
                 <div class="loading" id="loading">Processing image...</div>
             </div>
 
@@ -1592,6 +1664,8 @@
         const loading = document.getElementById('loading');
         const undoBtn = document.getElementById('undo');
         const clearBtn = document.getElementById('clear');
+        const floatUndoBtn = document.getElementById('floatUndo');
+        const floatClearBtn = document.getElementById('floatClear');
         const imageInfo = document.getElementById('imageInfo');
         const canvasTextInput = document.getElementById('canvasTextInput');
         const calloutTextInput = document.getElementById('calloutTextInput');
@@ -2970,6 +3044,12 @@
             clearBtn.title = binDeletes
                 ? 'Delete the selected shape'
                 : 'Clear the drawing or the image';
+            // The floating pair carries the same state: there is no room for a
+            // word over the picture, so the bin turns red when it will take
+            // the shape you have picked rather than offer to clear.
+            floatUndoBtn.disabled = undoBtn.disabled;
+            floatClearBtn.classList.toggle('armed', binDeletes);
+            floatClearBtn.title = clearBtn.title;
             const fillToggle = document.getElementById('fillToggle');
             if (canFill(selectedShape)) {
                 fillToggle.checked = !!selectedShape.fill;
@@ -3475,6 +3555,9 @@
         let editingOriginalText = '';
 
         function startBlockEditing(shape) {
+            // The editor puts Done and Cancel in the same corner the floating
+            // buttons live in.
+            document.body.classList.add('editing-block');
             beginEditUndo();
             // Finish any edit already open. The text tool suppresses the default
             // pointer behaviour to keep focus, which also suppresses the blur
@@ -3539,6 +3622,7 @@
         }
 
         function finishBlockEditing(cancel) {
+            document.body.classList.remove('editing-block');
             if (!editingBlock) return;
             const shape = editingBlock;
             const text = calloutTextInput.value;
@@ -6038,10 +6122,13 @@
             
             // Button events
             undoBtn.onclick = undoLastAction;
-            clearBtn.onclick = () => {
+            const binPressed = () => {
                 if (selectedShape) deleteSelectedShape();
                 else showClearOptions();
             };
+            clearBtn.onclick = binPressed;
+            floatClearBtn.onclick = binPressed;
+            floatUndoBtn.onclick = undoLastAction;
             document.getElementById('clearShapesBtn').addEventListener('click', clearShapesOnly);
             document.getElementById('clearAllBtn').addEventListener('click', clearEverything);
             // Rendering starts on the press rather than the click, so the
