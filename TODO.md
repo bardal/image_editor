@@ -10,17 +10,17 @@ than deleting it quietly.
 
 ## Next
 
-### The desktop toolbar runs off the right-hand edge
-
-Pre-existing, and the same fault the phone bar had: at 1440px wide the top
-toolbar wants 1500px with the rect tool, 1547 with text and 1776 with callout,
-so the property controls sit off the edge with nothing to say they are there.
-It is one row of file actions, nine tools and the property track, and it does
-not wrap. The phone answer was to wrap rather than scroll; the desk needs the
-same decision taken, and a test that asserts every control is within the
-viewport at 1280 and 1440.
+Nothing decided and unbuilt.
 
 ## Built
+
+### The desktop toolbar wraps rather than running off the edge
+
+At 1440 it wanted 1500px with the rect tool and 1776 with callout, so the
+property controls sat off the right-hand edge. It takes a second row now, as
+the phone bar does, and `calculateCanvasSize` measures the bar rather than
+assuming 40px. `desktop-test` asserts every control is inside the window at
+1440 and 1280, under three tools.
 
 ### The desktop row and the phone row share one implementation
 

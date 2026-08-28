@@ -60,11 +60,20 @@
             border-bottom: 1px solid rgba(255,255,255,0.06);
             display: flex;
             align-items: center;
-            padding: 0 12px;
-            height: 40px;
+            padding: 4px 12px;
+            min-height: 40px;
             gap: 4px;
             flex-shrink: 0;
             z-index: 20;
+            /* Takes another row rather than running past the right-hand edge.
+               One row of file actions, nine tools and the property track wants
+               1500px with the rect tool and 1776 with callout, so at any normal
+               window the property controls were off the screen with nothing to
+               say they were there - the same fault the phone bar had, and the
+               same answer. */
+            flex-wrap: wrap;
+            row-gap: 4px;
+            align-content: center;
         }
 
         .toolbar-divider {
@@ -2094,7 +2103,10 @@
             const container = document.querySelector('.canvas-container');
             const containerWidth = container.clientWidth;
             const viewportHeight = window.innerHeight;
-            const toolbarHeight = 40;
+            // Measured, not assumed: the toolbar takes a second row when its
+            // contents no longer fit across one.
+            const bar = document.querySelector('.toolbar');
+            const toolbarHeight = bar ? bar.getBoundingClientRect().height : 40;
             const margins = 32;
             const availableHeight = viewportHeight - toolbarHeight - margins;
             

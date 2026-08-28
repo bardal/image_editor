@@ -141,6 +141,43 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     });
   }
 
+  // ---- Nothing off the right-hand edge ----
+  // The toolbar is one row of file actions, nine tools and the property track,
+  // and it did not wrap: at 1440 it wanted 1500 for rect and 1776 for callout,
+  // so the property controls sat off the edge with nothing to say they were
+  // there. The same fault the phone bar had, and the same answer - take another
+  // row rather than run past the edge.
+  r.fitsAtWidth = {};
+  for (const width of [1440, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(200);
+    r.fitsAtWidth[width] = {};
+    for (const t of ['rect', 'text', 'callout']) {
+      await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
+      await page.waitForTimeout(180);
+      r.fitsAtWidth[width][t] = await page.evaluate(() => {
+        const bar = document.querySelector('.toolbar');
+        const offScreen = [];
+        bar.querySelectorAll('button, select, input, label').forEach(el => {
+          const b = el.getBoundingClientRect();
+          if (!b.width && !b.height) return;
+          if (b.right > window.innerWidth + 1 || b.left < -1) {
+            offScreen.push(el.id || el.className.split(' ')[0]);
+          }
+        });
+        return {
+          offScreen,
+          barHeight: Math.round(bar.getBoundingClientRect().height),
+          // The canvas has to keep clear of however many rows it took.
+          canvasBelowBar: document.getElementById('canvas').getBoundingClientRect().top
+            >= bar.getBoundingClientRect().bottom - 1,
+        };
+      });
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(200);
+
   // And one implementation, not two: the controls take their size from the kit
   // rather than from a block of phone overrides.
   r.oneKit = await page.evaluate(() => {
@@ -154,6 +191,14 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     'rowEdges.rect.linedUp': isTrue,
     'rowEdges.arrow.linedUp': isTrue,
     'rowEdges.text.linedUp': isTrue,
+    'fitsAtWidth.1440.rect.offScreen': isEmpty,
+    'fitsAtWidth.1440.text.offScreen': isEmpty,
+    'fitsAtWidth.1440.callout.offScreen': isEmpty,
+    'fitsAtWidth.1440.callout.canvasBelowBar': isTrue,
+    'fitsAtWidth.1280.rect.offScreen': isEmpty,
+    'fitsAtWidth.1280.text.offScreen': isEmpty,
+    'fitsAtWidth.1280.callout.offScreen': isEmpty,
+    'fitsAtWidth.1280.callout.canvasBelowBar': isTrue,
     'oneKit.ctlH': v => typeof v === 'string' && v.length > 0,
     'oneKit.swatchHeight': v => v === parseInt(r.oneKit.ctlH),
     'coarsePointer': isFalse,
