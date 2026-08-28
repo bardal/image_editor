@@ -108,7 +108,7 @@ https://claude.ai/code/artifact/556fd32f-8b29-4716-829f-aff6079dea03
 
 ## Built
 
-### The tool icons, drawn as a set, in bordered chips
+### The icons, drawn as a set, in bordered chips
 
 Built with the chips (option 2), not the bordered strip the artifact
 recommended - the call was made looking at both. `icons-test` renders each
@@ -123,26 +123,10 @@ nine zigzags carries more line than a single diagonal at the same weight, and
 redrawing cannot change that. The set's real gain is where the glyphs sit and
 how far they reach.
 
-Still to do, and the reason this is not finished: the four `i-tear-*` edge
-icons and the six top-bar file actions were drawn to the same loose grid and
-have not been through it. Fix the family, not the instance.
-
-## Found, not yet decided
-
-### The tool icons were never drawn as a set
-
-The nine tool buttons are fine — same 24px box, same 20px icon slot, all centred.
-The drawings inside them are not: nine glyphs at nine sizes on the same 24-unit
-grid. Crop covers 2.8× the ink area of Select and reaches y 2–22 of 24, the only
-glyph touching its edges. Tear centres on 10.5 where every other glyph centres on
-12, so it rides about 1.25px high. The strip itself has `rgba(0,0,0,0.2)` on
-`#252528` and no border, so nine tools read as loose glyph-and-word pairs.
-
-A redrawn set exists — every glyph built symmetrically about (12, 12), none
-exceeding a 13.4 × 13.4 live area, ink-area spread down from 2.8× to 1.4× — along
-with two ways to give the strip an edge. Not chosen yet:
-https://claude.ai/code/artifact/c5c20c15-c4fd-42ff-bbda-f273071af88a
-
-If it goes ahead, the four `i-tear-*` edge icons and the top-bar file actions were
-drawn to the same loose grid and want the same pass. Fix the family, not the
-instance.
+Finished across the whole sprite rather than the nine tools: the file actions,
+the four tear-edge icons and the info mark were drawn to the same loose grid
+and went through the same pass. Twenty-one symbols, every one centred on 12,12
+and none reaching past 16.5 of 24. They were re-fitted rather than redrawn -
+every coordinate scaled about the drawing's own centre and moved to sit in the
+middle of the box, so the shapes are untouched and the stroke stays 1.8 for
+all of them.

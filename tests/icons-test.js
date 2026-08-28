@@ -21,9 +21,11 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
   const r = {};
 
+  // Every symbol in the sprite, not only the nine tools: the file actions and
+  // the four tear-edge icons were drawn to the same loose grid, and a set that
+  // stops at the tools is not a set.
   r.glyphs = await page.evaluate(async () => {
-    const ids = ['i-select', 'i-rect', 'i-ellipse', 'i-arrow', 'i-line',
-                 'i-text', 'i-callout', 'i-crop', 'i-tear'];
+    const ids = [...document.querySelectorAll('.icon-sprite symbol')].map(el => el.id);
     // Select is drawn filled in the app; the rest are strokes.
     const filled = new Set(['i-select']);
     const SCALE = 4, SIZE = 24 * SCALE;
