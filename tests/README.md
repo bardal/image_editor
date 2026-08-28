@@ -129,4 +129,5 @@ does not.
 | `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |
 | `misc` | Paste, closing a polygon, shape labels, cycling a stack, the service worker |
 | `blockmove` | Tap to edit, drag to move, for a callout or a text block under any tool |
+| `icons` | The nine tool glyphs as a set: each rendered on its own and weighed - centred in its box, none reaching the edges - and the bordered chips they sit in |
 | `units` | Sizes in the right unit: padding, corners and stroke keeping their proportion to the text at any zoom, shapes made while zoomed coming out the same, editors above the 16px iOS floor |

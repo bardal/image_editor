@@ -106,6 +106,27 @@ Mock-ups, measurements and the two rejected alternatives (a plainer one-height
 pass, and per-group wells):
 https://claude.ai/code/artifact/556fd32f-8b29-4716-829f-aff6079dea03
 
+## Built
+
+### The tool icons, drawn as a set, in bordered chips
+
+Built with the chips (option 2), not the bordered strip the artifact
+recommended - the call was made looking at both. `icons-test` renders each
+symbol on its own and weighs the ink: every glyph now centres on 12,12 where
+Tear was on 10.5 and Arrow on 11, and none reaches past 16.5 of 24 where Crop
+was 21 x 22.
+
+One claim in the artifact did not survive the measurement: the redrawn set was
+described as cutting the spread of ink from 2.8x to 1.4x. On what actually
+renders it is 2.97x, against 3.05x before - barely moved. A page outline with
+nine zigzags carries more line than a single diagonal at the same weight, and
+redrawing cannot change that. The set's real gain is where the glyphs sit and
+how far they reach.
+
+Still to do, and the reason this is not finished: the four `i-tear-*` edge
+icons and the six top-bar file actions were drawn to the same loose grid and
+have not been through it. Fix the family, not the instance.
+
 ## Found, not yet decided
 
 ### The tool icons were never drawn as a set
