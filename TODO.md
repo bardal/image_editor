@@ -10,14 +10,26 @@ than deleting it quietly.
 
 ## Next
 
-### Give the desktop row the same track
+### The desktop toolbar runs off the right-hand edge
 
-The phone row is fused (see below - built). The desktop one still carries the
-old mixed heights, dividers and per-control borders, and has the same fault:
-the eye aligns edges, and that row has none. It is a different arrangement -
-inline in the top toolbar rather than a bar of its own - so the kit transfers
-but the container does not. `layout-test` asserts the edges on a phone only;
-the desktop assertion wants writing at the same time.
+Pre-existing, and the same fault the phone bar had: at 1440px wide the top
+toolbar wants 1500px with the rect tool, 1547 with text and 1776 with callout,
+so the property controls sit off the edge with nothing to say they are there.
+It is one row of file actions, nine tools and the property track, and it does
+not wrap. The phone answer was to wrap rather than scroll; the desk needs the
+same decision taken, and a test that asserts every control is within the
+viewport at 1280 and 1440.
+
+## Built
+
+### The desktop row and the phone row share one implementation
+
+Ten base rules described those controls and fifty-three phone rules overrode
+them, which is why fixing the phone left the desk crooked - two implementations
+of one row. The kit and the track are base rules now; `@media (pointer: coarse)`
+sets `--ctl-h: 44px` and nothing else about them; the phone block keeps only
+placement - pinning, wrapping, what is hidden, the floating pair. `desktop-test`
+asserts the edges at 1440 as `layout-test` does at 390.
 
 ## Built
 

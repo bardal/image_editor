@@ -117,7 +117,45 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
 
   r.pageErrors = errors.filter(e => !e.includes('ServiceWorker'));
+  // ---- The property row, at a desk ----
+  // The same row and the same fault as on a phone: it measures straight on its
+  // centres and reads crooked, because the eye aligns edges and the boxes are
+  // different heights. Fixing it on the phone left this one alone, because the
+  // two were separate implementations of one row.
+  r.rowEdges = {};
+  for (const t of ['rect', 'arrow', 'text']) {
+    await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
+    await page.waitForTimeout(180);
+    r.rowEdges[t] = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll(
+        '.toolbar-props .swatch, .toolbar-props .swatch-label, .toolbar-props .slider-box,'
+        + ' .toolbar-props .fill-toggle, .toolbar-props select, .toolbar-props .arrow-style-label,'
+        + ' .toolbar-props input[type="number"], .toolbar-props .format-btn')]
+        .map(el => el.getBoundingClientRect()).filter(b => b.width > 0);
+      const tops = [...new Set(boxes.map(b => Math.round(b.top)))].sort((a, b) => a - b);
+      const bottoms = [...new Set(boxes.map(b => Math.round(b.bottom)))].sort((a, b) => a - b);
+      const heights = [...new Set(boxes.map(b => Math.round(b.height)))].sort((a, b) => a - b);
+      return { count: boxes.length, tops, bottoms, heights,
+               linedUp: tops[tops.length - 1] - tops[0] <= 1
+                     && bottoms[bottoms.length - 1] - bottoms[0] <= 1 };
+    });
+  }
+
+  // And one implementation, not two: the controls take their size from the kit
+  // rather than from a block of phone overrides.
+  r.oneKit = await page.evaluate(() => {
+    const props = document.querySelector('.toolbar-props');
+    const h = getComputedStyle(props).getPropertyValue('--ctl-h').trim();
+    const box = document.querySelector('.toolbar-props .swatch').getBoundingClientRect();
+    return { ctlH: h, swatchHeight: Math.round(box.height) };
+  });
+
   finish(r, {
+    'rowEdges.rect.linedUp': isTrue,
+    'rowEdges.arrow.linedUp': isTrue,
+    'rowEdges.text.linedUp': isTrue,
+    'oneKit.ctlH': v => typeof v === 'string' && v.length > 0,
+    'oneKit.swatchHeight': v => v === parseInt(r.oneKit.ctlH),
     'coarsePointer': isFalse,
     'shapesAfterMouseDrag': 1,
     'strokeScreenPx': atLeast(2),

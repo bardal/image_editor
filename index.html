@@ -183,8 +183,15 @@
 
         /* ===== PROPERTIES ===== */
         .toolbar-props {
+            /* The control kit. Everything on the row takes its height, its
+               radius and its one border from these; a coarse pointer raises
+               the height and nothing else changes. */
+            --ctl-h: 28px;
+            --ctl-r: 8px;
+            --ctl-bd: rgba(255,255,255,0.13);
+            --ctl-bg: rgba(255,255,255,0.06);
             display: flex;
-            align-items: center;
+            align-items: stretch;
             gap: 8px;
         }
 
@@ -196,9 +203,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 30px;
-            height: 30px;
-            border-radius: 4px;
+            width: var(--ctl-h);
             cursor: pointer;
             flex-shrink: 0;
             transition: background 0.12s;
@@ -358,11 +363,7 @@
         }
 
         .arrow-style-select {
-            height: 24px;
-            background: rgba(255,255,255,0.08);
             color: #c8c8cc;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 4px;
             font-size: 11px;
             padding: 0 4px;
             cursor: pointer;
@@ -396,9 +397,12 @@
 
         .prop-group {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            align-items: stretch;
+            gap: 0;
         }
+
+        /* The rule between the groups is the track's own edge now. */
+        .toolbar-props .toolbar-divider { display: none; }
 
         .prop-group.hidden,
         .toolbar-divider.hidden,
@@ -524,8 +528,6 @@
         }
 
         .format-btn {
-            width: 28px;
-            height: 28px;
             padding: 0;
             font-size: 11px;
         }
@@ -534,6 +536,136 @@
             background: #3b8eed;
             color: #fff;
         }
+
+
+        /* ===== THE PROPERTY TRACK =====
+           One implementation for both sizes. The desktop row and the phone row
+           used to be two: ten rules describing the controls, and fifty-three
+           overriding them, which is why fixing the phone left the desk crooked.
+           What differs is the height of a box, where the row lives, and what is
+           on it - a variable, a container and a visibility rule, not a second
+           implementation.
+           The row measured perfectly straight and still looked crooked:
+           every element on it reported the same centre, because the eye
+           aligns edges and the row carried boxes 30, 28, 24, 16 and 4
+           pixels tall. So every box now takes one height and one radius
+           from the same kit, fused edge to edge inside a single inset
+           track, with the groups separated by a rule rather than a gap.
+
+           The track clips its own corners, which is what rounds the ends
+           of a run. The alternative - rounding the first and last visible
+           box - has to be recomputed every time a group hides, and leaves
+           a square corner mid-row when it goes wrong, silently. */
+
+        /* The inset panel the controls sit in. */
+        .toolbar-props .prop-group,
+        .toolbar-props .text-format-group.visible,
+        .toolbar-props .arrow-style-group.visible,
+        .toolbar-props .crop-group.visible,
+        .toolbar-props .tear-group.visible {
+            gap: 0;
+            align-items: stretch;
+        }
+
+        .toolbar-props .slider-box {
+            gap: 8px;
+            padding: 0 10px;
+            min-width: 0;
+        }
+
+        .toolbar-props #fontSize { text-align: center; }
+        .toolbar-props .format-btn { width: var(--ctl-h); }
+
+        /* Every box on the row: one height, no radius of its own, and a
+           rule where it meets the box before it. */
+        .toolbar-props .swatch,
+        .toolbar-props .swatch-label,
+        .toolbar-props .slider-box,
+        .toolbar-props .fill-toggle,
+        .toolbar-props .arrow-style-label,
+        .toolbar-props .arrow-style-select,
+        .toolbar-props #fontFamily,
+        .toolbar-props #fontSize,
+        .toolbar-props .format-btn,
+        .toolbar-props .crop-btn,
+        .toolbar-props .tear-edge {
+            height: var(--ctl-h);
+            min-height: var(--ctl-h);
+            border-radius: 0;
+            border: 0;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Labels read as part of the track rather than floating beside it,
+           and in one voice: the sentence-case ones with colons are gone. */
+        .toolbar-props .swatch-label,
+        .toolbar-props .arrow-style-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #8a8a90;
+            padding: 0 8px;
+        }
+
+
+        /* A width, not auto: a range input reports its default 129px as
+           its content size, so the group asks for far more room than it
+           needs and the row wraps with space to spare. */
+        .toolbar-props .size-slider { flex: 1 1 3rem; min-width: 2.5rem; width: 3rem; }
+        /* Spans the box it sits in rather than floating in the middle of
+           it: on a track, a short box is the thing the eye catches. */
+        .toolbar-props .size-value:not(.hidden) {
+            min-width: 2ch;
+            height: var(--ctl-h);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        /* With no thickness to set - text takes its size from the font
+           controls - the box goes rather than standing empty. */
+        .slider-box.hidden { display: none; }
+
+        .toolbar-props .fill-toggle { padding: 0 10px; }
+        .toolbar-props .arrow-style-select,
+        .toolbar-props #fontFamily { padding: 0 4px; }
+
+        /* The one on is filled, like the tool that is in hand: the block
+           rule above turned every box transparent, which took the state
+           with it. */
+        .toolbar-props .format-btn.active {
+            background: #3b8eed;
+            color: #fff;
+        }
+
+        /* Rules where one job ends and the next begins - family, size,
+           weight, alignment - so the track reads as an instrument rather
+           than a panel of loose glyphs. Bold and italic were bare letters
+           with nothing to say they were controls at all. */
+        .toolbar-props #fontSize,
+        .toolbar-props #boldToggle,
+        .toolbar-props #alignLeft,
+        .toolbar-props .arrow-style-label + .arrow-style-select,
+        .toolbar-props .arrow-style-select + .arrow-style-label {
+            border-left: 1px solid var(--ctl-bd);
+        }
+
+        /* The track itself, and the rules between what it holds. */
+        .toolbar-props .prop-group,
+        .toolbar-props .text-format-group.visible,
+        .toolbar-props .arrow-style-group.visible,
+        .toolbar-props .crop-group.visible,
+        .toolbar-props .tear-group.visible {
+            background: var(--ctl-bg);
+            border: 1px solid var(--ctl-bd);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
 
         /* ===== MAIN CONTENT ===== */
         .main-content {
@@ -1063,136 +1195,18 @@
 
             .toolbar-props > * { flex-shrink: 0; }
 
-            /* ===== THE PROPERTY TRACK =====
-               The row measured perfectly straight and still looked crooked:
-               every element on it reported the same centre, because the eye
-               aligns edges and the row carried boxes 30, 28, 24, 16 and 4
-               pixels tall. So every box now takes one height and one radius
-               from the same kit, fused edge to edge inside a single inset
-               track, with the groups separated by a rule rather than a gap.
-
-               The track clips its own corners, which is what rounds the ends
-               of a run. The alternative - rounding the first and last visible
-               box - has to be recomputed every time a group hides, and leaves
-               a square corner mid-row when it goes wrong, silently. */
+            /* Spacing of the bar itself, which is a pinned wrapping row here
+               and an inline stretch of the top toolbar at a desk. */
             .toolbar-props {
-                --ctl-h: 44px;
-                --ctl-bd: rgba(255,255,255,0.13);
-                --ctl-bg: rgba(255,255,255,0.06);
                 column-gap: 0;
                 row-gap: 4px;
                 padding: 4px 8px;
                 align-items: stretch;
             }
 
-            /* The inset panel the controls sit in. */
-            .toolbar-props .prop-group,
-            .toolbar-props .text-format-group.visible,
-            .toolbar-props .arrow-style-group.visible,
-            .toolbar-props .crop-group.visible,
-            .toolbar-props .tear-group.visible {
-                gap: 0;
-                align-items: stretch;
-            }
-
-            /* Every box on the row: one height, no radius of its own, and a
-               rule where it meets the box before it. */
-            .toolbar-props .swatch,
-            .toolbar-props .swatch-label,
-            .toolbar-props .slider-box,
-            .toolbar-props .fill-toggle,
-            .toolbar-props .arrow-style-label,
-            .toolbar-props .arrow-style-select,
-            .toolbar-props #fontFamily,
-            .toolbar-props #fontSize,
-            .toolbar-props .format-btn,
-            .toolbar-props .crop-btn,
-            .toolbar-props .tear-edge {
-                height: var(--ctl-h);
-                min-height: var(--ctl-h);
-                border-radius: 0;
-                border: 0;
-                background: transparent;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-
-            /* Labels read as part of the track rather than floating beside it,
-               and in one voice: the sentence-case ones with colons are gone. */
-            .toolbar-props .swatch-label,
-            .toolbar-props .arrow-style-label {
-                font-size: 10px;
-                font-weight: 600;
-                letter-spacing: 0.04em;
-                text-transform: uppercase;
-                color: #8a8a90;
-                padding: 0 8px;
-            }
-
-            .toolbar-props .slider-box {
-                gap: 8px;
-                padding: 0 10px;
-                flex: 1 1 4rem;
-                min-width: 0;
-            }
-
-            /* A width, not auto: a range input reports its default 129px as
-               its content size, so the group asks for far more room than it
-               needs and the row wraps with space to spare. */
-            .toolbar-props .size-slider { flex: 1 1 3rem; min-width: 2.5rem; width: 3rem; }
-            /* Spans the box it sits in rather than floating in the middle of
-               it: on a track, a short box is the thing the eye catches. */
-            .toolbar-props .size-value:not(.hidden) {
-                min-width: 2ch;
-                height: var(--ctl-h);
-                display: flex;
-                align-items: center;
-                justify-content: flex-end;
-            }
-
-            /* With no thickness to set - text takes its size from the font
-               controls - the box goes rather than standing empty. */
-            .slider-box.hidden { display: none; }
-
-            .toolbar-props .fill-toggle { padding: 0 10px; }
-            .toolbar-props #fontSize { width: 3rem; text-align: center; }
-            .toolbar-props .arrow-style-select,
-            .toolbar-props #fontFamily { padding: 0 4px; }
+            .toolbar-props .slider-box { flex: 1 1 4rem; }
+            .toolbar-props #fontSize { width: 3rem; }
             .toolbar-props .format-btn { width: 40px; min-width: 40px; }
-
-            /* The one on is filled, like the tool that is in hand: the block
-               rule above turned every box transparent, which took the state
-               with it. */
-            .toolbar-props .format-btn.active {
-                background: #3b8eed;
-                color: #fff;
-            }
-
-            /* Rules where one job ends and the next begins - family, size,
-               weight, alignment - so the track reads as an instrument rather
-               than a panel of loose glyphs. Bold and italic were bare letters
-               with nothing to say they were controls at all. */
-            .toolbar-props #fontSize,
-            .toolbar-props #boldToggle,
-            .toolbar-props #alignLeft,
-            .toolbar-props .arrow-style-label + .arrow-style-select,
-            .toolbar-props .arrow-style-select + .arrow-style-label {
-                border-left: 1px solid var(--ctl-bd);
-            }
-
-            /* The track itself, and the rules between what it holds. */
-            .toolbar-props .prop-group,
-            .toolbar-props .text-format-group.visible,
-            .toolbar-props .arrow-style-group.visible,
-            .toolbar-props .crop-group.visible,
-            .toolbar-props .tear-group.visible {
-                background: var(--ctl-bg);
-                border: 1px solid var(--ctl-bd);
-                border-radius: 8px;
-                overflow: hidden;
-            }
-
             /* Groups that share a row fuse into one track: the rule between
                them is the only thing separating them. */
             .toolbar-props > * + *:not(.toolbar-divider) {
@@ -1362,6 +1376,10 @@
            browser zooming in when a form control is focused (iOS zooms any
            input whose font-size is below 16px). */
         @media (pointer: coarse) {
+            /* The only thing a finger changes about the control kit: every box
+               on the property row follows this. */
+            .toolbar-props { --ctl-h: 44px; }
+
             .tb-btn {
                 min-width: 44px;
                 min-height: 44px;
@@ -1376,10 +1394,6 @@
             .tool-button {
                 min-width: 40px;
                 min-height: 44px;
-            }
-            .swatch {
-                width: 44px;
-                height: 44px;
             }
             .swatch-preview {
                 width: 26px;
