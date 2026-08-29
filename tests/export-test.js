@@ -2,33 +2,16 @@
 // file must contain the drawing at the image's own resolution, follow a crop,
 // and carry none of the editing furniture - the selection outline, its handles
 // or the crop frame were all being drawn straight into the picture.
-const { chromium } = require('playwright');
+const { open, seedPhoto } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ acceptDownloads: true });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
+  const { browser, context: ctx, page, errors } = await open({ downloads: true, resetSettle: 400 });
   const r = {};
 
   // A photo with a known flat background, so a sampled pixel is unambiguous.
-  await page.evaluate(async () => {
-    const cv = document.createElement('canvas');
-    cv.width = 1200; cv.height = 900;
-    const g = cv.getContext('2d');
-    g.fillStyle = '#204060'; g.fillRect(0, 0, cv.width, cv.height);
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    await processImageFile(new File([blob], 'photo.png', { type: 'image/png' }));
-  });
-  await page.waitForTimeout(600);
+  await seedPhoto(page, { width: 1200, height: 900, colour: '#204060' });
 
   // A filled red box, left selected - the state the handles used to leak from.
   await page.evaluate(() => {

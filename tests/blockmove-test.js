@@ -2,21 +2,12 @@
 // but with the callout or text tool active, pressing the body opened the
 // keyboard instead of moving it. A drag is unambiguous: a tap already opens
 // the editor, so there is nothing to lose by letting a drag move the box.
-const { chromium, devices } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(400);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(500);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400 });
   const cdp = await ctx.newCDPSession(page);
   const r = {};
 

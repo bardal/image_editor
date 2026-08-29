@@ -1,24 +1,17 @@
 // The leftovers from the coverage sweep: pasting an image, closing a polygon,
 // shape labels, cycling through stacked shapes, and the service worker that
 // decides which build you actually get.
-const { chromium, devices } = require('playwright');
+const { launch, open, touch } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
+  const browser = await launch();
   const r = {};
 
   // ---- Paste ----
   {
-    const ctx = await browser.newContext();
-    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
-    const page = await ctx.newPage();
-    const errors = [];
-    page.on('pageerror', e => errors.push(String(e)));
-    await page.goto(APP); await page.waitForTimeout(300);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { context: ctx, page, errors } = await open({ browser, permissions: ['clipboard-read', 'clipboard-write'] });
 
     // A paste event carrying an image file, which is what a real paste delivers.
     r.pasteEvent = await page.evaluate(async () => {
@@ -73,12 +66,9 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
   // ---- Closing a polygon, and filling it ----
   {
-    const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-    const page = await ctx.newPage();
-    await page.goto(APP); await page.waitForTimeout(300);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
-    const cdp = await ctx.newCDPSession(page);
+    const { context: ctx, page } = await open({ browser, device: 'iPhone 13' });
+    const { cdp, tap, drag: rawDrag } = await touch(page, ctx);
+    const drag = (from, to) => rawDrag(from, to, { steps: 4, pause: 25 });
     const box = await page.evaluate(() => {
       const b = canvas.getBoundingClientRect();
       return { x: b.x, y: b.y, w: b.width, h: b.height };
@@ -86,22 +76,6 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     await page.evaluate(() => document.querySelector('[data-tool="polyline"]').click());
     await page.waitForTimeout(150);
 
-    const tap = async (pt) => {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
-      await page.waitForTimeout(60);
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      await page.waitForTimeout(200);
-    };
-    const drag = async (from, to) => {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
-      for (let i = 1; i <= 4; i++) {
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [
-          { x: from.x + (to.x - from.x) * i / 4, y: from.y + (to.y - from.y) * i / 4 }] });
-        await page.waitForTimeout(25);
-      }
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      await page.waitForTimeout(200);
-    };
 
     const start = { x: box.x + 60, y: box.y + 60 };
     await tap(start);
@@ -127,10 +101,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
   // ---- Labels on a shape, and cycling through a stack ----
   {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await page.goto(APP); await page.waitForTimeout(300);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { page } = await open({ browser, viewport: { width: 1440, height: 900 } });
     await page.evaluate(async () => {
       const cv = document.createElement('canvas');
       cv.width = 900; cv.height = 600;
@@ -203,11 +174,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // ---- Service worker ----
   // It decides which build you get, which is why a deploy needs two loads.
   {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-    const errors = [];
-    page.on('pageerror', e => errors.push(String(e)));
-    await page.goto(APP);
-    await page.waitForTimeout(1500);
+    const { page, errors } = await open({ browser, viewport: { width: 1200, height: 800 }, settle: 1500, reset: false });
     r.serviceWorker = await page.evaluate(async () => {
       if (!navigator.serviceWorker) return { supported: false };
       const reg = await navigator.serviceWorker.getRegistration();

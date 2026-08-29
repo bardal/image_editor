@@ -1,20 +1,11 @@
 // Arrows can attach to shapes: they snap to a port when drawn, re-route when
 // the shape they point at is moved, and go when it goes. None of it had any
 // coverage, and it is some of the fiddliest code in the app.
-const { chromium } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
+  const { browser, page, errors } = await open({ viewport: { width: 1500, height: 900 }, resetSettle: 400 });
   const r = {};
 
   await page.evaluate(async () => {

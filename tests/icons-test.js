@@ -7,17 +7,12 @@
 //
 // This measures the drawings themselves: each symbol is rendered on its own at
 // four times size, and the ink it leaves is weighed and located.
-const { chromium } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
+  const { browser, page, errors } = await open({ viewport: { width: 1200, height: 800 }, reset: false });
 
   const r = {};
 

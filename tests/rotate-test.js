@@ -1,7 +1,7 @@
 // Rotation had no coverage at all: every suite that mentioned `rotation` only
 // set it in a shape literal, so the handle's position, the angle maths and hit
 // detection on a rotated shape were all unverified.
-const { chromium, devices } = require('playwright');
+const { launch, open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
@@ -12,17 +12,12 @@ const TEXT = `{type:'text',x:200,y:150,w:260,h:0,text:'Rotate me please',color:'
   rotation:0,id:3}`;
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
+  const browser = await launch();
   const r = {};
 
   // ---- Mouse: drag the handle round and check the angle follows ----
   {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    const errors = [];
-    page.on('pageerror', e => errors.push(String(e)));
-    await page.goto(APP); await page.waitForTimeout(300);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { page, errors } = await open({ browser, viewport: { width: 1440, height: 900 } });
     await page.evaluate(async () => {
       const c = document.createElement('canvas');
       c.width = 1000; c.height = 700;
@@ -137,11 +132,7 @@ const TEXT = `{type:'text',x:200,y:150,w:260,h:0,text:'Rotate me please',color:'
   // The gap used to be 20 canvas units, which is 2 screen pixels on a 4032px
   // image, so the handle sat on the shape's own edge and could not be grabbed.
   {
-    const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-    const page = await ctx.newPage();
-    await page.goto(APP); await page.waitForTimeout(300);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { context: ctx, page } = await open({ browser, device: 'iPhone 13' });
     const cdp = await ctx.newCDPSession(page);
     await page.evaluate(async () => {
       const cv = document.createElement('canvas');

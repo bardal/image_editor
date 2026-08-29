@@ -2,20 +2,12 @@
 // whatever you had actually just done, so undo after moving a box deleted a
 // different box, and a move, a resize, a text edit or a delete could not be
 // undone at all. These check that each kind of change is a step of its own.
-const { chromium } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
+  const { browser, page, errors } = await open({ viewport: { width: 1440, height: 900 }, resetSettle: 400 });
   const r = {};
 
   await page.evaluate(async () => {

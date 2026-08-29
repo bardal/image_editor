@@ -1,34 +1,21 @@
-const { chromium, devices } = require('playwright');
+const { open, resetApp, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP); await page.waitForTimeout(400);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', reset: false, settle: 400 });
   await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
   await page.reload(); await page.waitForTimeout(400);
-  const cdp = await ctx.newCDPSession(page);
+  const { cdp, drag: rawDrag } = await touch(page, ctx);
+  // A pause before the first move is how a long press is told from a drag.
+  const drag = (from, to, hold = 0) =>
+    rawDrag(from, to, { steps: 5, pause: 25, hold, settle: 250 });
   const box = await page.evaluate(() => { const b = canvas.getBoundingClientRect();
     return { x: b.x, y: b.y, w: b.width, h: b.height }; });
   const r = {};
   const reset = () => page.evaluate(() => { shapes.length = 0; selectedShape = null;
     finishBlockEditing(true); closeContextMenu(); redraw(); });
 
-  const drag = async (from, to, pauseBeforeMove = 0) => {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
-    if (pauseBeforeMove) await page.waitForTimeout(pauseBeforeMove);
-    for (let i = 1; i <= 5; i++) {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove',
-        touchPoints: [{ x: from.x + (to.x - from.x) * i / 5, y: from.y + (to.y - from.y) * i / 5 }] });
-      await page.waitForTimeout(25);
-    }
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(250);
-  };
 
   await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
   await page.waitForTimeout(150);

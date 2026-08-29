@@ -1,20 +1,12 @@
 // The toolbar controls had no coverage at all - not colour, stroke width, fill,
 // font family or size, bold, italic or alignment. Changing a shape's colour was
 // the first thing this app was ever asked to do.
-const { chromium, devices } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
+  const { browser, page, errors } = await open({ viewport: { width: 1500, height: 900 }, resetSettle: 400 });
   const r = {};
 
   await page.evaluate(async () => {
@@ -208,12 +200,9 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // picker opened, but there was no obvious way to apply the colour. Three
   // things have to hold for that flow to work.
   {
-    const ctx2 = await browser.newContext({ ...devices['iPhone 13'] });
-    const p2 = await ctx2.newPage();
-    p2.on('pageerror', e => errors.push(String(e)));
-    await p2.goto(APP); await p2.waitForTimeout(300);
-    await p2.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await p2.reload(); await p2.waitForTimeout(500);
+    const { context: ctx2, page: p2, errors: phoneErrors } =
+      await open({ browser, device: 'iPhone 13' });
+    phoneErrors.forEach(e => errors.push(e));
     const cdp = await ctx2.newCDPSession(p2);
 
     const armRect = () => p2.evaluate(() => {

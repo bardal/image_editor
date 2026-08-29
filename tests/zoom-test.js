@@ -1,31 +1,13 @@
-const { chromium, devices } = require('playwright');
+const { open, seedPhoto } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(400);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, resetSettle: 400 });
 
   const cdp = await ctx.newCDPSession(page);
   const r = {};
 
-  await page.evaluate(async () => {
-    const c = document.createElement('canvas');
-    c.width = 2000; c.height = 1500;
-    const g = c.getContext('2d');
-    g.fillStyle = '#39618c'; g.fillRect(0, 0, 2000, 1500);
-    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
-    await processImageFile(new File([blob], 't.png', { type: 'image/png' }));
-  });
-  await page.waitForTimeout(600);
+  await seedPhoto(page, { width: 2000, height: 1500, colour: '#39618c', name: 't.png' });
 
   const box = await page.evaluate(() => {
     const b = canvas.getBoundingClientRect();

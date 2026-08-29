@@ -3,34 +3,18 @@
 // came out at ~2px and Safari force-zoomed the whole page; there was no visible
 // way to end the edit; and tapping away created another callout instead of
 // committing the one being typed.
-const { chromium, devices } = require('playwright');
+const { open, seedPhoto, touch } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(400);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
-  const cdp = await ctx.newCDPSession(page);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, resetSettle: 400 });
+  const { cdp, tap: rawTap } = await touch(page, ctx);
+  const tap = pt => rawTap(pt, { hold: 60, settle: 300 });
   const r = {};
 
   // A real phone photo, where the unit mix-up bit hardest.
-  await page.evaluate(async () => {
-    const cv = document.createElement('canvas');
-    cv.width = 4032; cv.height = 3024;
-    const g = cv.getContext('2d');
-    g.fillStyle = '#889'; g.fillRect(0, 0, cv.width, cv.height);
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    await processImageFile(new File([blob], 'photo.png', { type: 'image/png' }));
-  });
-  await page.waitForTimeout(700);
+  await seedPhoto(page, { width: 4032, height: 3024, colour: '#889', settle: 700 });
 
   const box = await page.evaluate(() => {
     const b = canvas.getBoundingClientRect();
@@ -134,12 +118,6 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await page.waitForTimeout(200);
   await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
   await page.waitForTimeout(150);
-  const tap = async (pt) => {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
-    await page.waitForTimeout(60);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(300);
-  };
   await tap({ x: box.x + box.w * 0.35, y: box.y + box.h * 0.3 });
   r.tapCreatesCallout = await page.evaluate(() => ({
     count: shapes.filter(s => s.type === 'callout').length,

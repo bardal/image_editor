@@ -1,40 +1,19 @@
-const { chromium, devices } = require('playwright');
+const { open, touch } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', reset: false });
 
-  const cdp = await ctx.newCDPSession(page);
+  const { cdp, tap: rawTap, drag: rawDrag } = await touch(page, ctx);
+  // line-test taps with no hold and waits 120ms; its drags step five times.
+  const tap = pt => rawTap(pt, { hold: 0, settle: 120 });
+  const drag = (from, to) => rawDrag(from, to, { steps: 5, pause: 15, settle: 120 });
   const box = await page.evaluate(() => {
     const r = canvas.getBoundingClientRect();
     return { x: r.x, y: r.y, w: r.width, h: r.height };
   });
   const P = (fx, fy) => ({ x: box.x + box.w * fx, y: box.y + box.h * fy });
 
-  const tap = async (p) => {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p] });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(120);
-  };
-  const drag = async (from, to) => {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
-    for (let i = 1; i <= 5; i++) {
-      await cdp.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ x: from.x + (to.x - from.x) * i / 5, y: from.y + (to.y - from.y) * i / 5 }],
-      });
-      await page.waitForTimeout(15);
-    }
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(120);
-  };
   const state = () => page.evaluate(() => ({
     drawing: isDrawingPolyline,
     pending: polylinePoints.length,

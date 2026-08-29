@@ -4,21 +4,12 @@
 // slides away. Shape geometry is in canvas units, so unless it moves with the
 // canvas the drawing jumps: this is what turned a saved callout into a column
 // of one word per line after the canvas resolution changed.
-const { chromium, devices } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(400);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(500);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400 });
   const r = {};
 
   // A callout whose text just fits its box, plus a rect, on a blank canvas.

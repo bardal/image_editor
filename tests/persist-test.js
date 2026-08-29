@@ -1,28 +1,13 @@
-const { chromium, devices } = require('playwright');
+const { open, seedPhoto } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(400);
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, reset: false });
 
   const r = {};
 
   // Load an image through the real path so the blob is stored, then annotate it.
-  await page.evaluate(async () => {
-    const c = document.createElement('canvas');
-    c.width = 900; c.height = 600;
-    const g = c.getContext('2d');
-    g.fillStyle = '#3d6b8f'; g.fillRect(0, 0, 900, 600);
-    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
-    await processImageFile(new File([blob], 'test.png', { type: 'image/png' }));
-  });
-  await page.waitForTimeout(500);
+  await seedPhoto(page, { width: 900, height: 600, name: 'test.png', settle: 500 });
   await page.evaluate(() => {
     shapes.push({type:'rect', x:100, y:80, w:250, h:150, rotation:0, color:'#ff0000', size:5, fill:false, id:1});
     shapes.push({type:'text', x:120, y:300, text:'Keep me', color:'#00aa00', size:3, rotation:0, fontSize:28, id:2});

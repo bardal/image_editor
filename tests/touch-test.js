@@ -1,18 +1,11 @@
-const { chromium, devices } = require('playwright');
+const { launch, open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 async function main() {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const context = await browser.newContext({
-    ...devices['iPhone 13'],
-  });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
+  const browser = await launch();
+  const { context: context, page, errors } = await open({ browser, device: 'iPhone 13', reset: false });
 
   const results = {};
 

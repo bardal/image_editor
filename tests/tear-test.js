@@ -3,20 +3,12 @@
 // the strip really is empty, that the rest of the picture is untouched, and
 // that a tear is a change to the document like any other - undoable, saved,
 // and not left behind in the bitmap the export takes.
-const { chromium } = require('playwright');
+const { open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(APP);
-  await page.waitForTimeout(300);
-  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-  await page.reload();
-  await page.waitForTimeout(400);
+  const { browser, page, errors } = await open({ viewport: { width: 1440, height: 900 }, resetSettle: 400 });
 
   // A flat opaque image, so any transparency in it was torn there.
   await page.evaluate(async () => {

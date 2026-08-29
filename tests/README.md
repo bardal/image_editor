@@ -38,6 +38,22 @@ Getting it backwards is invisible at 100% and only shows up zoomed in, which is
 why these kept reaching a phone. `units-test.js` pins the ones that belong to
 the picture.
 
+## What a suite does not have to write
+
+`harness.js` holds the part that is the same in every suite: opening the app
+(`open({ device })` or `open({ viewport })`, which wipes the stored document
+and reloads unless told not to), loading a flat photo of a known size
+(`seedPhoto`), finding the canvas (`canvasBox`), and touch gestures
+(`touch(page, context)` → `tap`, `drag`, `pinch`). Gesture timings are options
+because they are load-bearing - a hold before the first move is what tells a
+long press from a drag - so a suite written around particular numbers keeps
+them.
+
+It was written after the seeding block had thirteen copies and one of them, in
+`clear-test`, was quietly broken: it returned `page.evaluate` without calling
+it, so every "image" case in that suite ran with no image loaded and passed
+anyway. Thirteen copies is thirteen places for that to happen.
+
 ## How a suite passes
 
 Each suite builds a report object and ends with `finish(report, rules)` from

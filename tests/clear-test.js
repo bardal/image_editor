@@ -1,26 +1,13 @@
-const { chromium, devices } = require('playwright');
+const { open, resetApp, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
-
-const seed = async (page) => page.evaluate(async () => {
-  const c = document.createElement('canvas');
-  c.width = 800; c.height = 500;
-  const g = c.getContext('2d');
-  g.fillStyle = '#3d6b8f'; g.fillRect(0, 0, 800, 500);
-  const blob = await new Promise(res => c.toBlob(res, 'image/png'));
-  await processImageFile(new File([blob], 't.png', { type: 'image/png' }));
-});
 
 // The bin a finger actually lands on. On a phone it is the one floating over
 // the picture: the top bar keeps only what you do once a session.
 const BIN = '#floatClear';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
+  const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', reset: false });
   const r = {};
 
   await page.goto(APP);
@@ -38,8 +25,7 @@ const BIN = '#floatClear';
   }));
 
   // 2. Image + shapes: both options offered.
-  await seed(page);
-  await page.waitForTimeout(500);
+  await seedPhoto(page, { name: 't.png', settle: 500 });
   await page.evaluate(() => {
     shapes.push({type:'rect',x:60,y:60,w:200,h:120,rotation:0,color:'#f00',size:5,id:1});
     redraw();
@@ -85,8 +71,7 @@ const BIN = '#floatClear';
   // wrong way round and one tap away from each other. Now there is one bin: it
   // takes the selection if there is one, and offers to clear if there is not.
   await page.evaluate(() => { shapes.length = 0; selectedShape = null; });
-  await seed(page);
-  await page.waitForTimeout(500);
+  await seedPhoto(page, { name: 't.png', settle: 500 });
   await page.evaluate(() => {
     shapes.length = 0;
     shapes.push({type:'rect',x:40,y:40,w:150,h:100,rotation:0,color:'#f00',size:5,id:71});

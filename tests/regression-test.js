@@ -1,4 +1,4 @@
-const { chromium, devices } = require('playwright');
+const { launch, open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas.width*0.5,h:70,
@@ -7,16 +7,12 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
   endStyle:'closedArrow',rotation:0,tipX:canvas.width*0.6,tipY:canvas.height*0.55,id:11}`;
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: require('./browser').path() });
+  const browser = await launch();
   const r = {};
 
   // ---- Finding 1a: touch, hesitating on a handle ----
   {
-    const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-    const page = await ctx.newPage();
-    await page.goto(APP); await page.waitForTimeout(400);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { context: ctx, page } = await open({ browser, device: 'iPhone 13', settle: 400 });
     const cdp = await ctx.newCDPSession(page);
     await page.evaluate(`shapes.push(${CALLOUT}); document.querySelector('[data-tool="select"]').click(); selectedShape=shapes[0]; redraw(); updateButtonStates();`);
     await page.waitForTimeout(200);
@@ -38,10 +34,7 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
 
   // ---- Finding 1b: mouse, hesitating before dragging a shape ----
   {
-    const page = await browser.newPage({ viewport:{width:1440,height:900} });
-    await page.goto(APP); await page.waitForTimeout(400);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { page } = await open({ browser, viewport: { width: 1440, height: 900 }, settle: 400 });
     await page.evaluate(() => { shapes.push({type:'rect',x:100,y:100,w:200,h:150,rotation:0,color:'#c00',size:4,fill:false,id:1});
       document.querySelector('[data-tool="select"]').click(); selectedShape=shapes[0]; redraw(); updateButtonStates(); });
     await page.waitForTimeout(200);
@@ -63,11 +56,7 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
 
   // ---- Finding 2: text tool tap-away leaves the previous edit unfinished ----
   {
-    const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-    const page = await ctx.newPage();
-    await page.goto(APP); await page.waitForTimeout(400);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { context: ctx, page } = await open({ browser, device: 'iPhone 13', settle: 400 });
     const cdp = await ctx.newCDPSession(page);
     await page.evaluate(`shapes.push(${CALLOUT}); document.querySelector('[data-tool="text"]').click(); redraw();`);
     await page.waitForTimeout(200);
@@ -94,10 +83,7 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
 
   // ---- Finding 3: Escape should cancel, not destroy ----
   {
-    const page = await browser.newPage({ viewport:{width:1440,height:900} });
-    await page.goto(APP); await page.waitForTimeout(400);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { page } = await open({ browser, viewport: { width: 1440, height: 900 }, settle: 400 });
     await page.evaluate(`shapes.push(${CALLOUT}); document.querySelector('[data-tool="select"]').click(); redraw();`);
     await page.waitForTimeout(200);
     await page.evaluate(() => startBlockEditing(shapes[0]));
@@ -118,10 +104,7 @@ const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas
   // Backspacing the font size box deleted the selected shape, and typing a
   // digit into it started a label on that shape.
   {
-    const page = await browser.newPage({ viewport:{width:1440,height:900} });
-    await page.goto(APP); await page.waitForTimeout(400);
-    await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
-    await page.reload(); await page.waitForTimeout(400);
+    const { page } = await open({ browser, viewport: { width: 1440, height: 900 }, settle: 400 });
     await page.evaluate(`shapes.push(${CALLOUT}); document.querySelector('[data-tool="select"]').click();
       selectedShape = shapes[0]; redraw(); updateButtonStates();`);
     await page.waitForTimeout(200);
