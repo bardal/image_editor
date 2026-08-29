@@ -1,10 +1,10 @@
-const { open, seedPhoto, canvasBox, realErrors } = require('./harness');
+const { open, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, resetSettle: 400 });
 
-  const cdp = await ctx.newCDPSession(page);
+  const { cdp, pinch } = await touch(page, ctx);
   const r = {};
 
   await seedPhoto(page, { width: 2000, height: 1500, colour: '#39618c', name: 't.png' });
@@ -14,17 +14,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   r.startZoom = await page.evaluate(() => ({ scale: viewScale, chip: document.getElementById('zoomLevel').textContent }));
 
   // Pinch out with two fingers.
-  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart',
-    touchPoints: [{ x: cx - 40, y: cy, id: 1 }, { x: cx + 40, y: cy, id: 2 }] });
-  for (let i = 1; i <= 6; i++) {
-    const spread = 40 + i * 22;
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove',
-      touchPoints: [{ x: cx - spread, y: cy, id: 1 }, { x: cx + spread, y: cy, id: 2 }] });
-    await page.waitForTimeout(30);
-  }
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await page.waitForTimeout(200);
+  await pinch({ x: box.x + box.w / 2, y: box.y + box.h / 2 }, [40, 172], 6);
 
   r.afterPinch = await page.evaluate(() => ({
     scale: +viewScale.toFixed(2),

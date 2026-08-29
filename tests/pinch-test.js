@@ -1,12 +1,12 @@
 // Two faults reported from a phone: pinching to zoom slides the picture around
 // instead of keeping the spot between your fingers still, and once zoomed the
 // drawing goes soft and pale rather than getting crisper.
-const { open, canvasBox, realErrors } = require('./harness');
+const { open, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400 });
-  const cdp = await ctx.newCDPSession(page);
+  const { cdp, pinch } = await touch(page, ctx);
   const r = {};
 
   const box = await canvasBox(page);
@@ -23,23 +23,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   // Fingers land, travel through a list of spreads, and lift. Passing several
   // spreads exercises one continuous gesture - out and back in without lifting -
   // which is where an error that accumulates between frames would show.
-  let nextTouchId = 1;
-  const pinchThrough = async (cx, cy, spreads, steps = 8) => {
-    const a = nextTouchId++, b = nextTouchId++;
-    const at = (spread) => [
-      { x: cx - spread, y: cy, id: a }, { x: cx + spread, y: cy, id: b }];
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(spreads[0]) });
-    for (let leg = 1; leg < spreads.length; leg++) {
-      const from = spreads[leg - 1], to = spreads[leg];
-      for (let i = 1; i <= steps; i++) {
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove',
-          touchPoints: at(from + (to - from) * (i / steps)) });
-        await page.waitForTimeout(30);
-      }
-    }
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(200);
-  };
+  const pinchThrough = (cx, cy, spreads, steps = 8) => pinch({ x: cx, y: cy }, spreads, steps);
   const pinchAbout = (cx, cy, from, to, steps = 8) => pinchThrough(cx, cy, [from, to], steps);
 
   // ---- The spot between the fingers must not move ----

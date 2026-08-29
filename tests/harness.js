@@ -107,10 +107,10 @@ async function touch(page, context) {
     await page.waitForTimeout(settle);
   };
 
-  // Fingers land one at a time and travel through a list of spreads, so one
-  // gesture can go out and back without lifting. Sending both fingers in a
-  // single touchStart only registers one of them on any gesture after the
-  // first, and the pinch never begins.
+  // Both fingers land together and travel through a list of spreads, so one
+  // gesture can go out and back without lifting. The ids matter: a second
+  // pinch that reuses the ids of the first only registers one finger and never
+  // begins, so every gesture gets a fresh pair.
   let nextId = 1;
   const pinch = async (centre, spreads, steps = 8) => {
     const a = nextId++, b = nextId++;
