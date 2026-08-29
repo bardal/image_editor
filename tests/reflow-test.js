@@ -4,9 +4,8 @@
 // slides away. Shape geometry is in canvas units, so unless it moves with the
 // canvas the drawing jumps: this is what turned a saved callout into a column
 // of one word per line after the canvas resolution changed.
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400 });
@@ -106,7 +105,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     // 'And redd cfr' fits on one line in a box six tenths of the canvas wide.
     'before.lines': 1,

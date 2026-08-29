@@ -1,14 +1,11 @@
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, resetSettle: 400 });
 
   const cdp = await ctx.newCDPSession(page);
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
   const r = {};
 
   const longPress = async (pt, holdMs = 700) => {
@@ -94,7 +91,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     return m.right <= window.innerWidth + 1 && m.bottom <= window.innerHeight + 1 && m.left >= 0 && m.top >= 0;
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'blankMenu': ['Paste image', 'Open image…'],
     'menuOpen': isTrue,

@@ -2,9 +2,8 @@
 // file must contain the drawing at the image's own resolution, follow a crop,
 // and carry none of the editing furniture - the selection outline, its handles
 // or the crop frame were all being drawn straight into the picture.
-const { open, seedPhoto } = require('./harness');
+const { open, seedPhoto, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ downloads: true, resetSettle: 400 });
@@ -191,7 +190,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return { downloaded };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'selectedWhileExporting': isTrue,
     'exported.mime': 'image/png',

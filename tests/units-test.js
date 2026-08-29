@@ -13,9 +13,8 @@
 // Getting it backwards is invisible at 100% and only shows up zoomed in, which
 // is why these kept reaching a phone. This suite pins the ones that are part
 // of the picture.
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400 });
@@ -93,10 +92,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // Their geometry is stored in canvas units, so a default width in screen
   // pixels bakes the zoom into the shape: the same tap makes a box a quarter
   // the size at 4x, and it stays that size when you zoom back out.
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
   const tapNew = async (tool, at) => {
     await page.evaluate(t => { shapes.length = 0; selectedShape = null;
       document.querySelector(`[data-tool="${t}"]`).click(); }, tool);
@@ -165,7 +161,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await page.evaluate(() => finishLabelEditing());
   await page.waitForTimeout(150);
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     // Padding and stroke keep their proportion to the text at any zoom.
     'heldAcrossZoom.padding': isTrue,

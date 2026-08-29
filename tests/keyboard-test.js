@@ -1,4 +1,4 @@
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -48,7 +48,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     };
   });
 
-  r.pageErrors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.pageErrors = realErrors(errors);
   finish(r, {
     // iOS only raises the keyboard when focus lands inside the gesture.
     'focusedSynchronouslyInGesture': isTrue,

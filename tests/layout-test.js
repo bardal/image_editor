@@ -1,4 +1,4 @@
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -350,7 +350,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar,
     rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
-    errors: errors.filter(e => !e.includes('ServiceWorker')),
+    errors: realErrors(errors),
   }, {
     'byTool.select.toolStripPinnedBottom': isTrue,
     'byTool.rect.offScreenInProps': isEmpty,

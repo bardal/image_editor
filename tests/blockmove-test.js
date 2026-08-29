@@ -2,9 +2,8 @@
 // but with the callout or text tool active, pressing the body opened the
 // keyboard instead of moving it. A drag is unambiguous: a tap already opens
 // the editor, so there is nothing to lose by letting a drag move the box.
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400 });
@@ -128,10 +127,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // working on. One gesture to put the current thing down, the next to begin
   // the next one.
   const tapBlank = async (fx, fy) => {
-    const b = await page.evaluate(() => {
-      const r0 = canvas.getBoundingClientRect();
-      return { x: r0.x, y: r0.y, w: r0.width, h: r0.height };
-    });
+    const b = await canvasBox(page);
     const pt = { x: b.x + b.w * fx, y: b.y + b.h * fy };
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
     await page.waitForTimeout(60);
@@ -185,10 +181,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // A drag is explicit, so it still draws even with something selected.
   await place('callout');
   await useTool('callout');
-  const b2 = await page.evaluate(() => {
-    const r0 = canvas.getBoundingClientRect();
-    return { x: r0.x, y: r0.y, w: r0.width, h: r0.height };
-  });
+  const b2 = await canvasBox(page);
   const from = { x: b2.x + b2.w * 0.15, y: b2.y + b2.h * 0.75 };
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
   for (let i = 1; i <= 6; i++) {
@@ -201,7 +194,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   r.dragStillCreates = await page.evaluate(() => shapes.length);
   await page.evaluate(() => { if (editingBlock) finishBlockEditing(true); });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'calloutWithCallout.dragMoved': isTrue,
     'calloutWithCallout.dragOpenedEditor': isFalse,

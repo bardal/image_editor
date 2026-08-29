@@ -1,7 +1,7 @@
 // Two faults reported from a phone: pinching to zoom slides the picture around
 // instead of keeping the spot between your fingers still, and once zoomed the
 // drawing goes soft and pale rather than getting crisper.
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -9,10 +9,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   const cdp = await ctx.newCDPSession(page);
   const r = {};
 
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
 
   // Which point of the drawing sits under a given place on the glass.
   const contentUnder = (clientX, clientY) => page.evaluate(([x, y]) => {
@@ -142,7 +139,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   r.sharpnessPhoto.at4x = await bitmapPerCssPixel();
   await page.evaluate(() => resetZoom());
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     // A couple of canvas units of slack for rounding; anything more is a slide.
     'anchorHolds.scale': atLeast(2),

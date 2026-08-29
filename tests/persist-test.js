@@ -1,4 +1,4 @@
-const { open, seedPhoto } = require('./harness');
+const { open, seedPhoto, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -64,7 +64,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await page.waitForTimeout(1200);
   r.afterClearReload = await page.evaluate(() => ({ shapes: shapes.length, hasImage: !!img }));
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'after.shapes': 2,
     'after.texts': ['Keep me'],

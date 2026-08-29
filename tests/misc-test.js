@@ -1,9 +1,8 @@
 // The leftovers from the coverage sweep: pasting an image, closing a polygon,
 // shape labels, cycling through stacked shapes, and the service worker that
 // decides which build you actually get.
-const { launch, open, touch } = require('./harness');
+const { launch, open, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const browser = await launch();
@@ -60,7 +59,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
       return document.getElementById('toast').textContent;
     });
 
-    r.pasteErrors = errors.filter(e => !e.includes('ServiceWorker'));
+    r.pasteErrors = realErrors(errors);
     await ctx.close();
   }
 
@@ -69,10 +68,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     const { context: ctx, page } = await open({ browser, device: 'iPhone 13' });
     const { cdp, tap, drag: rawDrag } = await touch(page, ctx);
     const drag = (from, to) => rawDrag(from, to, { steps: 4, pause: 25 });
-    const box = await page.evaluate(() => {
-      const b = canvas.getBoundingClientRect();
-      return { x: b.x, y: b.y, w: b.width, h: b.height };
-    });
+    const box = await canvasBox(page);
     await page.evaluate(() => document.querySelector('[data-tool="polyline"]').click());
     await page.waitForTimeout(150);
 
@@ -198,7 +194,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
         hasIndex: paths.some(p => p.endsWith('/') || p.endsWith('index.html')),
       };
     });
-    r.swErrors = errors.filter(e => !e.includes('ServiceWorker'));
+    r.swErrors = realErrors(errors);
     await page.close();
   }
 

@@ -1,6 +1,5 @@
-const { open, resetApp, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
+const { open, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', reset: false, settle: 400 });
@@ -118,7 +117,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     document.getElementById('calloutTextInput').value === 'Note');
   await page.evaluate(() => finishBlockEditing(true));
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'touchDragCreates.made': 1,
     'touchDragCreates.editorOpen': isTrue,

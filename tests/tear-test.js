@@ -3,9 +3,8 @@
 // the strip really is empty, that the rest of the picture is untouched, and
 // that a tear is a change to the document like any other - undoable, saved,
 // and not left behind in the bitmap the export takes.
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, page, errors } = await open({ viewport: { width: 1440, height: 900 }, resetSettle: 400 });
@@ -156,7 +155,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   }));
   r.reloadedShape = await measure();
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     // Nothing torn to begin with.
     'beforeTool.bottomRowGone': 0,

@@ -1,4 +1,4 @@
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -25,10 +25,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
   // Mouse drag to draw a rectangle.
   await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
-  const b = await page.evaluate(() => {
-    const x = canvas.getBoundingClientRect();
-    return { x: x.x, y: x.y, w: x.width, h: x.height };
-  });
+  const b = await canvasBox(page);
   await page.mouse.move(b.x + b.w * 0.2, b.y + b.h * 0.2);
   await page.mouse.down();
   await page.mouse.move(b.x + b.w * 0.6, b.y + b.h * 0.6, { steps: 8 });
@@ -71,10 +68,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   // does not behave this way, so only a mouse test catches it.
   await page.evaluate(() => document.querySelector('[data-tool="text"]').click());
   await page.waitForTimeout(150);
-  const tb = await page.evaluate(() => {
-    const x = canvas.getBoundingClientRect();
-    return { x: x.x, y: x.y, w: x.width, h: x.height };
-  });
+  const tb = await canvasBox(page);
   await page.mouse.click(tb.x + tb.w * 0.35, tb.y + tb.h * 0.35);
   await page.waitForTimeout(150);
   // Text blocks now use the multi-line editor, shared with callouts.
@@ -110,7 +104,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     };
   });
 
-  r.pageErrors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.pageErrors = realErrors(errors);
   // ---- The property row, at a desk ----
   // The same row and the same fault as on a phone: it measures straight on its
   // centres and reads crooked, because the eye aligns edges and the boxes are

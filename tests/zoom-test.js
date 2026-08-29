@@ -1,4 +1,4 @@
-const { open, seedPhoto } = require('./harness');
+const { open, seedPhoto, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -9,10 +9,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
   await seedPhoto(page, { width: 2000, height: 1500, colour: '#39618c', name: 't.png' });
 
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
 
   r.startZoom = await page.evaluate(() => ({ scale: viewScale, chip: document.getElementById('zoomLevel').textContent }));
 
@@ -162,7 +159,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     return { shaft, atPoint, pointed: atPoint < shaft * 0.6 };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'startZoom.scale': 1,
     'startZoom.chip': '100%',

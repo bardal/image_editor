@@ -1,6 +1,5 @@
 const { launch, open } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 const CALLOUT = `{type:'callout',x:canvas.width*0.1,y:canvas.height*0.1,w:canvas.width*0.5,h:70,
   text:'Existing note',color:'#333',size:3,fill:true,fillColor:'#fff',fontSize:22,
   fontFamily:'sans-serif',fontWeight:'normal',fontStyle:'normal',textAlign:'left',

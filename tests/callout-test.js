@@ -1,14 +1,11 @@
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
   const { browser, page, errors } = await open({ viewport: { width: 1440, height: 900 }, settle: 400, resetSettle: 400 });
 
   const r = {};
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
 
   // Drag out a callout box.
   await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
@@ -113,7 +110,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     return c ? { text: c.text.slice(0, 20), tip: [Math.round(c.tipX), Math.round(c.tipY)] } : null;
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'created.hasTip': isTrue,
     'created.filled': isTrue,

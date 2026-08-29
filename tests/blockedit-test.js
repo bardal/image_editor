@@ -3,9 +3,8 @@
 // came out at ~2px and Safari force-zoomed the whole page; there was no visible
 // way to end the edit; and tapping away created another callout instead of
 // committing the one being typed.
-const { open, seedPhoto, touch } = require('./harness');
+const { open, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, resetSettle: 400 });
@@ -16,10 +15,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   // A real phone photo, where the unit mix-up bit hardest.
   await seedPhoto(page, { width: 4032, height: 3024, colour: '#889', settle: 700 });
 
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
 
   // Drag out a callout by touch, exactly as on the phone.
   await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
@@ -221,7 +217,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return { count: rects.length, hasArea: rects.length > 0 && rects[0].w > 0 && rects[0].h > 0 };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'editorFont.iosWouldZoomPage': isFalse,
     'doneBarVisible.open': isTrue,

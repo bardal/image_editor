@@ -1,9 +1,8 @@
 // The toolbar controls had no coverage at all - not colour, stroke width, fill,
 // font family or size, bold, italic or alignment. Changing a shape's colour was
 // the first thing this app was ever asked to do.
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, page, errors } = await open({ viewport: { width: 1500, height: 900 }, resetSettle: 400 });
@@ -89,10 +88,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   await page.evaluate(() => { shapes.length = 0; selectedShape = null; redraw(); updateButtonStates(); });
   await setControl('color', '#ffcc00');
   await setControl('size', '9');
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
   await page.evaluate(() => document.querySelector('[data-tool="ellipse"]').click());
   await page.mouse.move(box.x + box.w * 0.2, box.y + box.h * 0.2);
   await page.mouse.down();
@@ -289,7 +285,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     await ctx2.close();
   }
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'colourAppliesToSelection': '#ff0000',
     'colourOnCanvas': 'rgb(255,0,0)',

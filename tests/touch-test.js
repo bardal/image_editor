@@ -1,7 +1,6 @@
-const { launch, open } = require('./harness');
+const { launch, open, canvasBox } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 async function main() {
   const browser = await launch();
@@ -54,10 +53,7 @@ async function main() {
     document.querySelector('[data-tool="rect"]').click();
   });
 
-  const box = await page.evaluate(() => {
-    const r = canvas.getBoundingClientRect();
-    return { x: r.x, y: r.y, w: r.width, h: r.height };
-  });
+  const box = await canvasBox(page);
 
   const cdp = await context.newCDPSession(page);
   const x1 = box.x + box.w * 0.25, y1 = box.y + box.h * 0.3;

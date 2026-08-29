@@ -2,9 +2,8 @@
 // whatever you had actually just done, so undo after moving a box deleted a
 // different box, and a move, a resize, a text edit or a delete could not be
 // undone at all. These check that each kind of change is a step of its own.
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, page, errors } = await open({ viewport: { width: 1440, height: 900 }, resetSettle: 400 });
@@ -20,10 +19,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
   });
   await page.waitForTimeout(200);
 
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
   const toScreen = await page.evaluate(() => {
     const b = canvas.getBoundingClientRect();
     return b.width / canvas.width;
@@ -177,7 +173,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     return { steps: undoStack.length, disabled: document.getElementById('undo').disabled };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'undoDisabledAtStart': isTrue,
     'afterDrawing.shapes': 2,

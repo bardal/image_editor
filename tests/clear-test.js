@@ -1,4 +1,4 @@
-const { open, resetApp, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
+const { open, seedPhoto, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
@@ -123,7 +123,7 @@ const BIN = '#floatClear';
   r.noSeparateDeleteButton = await page.evaluate(() =>
     document.getElementById('delete') === null);
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'binWithSelection.armed': isTrue,
     'binWithoutSelection.armed': isFalse,

@@ -1,9 +1,8 @@
 // Rotation had no coverage at all: every suite that mentioned `rotation` only
 // set it in a shape literal, so the handle's position, the angle maths and hit
 // detection on a rotated shape were all unverified.
-const { launch, open } = require('./harness');
+const { launch, open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 const RECT = `{type:'rect',x:200,y:150,w:300,h:200,rotation:0,color:'#c00',size:4,fill:false,id:1}`;
 const ELLIPSE = `{type:'ellipse',x:200,y:150,w:300,h:200,rotation:0,color:'#0c0',size:4,id:2}`;
@@ -124,7 +123,7 @@ const TEXT = `{type:'text',x:200,y:150,w:260,h:0,text:'Rotate me please',color:'
       afterUndo: await page.evaluate(() => +(shapes[0].rotation || 0).toFixed(3)),
     };
 
-    r.pageErrors = errors.filter(e => !e.includes('ServiceWorker'));
+    r.pageErrors = realErrors(errors);
     await page.close();
   }
 

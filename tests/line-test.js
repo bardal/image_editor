@@ -1,4 +1,4 @@
-const { open, touch } = require('./harness');
+const { open, canvasBox, touch, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -8,10 +8,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   // line-test taps with no hold and waits 120ms; its drags step five times.
   const tap = pt => rawTap(pt, { hold: 0, settle: 120 });
   const drag = (from, to) => rawDrag(from, to, { steps: 5, pause: 15, settle: 120 });
-  const box = await page.evaluate(() => {
-    const r = canvas.getBoundingClientRect();
-    return { x: r.x, y: r.y, w: r.width, h: r.height };
-  });
+  const box = await canvasBox(page);
   const P = (fx, fy) => ({ x: box.x + box.w * fx, y: box.y + box.h * fy });
 
   const state = () => page.evaluate(() => ({
@@ -57,10 +54,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await page.waitForTimeout(150);
   // Measured again here: the property bar takes a different number of rows for
   // different tools, so the canvas is not where it was at the top of the file.
-  const box2 = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box2 = await canvasBox(page);
   const Q = (fx, fy) => ({ x: box2.x + box2.w * fx, y: box2.y + box2.h * fy });
   // One finished line to sit behind the open one, so it is clear which of the
   // two undo takes back.
@@ -130,7 +124,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await tap(Q(0.85, 0.2));
   r.carriedOn = await state();
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'afterStartTap.drawing': isFalse,
     'afterFirstDrag.drawing': isTrue,

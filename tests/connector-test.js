@@ -1,7 +1,7 @@
 // Arrows can attach to shapes: they snap to a port when drawn, re-route when
 // the shape they point at is moved, and go when it goes. None of it had any
 // coverage, and it is some of the fiddliest code in the app.
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -230,7 +230,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'snapOnDraw.fromId': 101,
     'snapOnDraw.toId': 102,

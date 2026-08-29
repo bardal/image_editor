@@ -1,14 +1,11 @@
-const { open } = require('./harness');
+const { open, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
   const { browser, page, errors } = await open({ viewport: { width: 1440, height: 900 }, settle: 400, resetSettle: 400 });
 
   const r = {};
-  const box = await page.evaluate(() => {
-    const b = canvas.getBoundingClientRect();
-    return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  const box = await canvasBox(page);
 
   // Text tool now opens the multi-line editor.
   await page.evaluate(() => document.querySelector('[data-tool="text"]').click());
@@ -74,7 +71,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   r.labelsStillWork = await page.evaluate(() => typeof startLabelEditing === 'function' &&
     document.getElementById('canvasTextInput') !== null);
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'multilineEditorUsed': isTrue,
     'enterMakesNewline': isTrue,

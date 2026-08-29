@@ -7,9 +7,8 @@
 //
 // This measures the drawings themselves: each symbol is rendered on its own at
 // four times size, and the ink it leaves is weighed and located.
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
-const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
 (async () => {
   const { browser, page, errors } = await open({ viewport: { width: 1200, height: 800 }, reset: false });
@@ -109,7 +108,7 @@ const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
     };
   });
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'set.offCentre': isEmpty,
     'set.oversized': isEmpty,

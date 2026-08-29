@@ -1,4 +1,4 @@
-const { open } = require('./harness');
+const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -85,7 +85,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await page.waitForTimeout(200);
   r.overlayCleared = await page.evaluate(() => cropRect === null);
 
-  r.errors = errors.filter(e => !e.includes('ServiceWorker'));
+  r.errors = realErrors(errors);
   finish(r, {
     'cropModeOn': isTrue,
     'afterCrop.canvas': [600, 500],
