@@ -173,9 +173,15 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     selectedShape = shapes[0]; redraw(); updateButtonStates();
   });
   await page.waitForTimeout(150);
-  await setControl('startStyleSelect', 'openArrow');
-  await setControl('endStyleSelect', 'none');
+  // One tap each, through the cycle the buttons offer: start none -> open,
+  // end filled -> none.
+  await page.click('#startStyleBtn');
+  await page.click('#endStyleBtn');
   await page.waitForTimeout(150);
+  r.capGlyphs = await page.evaluate(() => ({
+    start: document.querySelector('#startStyleBtn use').getAttribute('href'),
+    end: document.querySelector('#endStyleBtn use').getAttribute('href'),
+  }));
   r.arrowEnds = await page.evaluate(() => ({
     start: shapes[0].startStyle,
     end: shapes[0].endStyle,
@@ -314,6 +320,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'alignCentre.leftButtonOff': isTrue,
     'alignRight': 'right',
     'boldOffAgain': 'normal',
+    // And the button shows what the arrow now has, rather than its own idea.
+    'capGlyphs.start': '#i-arrow',
+    'capGlyphs.end': '#i-cap-none',
     'arrowEnds.start': 'openArrow',
     'arrowEnds.end': 'none',
     'survivesReload.start': 'openArrow',

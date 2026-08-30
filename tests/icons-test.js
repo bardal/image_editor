@@ -20,15 +20,22 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   // stops at the tools is not a set.
   r.glyphs = await page.evaluate(async () => {
     const ids = [...document.querySelectorAll('.icon-sprite symbol')].map(el => el.id);
-    // Select is drawn filled in the app; the rest are strokes.
+    // Select is drawn filled in the app; the rest are strokes. The solid
+    // arrow head is both - a stroked line with a filled triangle on the end of
+    // it - and painting it either way alone measures a drawing the app never
+    // shows: stroke-only misses the weight of the head, fill-only loses the
+    // line and puts the glyph's centre at 16.
     const filled = new Set(['i-select']);
+    const strokedAndFilled = new Set(['i-cap-filled']);
     const SCALE = 4, SIZE = 24 * SCALE;
 
     const inkOf = async (id) => {
       const symbol = document.getElementById(id);
-      const paint = filled.has(id)
-        ? 'fill="#000" stroke="none"'
-        : 'fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+      const stroke = 'stroke="#000" stroke-width="1.8" stroke-linecap="round"'
+        + ' stroke-linejoin="round"';
+      const paint = filled.has(id) ? 'fill="#000" stroke="none"'
+        : strokedAndFilled.has(id) ? `fill="#000" ${stroke}`
+        : `fill="none" ${stroke}`;
       const markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"`
         + ` width="${SIZE}" height="${SIZE}"><g ${paint}>${symbol.innerHTML}</g></svg>`;
       const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup);
@@ -125,7 +132,8 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
         ...shown('.tool-strip .tool-button'),
         ...shown('.toolbar-props .swatch, .toolbar-props .swatch-label,'
                + ' .toolbar-props .slider-box, .toolbar-props .fill-toggle,'
-               + ' .toolbar-props .format-btn, .toolbar-props select'),
+               + ' .toolbar-props .format-btn, .toolbar-props .cap-btn,'
+               + ' .toolbar-props select'),
       ].map(H)),
       // Every glyph in the chrome, whichever bar it sits in.
       iconHeights: uniq([

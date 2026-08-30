@@ -389,29 +389,6 @@
             transform: translateX(12px);
         }
 
-        .arrow-style-select {
-            color: #c8c8cc;
-            font-size: 11px;
-            padding: 0 4px;
-            cursor: pointer;
-            outline: none;
-            transition: border-color 0.12s;
-        }
-
-        .arrow-style-select:hover {
-            border-color: rgba(255,255,255,0.2);
-        }
-
-        .arrow-style-select:focus {
-            border-color: #3b8eed;
-        }
-
-        .arrow-style-label {
-            font-size: 11px;
-            color: #adadb2;
-            font-weight: 500;
-        }
-
         .arrow-style-group {
             display: none;
             align-items: center;
@@ -601,7 +578,18 @@
         }
 
         .toolbar-props #fontSize { text-align: center; }
-        .toolbar-props .format-btn { width: var(--ctl-h); }
+        .toolbar-props .format-btn,
+        .toolbar-props .cap-btn { width: var(--ctl-h); }
+
+        /* The start button is the end button drawn backwards: one glyph, two
+           directions, so the head cannot end up pointing the same way at both
+           ends of the line. */
+        .toolbar-props #startStyleBtn svg { transform: scaleX(-1); }
+
+        /* A filled head is filled - the sprite is stroked by default, and the
+           same exception the pointer needs. The straight line under it has no
+           area to fill, so one rule covers both paths. */
+        .toolbar-props .cap-btn svg use[href="#i-cap-filled"] { fill: currentColor; }
 
         /* Every box on the row: one height, no radius of its own, and a
            rule where it meets the box before it. */
@@ -609,11 +597,10 @@
         .toolbar-props .swatch-label,
         .toolbar-props .slider-box,
         .toolbar-props .fill-toggle,
-        .toolbar-props .arrow-style-label,
-        .toolbar-props .arrow-style-select,
         .toolbar-props #fontFamily,
         .toolbar-props #fontSize,
         .toolbar-props .format-btn,
+        .toolbar-props .cap-btn,
         .toolbar-props .crop-btn,
         .toolbar-props .tear-edge {
             height: var(--ctl-h);
@@ -628,8 +615,7 @@
 
         /* Labels read as part of the track rather than floating beside it,
            and in one voice: the sentence-case ones with colons are gone. */
-        .toolbar-props .swatch-label,
-        .toolbar-props .arrow-style-label {
+        .toolbar-props .swatch-label {
             font-size: 10px;
             font-weight: 600;
             letter-spacing: 0.04em;
@@ -658,7 +644,6 @@
         .slider-box.hidden { display: none; }
 
         .toolbar-props .fill-toggle { padding: 0 10px; }
-        .toolbar-props .arrow-style-select,
         .toolbar-props #fontFamily { padding: 0 4px; }
 
         /* The one on is filled, like the tool that is in hand: the block
@@ -676,8 +661,7 @@
         .toolbar-props #fontSize,
         .toolbar-props #boldToggle,
         .toolbar-props #alignLeft,
-        .toolbar-props .arrow-style-label + .arrow-style-select,
-        .toolbar-props .arrow-style-select + .arrow-style-label {
+        .toolbar-props #endStyleBtn {
             border-left: 1px solid var(--ctl-bd);
         }
 
@@ -702,9 +686,11 @@
            the bar's own edge, pushing that row in by the width of its own
            spacing. Groups that land on a row together are separated by the
            gap. */
-        .toolbar-props #fillGroup { position: relative; }
+        .toolbar-props #fillGroup,
+        .toolbar-props #arrowStyleGroup { position: relative; }
 
-        .toolbar-props #fillGroup::before {
+        .toolbar-props #fillGroup::before,
+        .toolbar-props #arrowStyleGroup.visible::before {
             content: '';
             position: absolute;
             left: calc(var(--gap-group, 12px) / -2);
@@ -1468,7 +1454,6 @@
             /* Caps in rem, so they hold their proportion to the text rather
                than to a screen this was measured on once. */
             #fontFamily { flex: 0 1 5rem; min-width: 0; }
-            .arrow-style-select { flex: 0 1 4.75rem; min-width: 0; }
             .size-slider { flex: 1 1 3rem; width: 3rem; min-width: 2.5rem; }
 
             /* No rule between the groups: at 24px against 44px swatches it
@@ -1582,10 +1567,9 @@
             .fill-toggle input[type="checkbox"]:checked::after {
                 transform: translateX(16px);
             }
-            /* Dropdowns open a native picker rather than a keyboard, so they do
-               not need the 16px that stops iOS zooming, and at 16px they towered
-               over every label beside them. */
-            .arrow-style-select,
+            /* A dropdown opens a native picker rather than a keyboard, so it
+               does not need the 16px that stops iOS zooming, and at 16px it
+               towered over every label beside it. */
             #fontFamily {
                 font-size: 11px;
                 min-height: 44px;
@@ -1605,7 +1589,8 @@
                Height is the part that has to hold: seven font controls at 44
                wide do not fit across a 390px screen, and iOS sets its own
                keyboard keys about 32 wide by 44 tall for the same reason. */
-            .format-btn {
+            .format-btn,
+            .cap-btn {
                 min-width: 40px;
                 min-height: 44px;
             }
@@ -1638,6 +1623,11 @@
         <symbol id="i-rect" viewBox="0 0 24 24"><rect x="5.4" y="6.4" width="13.2" height="11.2" rx="1.6"/></symbol>
         <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7.1" ry="5.6"/></symbol>
         <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5.2 12h13.6"/><path d="M14.2 7.2L18.8 12l-4.6 4.8"/></symbol>
+        <!-- The two arrow ends that are not an arrow head. The third, the open
+             head, is #i-arrow itself: it is the same drawing, and two copies of
+             one glyph drift apart. -->
+        <symbol id="i-cap-none" viewBox="0 0 24 24"><path d="M5.2 12h13.6"/></symbol>
+        <symbol id="i-cap-filled" viewBox="0 0 24 24"><path d="M5.2 12h13.6"/><path d="M13.4 7.6L18.8 12l-5.4 4.4z"/></symbol>
         <symbol id="i-line" viewBox="0 0 24 24"><path d="M6.4 17.6L17.6 6.4"/></symbol>
         <symbol id="i-callout" viewBox="0 0 24 24"><rect x="5.4" y="5.5" width="13.2" height="9.4" rx="2"/><path d="M9.2 14.9l-1.8 3.6 5.4-3.6"/></symbol>
         <symbol id="i-crop" viewBox="0 0 24 24"><path d="M8.8 5.3v10.8a1 1 0 0 0 1 1h8.9"/><path d="M5.3 8.8h10.8a1 1 0 0 1 1 1v8.9"/></symbol>
@@ -1770,22 +1760,21 @@
                         <span class="fill-toggle-text">On</span>
                     </label>
                 </div>
+                <!-- Two dropdowns with the words Start and End beside them
+                     wanted 247px of a 390px screen, so the pair wrapped onto a
+                     line of its own and every arrow cost a second row. These
+                     draw the end they control - left button the start, right
+                     button the end - and a tap cycles it through none, open
+                     and filled. Two 44px buttons, and the row stays one row. -->
                 <div class="arrow-style-group" id="arrowStyleGroup">
-                    <span class="arrow-style-label">Start</span>
-                    <!-- Short names on purpose: "Closed Arrow" made the two
-                         dropdowns wide enough that the pair no longer fitted
-                         across a phone, and took a row of their own. -->
-                    <select id="startStyleSelect" class="arrow-style-select">
-                        <option value="none">None</option>
-                        <option value="openArrow">Open</option>
-                        <option value="closedArrow">Filled</option>
-                    </select>
-                    <span class="arrow-style-label">End</span>
-                    <select id="endStyleSelect" class="arrow-style-select">
-                        <option value="none">None</option>
-                        <option value="openArrow">Open</option>
-                        <option value="closedArrow" selected>Filled</option>
-                    </select>
+                    <button type="button" id="startStyleBtn" class="tb-btn cap-btn"
+                            title="Arrow start" aria-label="Arrow start: none">
+                        <span class="btn-icon"><svg><use href="#i-cap-none"/></svg></span>
+                    </button>
+                    <button type="button" id="endStyleBtn" class="tb-btn cap-btn"
+                            title="Arrow end" aria-label="Arrow end: filled">
+                        <span class="btn-icon"><svg><use href="#i-cap-filled"/></svg></span>
+                    </button>
                 </div>
                 <div id="cropGroup" class="crop-group">
                     <span class="crop-hint">Drag the frame &mdash; outwards adds space</span>
@@ -3356,6 +3345,44 @@
         }
 
         // ===== UI UPDATES =====
+        // ===== ARROW ENDS =====
+        // Each end of an arrow is one of three, and each button shows the one
+        // it is on rather than naming it: the glyph is the arrow you will get.
+        // A tap moves to the next.
+        const CAP_STYLES = ['none', 'openArrow', 'closedArrow'];
+        const CAP_GLYPH = { none: '#i-cap-none', openArrow: '#i-arrow',
+                            closedArrow: '#i-cap-filled' };
+        const CAP_NAME = { none: 'none', openArrow: 'open', closedArrow: 'filled' };
+
+        function drawCapButton(which, style) {
+            const btn = document.getElementById(which + 'StyleBtn');
+            if (!btn) return;
+            const use = btn.querySelector('use');
+            use.setAttribute('href', CAP_GLYPH[style] || CAP_GLYPH.none);
+            btn.setAttribute('aria-label',
+                `Arrow ${which}: ${CAP_NAME[style] || CAP_NAME.none}`);
+            btn.dataset.style = style;
+        }
+
+        function cycleCap(which) {
+            const current = document.getElementById(which + 'StyleBtn').dataset.style || 'none';
+            const next = CAP_STYLES[(CAP_STYLES.indexOf(current) + 1) % CAP_STYLES.length];
+            setCapStyle(which, next);
+        }
+
+        // Sets the end on the arrow in hand if there is one, and on the next
+        // arrow drawn either way - the same bargain every other property here
+        // makes.
+        function setCapStyle(which, style) {
+            if (which === 'start') defaultStartStyle = style; else defaultEndStyle = style;
+            if (selectedShape && selectedShape.type === 'arrow') {
+                if (which === 'start') selectedShape.startStyle = style;
+                else selectedShape.endStyle = style;
+                redraw();
+            }
+            drawCapButton(which, style);
+        }
+
         function updateButtonStates() {
             // Enabled while a line is being drawn too: there is something to
             // take back - the line in hand - before anything on the stack.
@@ -3435,11 +3462,11 @@
             const showArrowStyles = tool === 'arrow' || (selectedShape && selectedShape.type === 'arrow');
             arrowStyleGroup.classList.toggle('visible', showArrowStyles);
             if (selectedShape && selectedShape.type === 'arrow') {
-                document.getElementById('startStyleSelect').value = selectedShape.startStyle || 'none';
-                document.getElementById('endStyleSelect').value = selectedShape.endStyle || 'closedArrow';
+                drawCapButton('start', selectedShape.startStyle || 'none');
+                drawCapButton('end', selectedShape.endStyle || 'closedArrow');
             } else if (tool === 'arrow') {
-                document.getElementById('startStyleSelect').value = defaultStartStyle;
-                document.getElementById('endStyleSelect').value = defaultEndStyle;
+                drawCapButton('start', defaultStartStyle);
+                drawCapButton('end', defaultEndStyle);
             }
 
             // Text format controls visibility
@@ -6369,20 +6396,10 @@
                     showToast('Fill set - draw a shape, or tap one with Select');
                 }
             });
-            document.getElementById('startStyleSelect').addEventListener('change', e => {
-                defaultStartStyle = e.target.value;
-                if (selectedShape && selectedShape.type === 'arrow') {
-                    selectedShape.startStyle = e.target.value;
-                    redraw();
-                }
-            });
-            document.getElementById('endStyleSelect').addEventListener('change', e => {
-                defaultEndStyle = e.target.value;
-                if (selectedShape && selectedShape.type === 'arrow') {
-                    selectedShape.endStyle = e.target.value;
-                    redraw();
-                }
-            });
+            document.getElementById('startStyleBtn')
+                .addEventListener('click', () => cycleCap('start'));
+            document.getElementById('endStyleBtn')
+                .addEventListener('click', () => cycleCap('end'));
 
             // Text format controls
             document.getElementById('fontFamily').addEventListener('change', e => {

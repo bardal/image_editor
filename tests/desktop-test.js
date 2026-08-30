@@ -120,7 +120,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     r.rowEdges[t] = await page.evaluate(() => {
       const boxes = [...document.querySelectorAll(
         '.toolbar-props .swatch, .toolbar-props .swatch-label, .toolbar-props .slider-box,'
-        + ' .toolbar-props .fill-toggle, .toolbar-props select, .toolbar-props .arrow-style-label,'
+        + ' .toolbar-props .fill-toggle, .toolbar-props select, .toolbar-props .cap-btn,'
         + ' .toolbar-props input[type="number"], .toolbar-props .format-btn')]
         .map(el => el.getBoundingClientRect()).filter(b => b.width > 0);
       const tops = [...new Set(boxes.map(b => Math.round(b.top)))].sort((a, b) => a - b);

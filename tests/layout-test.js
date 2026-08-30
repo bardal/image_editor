@@ -47,6 +47,11 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
         toolCount: strip.querySelectorAll('.tool-button').length,
         propsScrollWidth: props.scrollWidth,
         propsWidth: Math.round(pr.width),
+        // One row, whatever the tool. The arrow used to take two: its two
+        // dropdowns and the words Start and End beside them wanted 247px of a
+        // 390px screen, so they wrapped onto a line of their own and the
+        // picture lost 45px whenever an arrow was in hand.
+        propsHeight: Math.round(pr.height),
         // Nothing hidden sideways: the bar takes another row instead.
         needsSideScroll: props.scrollWidth > props.clientWidth + 1,
         unreachableInProps: unreachable,
@@ -322,7 +327,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
         '.toolbar-props .swatch, .toolbar-props .swatch-label, .toolbar-props .size-slider,'
         + ' .toolbar-props .size-value, .toolbar-props .fill-toggle, .toolbar-props select,'
         + ' .toolbar-props input[type="number"], .toolbar-props .format-btn,'
-        + ' .toolbar-props .arrow-style-label, .toolbar-props .crop-btn')]
+        + ' .toolbar-props .cap-btn, .toolbar-props .crop-btn')]
         .map(el => ({ id: el.id || el.className.split(' ')[0],
                       b: el.getBoundingClientRect() }))
         .filter(x => x.b.width > 0);
@@ -520,6 +525,8 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'byTool.select.offScreenInProps': isEmpty,
     'byTool.text.offScreenInProps': isEmpty,
     'byTool.text.needsSideScroll': isFalse,
+    'byTool.arrow.propsHeight': 45,
+    'byTool.rect.propsHeight': 45,
     'byTool.arrow.offScreenInProps': isEmpty,
     'byTool.arrow.needsSideScroll': isFalse,
     'byTool.callout.offScreenInProps': isEmpty,
