@@ -2524,10 +2524,10 @@
             if (restoring) return;
             try {
                 await dbPut('doc', {
-                    shapes,
-                    tear,
-                    imgOffset,
-                    canvasOverride,
+                    // The document itself, spread from the one definition of it.
+                    // The rest is about the file it is stored as, not the
+                    // drawing, so it is listed here and nowhere else.
+                    ...snapshotDoc(),
                     canvasW: canvas.width,
                     canvasH: canvas.height,
                     hasImage: !!img,
@@ -2595,12 +2595,7 @@
                     }
                 }
 
-                imgOffset = doc.imgOffset || { x: 0, y: 0 };
-                canvasOverride = doc.canvasOverride || null;
-                shapes = doc.shapes || [];
-                // Merged rather than assigned, so a document saved before torn
-                // edges existed still arrives with a depth and a seed.
-                if (doc.tear) tear = { ...tear, ...doc.tear };
+                restoreDoc(doc);
                 // Taken from the highest id present, never from the count.
                 // shapes.length + 1 collides the moment anything has been
                 // deleted or the ids are not consecutive - a document holding
@@ -2611,13 +2606,7 @@
                     (max, s) => (typeof s.id === 'number' && s.id > max ? s.id : max), 0);
                 nextShapeId = Math.max(doc.nextShapeId || 0, highest + 1);
 
-                if (canvasOverride) {
-                    canvas.width = canvasOverride.w;
-                    canvas.height = canvasOverride.h;
-                } else if (img) {
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                } else if (doc.canvasW) {
+                if (!sizeCanvasToDoc() && doc.canvasW) {
                     // Restore at the size it was saved at so the geometry lines
                     // up, then hand it to resizeCanvas, which brings it to this
                     // screen's resolution and reflows the shapes to match. A
@@ -4498,6 +4487,10 @@
 
         function applyCrop() {
             if (!cropRect) return;
+            recordUndo(() => applyCropNow());
+        }
+
+        function applyCropNow() {
             const w = Math.max(1, Math.round(cropRect.w));
             const h = Math.max(1, Math.round(cropRect.h));
             const dx = -Math.round(cropRect.x);
@@ -4521,6 +4514,10 @@
 
         // Back to the image's own bounds, undoing any crop or expand.
         function resetCrop() {
+            recordUndo(() => resetCropNow());
+        }
+
+        function resetCropNow() {
             const dx = -imgOffset.x;
             const dy = -imgOffset.y;
             for (const s of shapes) translateShape(s, dx, dy);
@@ -5848,10 +5845,24 @@
         let undoBefore = null;
         let editUndoBefore = null;
 
-        // The drawing and the torn edges both, in one step: tearing an edge is
-        // a change to the picture like any other, and undo has to take it back.
-        function snapshotShapes() {
+        // A step is the whole document, not the drawing alone: the shapes, the
+        // torn edges, and the canvas the shapes are measured against.
+        //
+        // Each of those joined late and the same way - tearing an edge is a
+        // change to the picture like any other, and so is a crop. A crop is the
+        // one that bites, because it moves every shape as well as resizing the
+        // canvas: restore the shapes without the canvas and the drawing comes
+        // back in the wrong place, with nothing to say so.
+        //
+        // This is the only list. saveSession() spreads it and restoreDoc() puts
+        // it back, so persistence and undo cannot hold different views of what a
+        // document is - which they did for as long as cropping had existed, the
+        // crop fields being in the saved one and missing from this one. A field
+        // added here is saved, restored and undone by that fact alone.
+        function snapshotDoc() {
             return {
+                imgOffset: { ...imgOffset },
+                canvasOverride: canvasOverride ? { ...canvasOverride } : null,
                 shapes: shapes.map(s => {
                     const copy = { ...s };
                     if (Array.isArray(s.points)) copy.points = s.points.map(p => ({ ...p }));
@@ -5861,17 +5872,48 @@
             };
         }
 
+        // The other half of snapshotDoc, and the only way back in: undo pops a
+        // step through here, and a reload passes the stored document through the
+        // same call. Defaults live here rather than at the two call sites, so a
+        // document written before a field existed still loads.
+        function restoreDoc(doc) {
+            shapes = doc.shapes || [];
+            // Merged rather than assigned, so a document saved before torn edges
+            // existed still arrives with a depth and a seed.
+            tear = { ...tear, ...(doc.tear || {}) };
+            imgOffset = doc.imgOffset || { x: 0, y: 0 };
+            canvasOverride = doc.canvasOverride || null;
+        }
+
+        // The canvas the restored shapes were placed against: the crop's size if
+        // there is a crop, otherwise the image's own. False when it can say
+        // neither, which leaves the caller to size it some other way.
+        function sizeCanvasToDoc() {
+            if (canvasOverride) {
+                canvas.width = canvasOverride.w;
+                canvas.height = canvasOverride.h;
+            } else if (img) {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+            } else {
+                return false;
+            }
+            return true;
+        }
+
         function pushUndo(before) {
             if (!before) return;
-            if (JSON.stringify(before.shapes) === JSON.stringify(shapes) &&
-                JSON.stringify(before.tear) === JSON.stringify(tear)) return;
+            // Compared whole, so a change to any part of the document counts.
+            // Field by field, a crop that only trims the far edges - moving
+            // nothing, changing the size alone - was dropped as a no-op.
+            if (JSON.stringify(before) === JSON.stringify(snapshotDoc())) return;
             undoStack.push(before);
             if (undoStack.length > UNDO_LIMIT) undoStack.shift();
             updateButtonStates();
         }
 
         function beginUndo() {
-            undoBefore = snapshotShapes();
+            undoBefore = snapshotDoc();
         }
 
         function commitUndo() {
@@ -5884,7 +5926,7 @@
         // blur, on Escape - so they keep their own before-state rather than
         // sharing the gesture's, which has been committed by then.
         function beginEditUndo() {
-            editUndoBefore = snapshotShapes();
+            editUndoBefore = snapshotDoc();
         }
 
         function commitEditUndo() {
@@ -5952,11 +5994,15 @@
             if (!undoStack.length) return;
             cancelGestureInProgress();
             const before = undoStack.pop();
-            shapes = before.shapes;
-            if (before.tear) tear = before.tear;
+            restoreDoc(before);
+            sizeCanvasToDoc();
             selectedShape = null;
             undoBefore = null;
             syncTearControls();
+            // The frame is drawn in canvas units, so it is stale the moment the
+            // canvas changes size under it.
+            if (tool === 'crop') startCropMode();
+            updateImageInfo();
             redraw();
             updateButtonStates();
         }

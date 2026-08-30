@@ -25,11 +25,11 @@ have only ever meant pushing the same commits twice.
 
 ## Architecture
 
-### Single-file structure (`index.html`, ~1,900 lines)
+### Single-file structure (`index.html`, ~6,800 lines)
 
 The entire app lives in one file with three sections:
-1. **HTML + CSS** (lines 1–513): Toolbar, canvas container, status bar, modal dialogs. CSS uses dark theme with `#1a1a1e` / `#252528` palette and `#3b8eed` accent.
-2. **JavaScript** (line 515+): All application logic in a single `<script>` tag.
+1. **HTML + CSS** (lines 1–2,022; the stylesheet is 21–1,665): Toolbar, canvas container, status bar, modal dialogs. CSS uses dark theme with `#1a1a1e` / `#252528` palette and `#3b8eed` accent.
+2. **JavaScript** (line 2,023+): All application logic in a single `<script>` tag.
 
 ### Key global state variables
 - `img` — loaded image; `shapes` — array of all drawn shapes; `selectedShape` — current selection
@@ -46,7 +46,19 @@ Each shape is a plain object with `type`, position/size fields, `color`, `size`,
 - **Coordinate conversion**: All mouse events go through `screenToCanvas()` to handle DPI scaling and canvas offset.
 - **Hit detection**: `isPointInShape()` dispatches by shape type. Overlapping shapes are cycled on repeated clicks via `getAllShapesAtPoint()`.
 - **Selection UI**: Selected shapes get green dashed borders, a rotation handle (green circle), and resize handles (corner squares for rect/ellipse).
-- **Undo**: Stack-based — each entry is a deep copy of `{ shapes, tear }`, so tearing an edge is a step like any other. No redo.
+- **Undo**: Stack-based — each entry is a deep copy of the whole document, so
+  tearing an edge or cropping is a step like any other. No redo.
+- **One document, one definition.** `snapshotDoc()` says what a document holds —
+  `shapes`, `tear`, `imgOffset`, `canvasOverride` — and `restoreDoc()` puts one
+  back. Undo and `saveSession()` both go through the pair, so they cannot
+  disagree about what a document is. They did for as long as cropping existed:
+  the crop fields were saved but left out of the undo snapshot, so a crop could
+  not be taken back and an undo after one reached past it and removed the wrong
+  thing. **Adding document state means adding it to `snapshotDoc` and
+  `restoreDoc`, and nowhere else** — saving spreads the snapshot, so that half
+  cannot be forgotten. `persist-test`'s round trip asks the app what the
+  document is rather than naming fields, and goes red if the restore half is
+  missed.
 - **Canvas redraw**: `redraw()` clears canvas, draws the base image, then iterates all shapes. Called after every state change.
 - **Torn page**: `tearPaths()` builds the ragged page outline from a seeded noise function (`tearRandom`/`tearSample`), cached against the canvas size and settings. `redraw()` clips the picture to it, so the strip a tear takes is cleared rather than painted — an export keeps the alpha. Depth is in `fitPx`, like stroke widths.
 

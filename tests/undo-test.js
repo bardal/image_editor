@@ -173,6 +173,53 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     return { steps: undoStack.length, disabled: document.getElementById('undo').disabled };
   });
 
+  // A crop is a step like any other. It moves every shape and changes the
+  // canvas, so an undo that reaches past it takes back the wrong thing and
+  // leaves the picture the wrong size: the shape it restores is placed against
+  // a canvas that no longer exists. Undo after a crop must take back the crop.
+  await page.evaluate(() => {
+    shapes.length = 0;
+    undoStack.length = 0;
+    imgOffset = { x: 0, y: 0 };
+    canvasOverride = null;
+    selectedShape = null;
+    resizeCanvas();
+    recordUndo(() => {
+      shapes.push({ type: 'rect', x: 400, y: 300, w: 200, h: 100, rotation: 0,
+        color: '#ff0000', size: 4, id: newShapeId() });
+    });
+  });
+  await page.waitForTimeout(150);
+  r.beforeCrop = await page.evaluate(() => ({
+    canvas: [canvas.width, canvas.height],
+    shapes: shapes.length,
+    shapeAt: [shapes[0].x, shapes[0].y],
+  }));
+
+  await page.evaluate(() => {
+    document.querySelector('[data-tool="crop"]').click();
+  });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { cropRect = { x: 200, y: 150, w: 600, h: 400 }; redraw(); });
+  await page.click('#cropApply');
+  await page.waitForTimeout(300);
+  // The crop really happened, so the undo below is undoing something.
+  r.afterCrop = await page.evaluate(() => ({
+    canvas: [canvas.width, canvas.height],
+    shapes: shapes.length,
+    shapeAt: [shapes[0].x, shapes[0].y],
+    imgOffset: { x: imgOffset.x, y: imgOffset.y },
+  }));
+
+  await page.evaluate(() => undoLastAction());
+  await page.waitForTimeout(200);
+  r.undoOfCrop = await page.evaluate(() => ({
+    canvas: [canvas.width, canvas.height],
+    shapes: shapes.length,
+    shapeAt: shapes[0] ? [shapes[0].x, shapes[0].y] : null,
+    imgOffset: { x: imgOffset.x, y: imgOffset.y },
+  }));
+
   r.errors = realErrors(errors);
   finish(r, {
     'undoDisabledAtStart': isTrue,
@@ -197,6 +244,14 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'stackIsBounded': isTrue,
     'undoPastStart.steps': 0,
     'undoPastStart.disabled': isTrue,
+    'beforeCrop.canvas': [1000, 700],
+    'beforeCrop.shapeAt': [400, 300],
+    'afterCrop.canvas': [600, 400],
+    'afterCrop.shapeAt': [200, 150],
+    'undoOfCrop.canvas': [1000, 700],
+    'undoOfCrop.imgOffset': { x: 0, y: 0 },
+    'undoOfCrop.shapes': 1,
+    'undoOfCrop.shapeAt': [400, 300],
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
