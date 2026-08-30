@@ -60,6 +60,25 @@
             touch-action: manipulation;
         }
 
+        /* Nothing to pinch here either: two rows of buttons, and a page zoom
+           that starts on one of them leaves the layout as broken as one that
+           starts on the picture. Not the property row - it holds the
+           thickness slider, and a drag along a slider is a gesture the
+           browser has to be allowed to give to the control. Not .toolbar
+           itself for the same reason: touch-action intersects down the
+           ancestors, and the property row is inside it. */
+        .tool-strip,
+        .toolbar > .tb-btn {
+            touch-action: none;
+        }
+
+        /* Said out loud, because the value matters and it is not the same one:
+           taps here are taps, but a drag along the thickness slider must reach
+           the slider. */
+        .toolbar-props {
+            touch-action: manipulation;
+        }
+
         /* Form controls do not inherit the page font, so buttons and dropdowns
            were rendering in the browser default while every label beside them
            used the app font. */
@@ -747,6 +766,14 @@
         .canvas-container {
             flex: 1;
             overflow: hidden;
+            /* The picture and the dark around it are one surface as far as
+               gestures go. Without this, a pinch whose fingers landed beside
+               the picture - and a 3:4 photo leaves a 50px band above and below
+               it on a phone - was Safari's rather than the app's: the page
+               zoomed instead of the picture, the toolbar came up at twice the
+               size with the tools off the side of it, and Safari brought that
+               zoom back on every reload. */
+            touch-action: none;
             position: relative;
             z-index: 1;
             min-height: 0;
@@ -6255,8 +6282,48 @@
             // On the container, not the canvas: while zoomed the picture is
             // clipped, and the wheel should still work over the surround.
             // passive: false, or preventDefault is ignored and the page zooms.
-            document.querySelector('.canvas-container')
-                .addEventListener('wheel', handleWheel, { passive: false });
+            const surround = document.querySelector('.canvas-container');
+            surround.addEventListener('wheel', handleWheel, { passive: false });
+
+            // And a pinch that lands beside the picture is still a pinch, for
+            // the same reason: fingers aiming at a picture that fills a third
+            // of the window will often find the dark. Only the gesture, not
+            // the drawing - the surround is not a surface to draw on, and a
+            // press there does nothing.
+            //
+            // The dark itself, and nothing else inside it: the editor, its
+            // Done bar and the floating buttons all live in this container and
+            // press for their own reasons. Taking their presses as fingers put
+            // a pointer in the ledger that never lifted, and the next tap on
+            // the picture counted as the second finger of a pinch and drew
+            // nothing at all.
+            surround.addEventListener('pointerdown', e => {
+                if (e.target !== surround) return;
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size === 2) beginPinch();
+            });
+            surround.addEventListener('pointermove', e => {
+                if (e.target === canvas || !activePointers.has(e.pointerId)) return;
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (activePointers.size >= 2) updatePinch();
+            });
+            const endSurroundPointer = e => {
+                if (!activePointers.has(e.pointerId)) return;
+                const wasPinching = activePointers.size >= 2;
+                activePointers.delete(e.pointerId);
+                if (wasPinching) endPinch();
+            };
+            surround.addEventListener('pointerup', endSurroundPointer);
+            surround.addEventListener('pointercancel', endSurroundPointer);
+
+            // The net under all of it. A pointer that is up is gone, whatever
+            // it was doing and wherever it ended - and one left in the ledger
+            // is not this gesture's problem but the next one's: two entries
+            // and the app believes a pinch is under way, so the finger that
+            // follows draws nothing and the app looks broken rather than
+            // wrong. These run after everything above, being on the document.
+            document.addEventListener('pointerup', e => activePointers.delete(e.pointerId));
+            document.addEventListener('pointercancel', e => activePointers.delete(e.pointerId));
             canvas.addEventListener('dblclick', handleDoubleClick);
             canvas.addEventListener('contextmenu', e => {
                 e.preventDefault();

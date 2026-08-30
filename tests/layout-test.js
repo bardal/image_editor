@@ -528,8 +528,15 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
       // Reached through the ancestors as well: a control that says nothing
       // itself must sit inside something that does.
       body: getComputedStyle(document.body).touchAction,
-      // The canvas keeps every gesture for itself, as it always has.
+      // The canvas keeps every gesture for itself, as it always has - and so
+      // does the dark around it, which is where a pinch aimed at a picture
+      // that fills a third of the window tends to land.
       canvas: getComputedStyle(document.getElementById('canvas')).touchAction,
+      surround: getComputedStyle(document.querySelector('.canvas-container')).touchAction,
+      strip: getComputedStyle(document.querySelector('.tool-strip')).touchAction,
+      // Deliberately not none: the row holds the thickness slider, and a drag
+      // along a slider is a gesture the browser has to hand to the control.
+      props: getComputedStyle(document.querySelector('.toolbar-props')).touchAction,
     };
   });
 
@@ -613,6 +620,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'zoomDefence.permissive': isEmpty,
     'zoomDefence.body': 'manipulation',
     'zoomDefence.canvas': 'none',
+    'zoomDefence.surround': 'none',
+    'zoomDefence.strip': 'none',
+    'zoomDefence.props': 'manipulation',
     'topBar.pictureTop': 0,
     'topBar.count': 4,
     'topBar.shortest': v => v >= 44,

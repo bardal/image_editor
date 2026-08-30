@@ -123,6 +123,31 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   r.sharpnessPhoto.at4x = await bitmapPerCssPixel();
   await page.evaluate(() => resetZoom());
 
+  // ---- A pinch that lands beside the picture ----
+  // The picture is centred in its window, so a 3:4 photo on a phone leaves a
+  // band of dark 50px deep above it and another below. Fingers landing there
+  // were Safari's, not the app's: the page zoomed instead of the picture, the
+  // toolbar came up at 2x with the tools off the side of it, and Safari
+  // restored that zoom on every reload - reported as "very broken - zooming
+  // on reload". The surround belongs to the app now, the same way the wheel
+  // over it always has.
+  await page.evaluate(() => resetZoom());
+  await page.waitForTimeout(200);
+  const band = await page.evaluate(() => {
+    const c = document.querySelector('.canvas-container').getBoundingClientRect();
+    const b = canvas.getBoundingClientRect();
+    return { gap: Math.round(b.top - c.top),
+             x: Math.round(c.left + c.width / 2),
+             y: Math.round((c.top + b.top) / 2),
+             touchAction: getComputedStyle(document.querySelector('.canvas-container')).touchAction };
+  });
+  await pinchThrough(band.x, band.y, [40, 140]);
+  r.pinchOnSurround = {
+    ...band,
+    scale: await page.evaluate(() => +viewScale.toFixed(2)),
+  };
+  await page.evaluate(() => resetZoom());
+
   r.errors = realErrors(errors);
   finish(r, {
     // A couple of canvas units of slack for rounding; anything more is a slide.
@@ -132,6 +157,10 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'anchorHoldsNearCorner.scale': atLeast(2),
     'anchorHoldsNearCorner.driftX': v => v <= 2,
     'anchorHoldsNearCorner.driftY': v => v <= 2,
+    // There has to be a band to land in, or the case is not being tested.
+    'pinchOnSurround.gap': atLeast(20),
+    'pinchOnSurround.touchAction': 'none',
+    'pinchOnSurround.scale': atLeast(1.5),
     'roundTrip.scale': 1,
     'roundTrip.driftX': v => v <= 2,
     'roundTrip.driftY': v => v <= 2,

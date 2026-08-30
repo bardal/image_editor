@@ -114,6 +114,11 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await page.waitForTimeout(200);
   await page.evaluate(() => document.querySelector('[data-tool="callout"]').click());
   await page.waitForTimeout(150);
+  // Nothing left in the pointer ledger from everything above. A pointer that
+  // went down and never came up - the Done button's own press, say - makes the
+  // next tap on the picture the second finger of a pinch, and it draws
+  // nothing: the app stops responding rather than doing the wrong thing.
+  r.pointersLeftOver = await page.evaluate(() => activePointers.size);
   await tap({ x: box.x + box.w * 0.35, y: box.y + box.h * 0.3 });
   r.tapCreatesCallout = await page.evaluate(() => ({
     count: shapes.filter(s => s.type === 'callout').length,
@@ -232,6 +237,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'cancelRestores.stillThere': 1,
     'textTool.iosWouldZoomPage': isFalse,
     'textTool.barOpen': isTrue,
+    'pointersLeftOver': 0,
     'tapCreatesCallout.count': 1,
     'tapCreatesCallout.editing': isTrue,
     'tapCreatesCallout.widerThanMinimum': isTrue,
