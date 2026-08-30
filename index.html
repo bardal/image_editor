@@ -89,8 +89,8 @@
 
         .btn-icon svg,
         .tool-icon svg {
-            width: 20px;
-            height: 20px;
+            width: var(--icon);
+            height: var(--icon);
             display: block;
             fill: none;
             stroke: currentColor;
@@ -150,8 +150,8 @@
             display: flex;
             background: rgba(0,0,0,0.2);
             border-radius: 6px;
-            padding: 2px;
-            gap: 2px;
+            padding: 0;
+            gap: 0;
         }
 
         /* A tool is separated from its neighbour by a rule, not by an outline
@@ -170,9 +170,10 @@
             color: #adadb2;
             transition: background 0.12s, color 0.12s, border-color 0.12s;
             white-space: nowrap;
-            /* A chip is a track with one thing in it, so it stands as tall as
-               a track does - border included. */
-            height: var(--ctl-outer);
+            /* The same height as everything else you touch. It was two pixels
+               taller for as long as the groups had outlines of their own; they
+               do not any more. */
+            height: var(--ctl-h);
         }
 
         .tool-button:hover {
@@ -211,6 +212,8 @@
             --ctl-bd: rgba(255,255,255,0.13);
             --ctl-bg: rgba(255,255,255,0.06);
             --ctl-outer: calc(var(--ctl-h) + 2px);
+            /* Every glyph in the chrome, whichever bar it sits in. */
+            --icon: 20px;
         }
 
         .toolbar-props {
@@ -841,8 +844,8 @@
         }
 
         .float-btn svg {
-            width: 22px;
-            height: 22px;
+            width: var(--icon);
+            height: var(--icon);
             fill: none;
             stroke: currentColor;
             stroke-width: 1.8;
@@ -1460,9 +1463,9 @@
            browser zooming in when a form control is focused (iOS zooms any
            input whose font-size is below 16px). */
         @media (pointer: coarse) {
-            /* The only thing a finger changes about the control kit: every box
-               on the property row and every chip in the tool strip follows it. */
-            :root { --ctl-h: 44px; }
+            /* What a finger changes about the kit: the height of everything
+               you touch, and the glyphs go up with it. */
+            :root { --ctl-h: 44px; --icon: 22px; }
 
             .tb-btn {
                 min-width: 44px;

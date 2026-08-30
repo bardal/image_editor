@@ -11,7 +11,7 @@ const { open, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
-  const { browser, page, errors } = await open({ viewport: { width: 1200, height: 800 }, reset: false });
+  let { browser, page, errors } = await open({ viewport: { width: 1200, height: 800 }, reset: false });
 
   const r = {};
 
@@ -108,10 +108,67 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     };
   });
 
+  // ---- The invariant ----
+  // One control height and one icon size across the chrome, at either screen
+  // size. The rows have been 46 and 44, then 48 and 43, and each time the
+  // difference was invisible to a test that measured one row against itself.
+  // This measures them against each other, and every icon against every other.
+  const measure = () => page.evaluate(() => {
+    const H = el => Math.round(el.getBoundingClientRect().height);
+    const shown = sel => [...document.querySelectorAll(sel)]
+      .filter(e => e.getBoundingClientRect().height > 0);
+    const uniq = a => [...new Set(a)].sort((x, y) => x - y);
+    return {
+      // Everything a finger lands on, wherever it lives.
+      controlHeights: uniq([
+        ...shown('.toolbar .tb-btn'),
+        ...shown('.tool-strip .tool-button'),
+        ...shown('.toolbar-props .swatch, .toolbar-props .swatch-label,'
+               + ' .toolbar-props .slider-box, .toolbar-props .fill-toggle,'
+               + ' .toolbar-props .format-btn, .toolbar-props select'),
+      ].map(H)),
+      // Every glyph in the chrome, whichever bar it sits in.
+      iconHeights: uniq([
+        ...shown('.toolbar .btn-icon svg'),
+        ...shown('.tool-strip .tool-icon svg'),
+        ...shown('.float-actions .float-btn svg'),
+      ].map(H)),
+      // The one deliberate exception: a colour swatch is a sample of colour
+      // rather than a glyph, and shrinking it to glyph size was what made a
+      // dark line invisible in the first place. Bigger on purpose.
+      swatchPreview: uniq(shown('.toolbar-props .swatch-preview').map(H)),
+      rows: { props: H(document.querySelector('.toolbar-props')),
+              strip: H(document.querySelector('.tool-strip')) },
+    };
+  });
+
+  await page.evaluate(() => { document.querySelector('[data-tool="rect"]').click();
+    redraw(); updateButtonStates(); });
+  await page.waitForTimeout(200);
+  r.atDesk = await measure();
+
+  {
+    const phone = await open({ browser, device: 'iPhone 13' });
+    const desk = page;
+    page = phone.page;
+    await page.evaluate(() => { document.querySelector('[data-tool="rect"]').click();
+      redraw(); updateButtonStates(); });
+    await page.waitForTimeout(250);
+    r.onPhone = await measure();
+    page = desk;
+  }
+
   r.errors = realErrors(errors);
   finish(r, {
     'set.offCentre': isEmpty,
     'set.oversized': isEmpty,
+    // One height for everything you touch, one size for every glyph.
+    'atDesk.controlHeights': v => Array.isArray(v) && v.length === 1,
+    'atDesk.iconHeights': v => Array.isArray(v) && v.length === 1,
+    'atDesk.rows.props': v => v === r.atDesk.rows.strip,
+    'onPhone.controlHeights': v => Array.isArray(v) && v.length === 1,
+    'onPhone.iconHeights': v => Array.isArray(v) && v.length === 1,
+    'onPhone.rows.props': v => v === r.onPhone.rows.strip,
     'chips.outline': 0,
     'chips.separator': v => v >= 1,
     'chips.activeFilled': 'rgb(59, 142, 237)',

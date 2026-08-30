@@ -145,5 +145,5 @@ does not.
 | `connector` | Arrows snapping to shapes, re-routing when one moves, going when it goes |
 | `misc` | Paste, closing a polygon, shape labels, cycling a stack, the service worker |
 | `blockmove` | Tap to edit, drag to move, for a callout or a text block under any tool |
-| `icons` | Every symbol in the sprite as a set: each rendered on its own and weighed - centred in its box, none reaching the edges - and the bordered chips they sit in |
+| `icons` | Every symbol in the sprite as a set, and the invariant that everything you touch is one height and every glyph one size, at either screen size: each rendered on its own and weighed - centred in its box, none reaching the edges - and the bordered chips they sit in |
 | `units` | Sizes in the right unit: padding, corners and stroke keeping their proportion to the text at any zoom, shapes made while zoomed coming out the same, editors above the 16px iOS floor |

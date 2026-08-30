@@ -75,6 +75,16 @@ custom controls (nothing painted inside a control escapes its box, a tap target
 is 44px tall), and when you take a screenshot, look at it once with no question
 in mind before checking the thing you meant to check.
 
+**One height and one glyph size across the chrome — an invariant.** Everything
+a finger lands on takes `--ctl-h` (44 on a coarse pointer, 28 with a mouse) and
+every glyph takes `--icon` (22 and 20), whichever bar it sits in; the two bottom
+rows come out the same height as a consequence. The one exception is the colour
+swatch preview, which is a sample of colour rather than a glyph and is bigger on
+purpose. This has been broken three times — 46 against 44, 48 against 43, and 28
+against 30 on the desk — and each time the break was invisible to tests that
+measured a row against itself. `icons-test` measures them against each other, at
+both sizes.
+
 **Fix the family, not the instance.** Every bug here has turned out to be one
 of several. One wrong unit meant six. One touch override that stopped short of
 44px meant five. After fixing one, grep for its shape.
