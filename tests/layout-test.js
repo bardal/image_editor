@@ -1,4 +1,4 @@
-const { open, realErrors } = require('./harness');
+const { open, touch, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -443,8 +443,73 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     return { atRest, zoomed, backToFit: +viewScale.toFixed(2), goneAgain: !shown() };
   });
 
+  // ---- The top bar cost a row and held four icons ----
+  // Forty-six pixels of opaque bar across the whole width of the screen,
+  // carrying four file actions that between them covered a sixth of it: the
+  // rest was empty chrome sitting above the picture. The actions float over
+  // the top-left corner now, in the same language as undo and the bin, and the
+  // picture starts at the top of the screen.
+  await page.evaluate(() => {
+    shapes.length = 0; selectedShape = null;
+    document.querySelector('[data-tool="rect"]').click();
+    redraw(); updateButtonStates();
+  });
+  await page.waitForTimeout(250);
+  const topBar = await page.evaluate(() => {
+    const vw = window.innerWidth;
+    const bar = document.querySelector('.toolbar');
+    const container = document.querySelector('.canvas-container');
+    // Direct children only: the bold and align buttons in the property row
+    // wear the same class.
+    const rects = [...bar.querySelectorAll(':scope > .tb-btn')]
+      .filter(b => b.getBoundingClientRect().height > 0)
+      .map(b => b.getBoundingClientRect());
+    const h = sel => { const el = document.querySelector(sel);
+      return el && getComputedStyle(el).display !== 'none'
+        ? Math.round(el.getBoundingClientRect().height) : 0; };
+    return {
+      // Nothing reserved above the picture.
+      pictureTop: Math.round(container.getBoundingClientRect().top),
+      // Still four actions, still finger-sized, still all on the screen.
+      count: rects.length,
+      shortest: Math.round(Math.min(...rects.map(r => r.height))),
+      onScreen: rects.every(r => r.left >= -1 && r.right <= vw + 1 && r.top >= -1),
+      // Together rather than spread: they used to sit at 45, 168, 291 and 414
+      // across a 390px screen, four islands in an empty bar.
+      spread: Math.round(Math.max(...rects.map(r => r.right))
+                       - Math.min(...rects.map(r => r.left))),
+      // And out of the way: a corner of the picture, not a band across it.
+      lowest: Math.round(Math.max(...rects.map(r => r.bottom))),
+      // What is left of the chrome is the two rows that earn their place.
+      chrome: h('.toolbar-props') + h('.tool-strip'),
+      // What the pill costs, stated rather than assumed: a gesture cannot
+      // start underneath it. Bounded to a corner, and on the right-hand side,
+      // where undo and the bin already are - one side of the picture carries
+      // the furniture and the other is clean.
+      footprintPercent: (() => {
+        const c = document.getElementById('canvas').getBoundingClientRect();
+        const b = bar.getBoundingClientRect();
+        const w = Math.max(0, Math.min(b.right, c.right) - Math.max(b.left, c.left));
+        const hh = Math.max(0, Math.min(b.bottom, c.bottom) - Math.max(b.top, c.top));
+        return Math.round(w * hh / (c.width * c.height) * 1000) / 10;
+      })(),
+      onTheFloatsSide: (() => {
+        const c = document.getElementById('canvas').getBoundingClientRect();
+        return bar.getBoundingClientRect().left > c.left + c.width / 2;
+      })(),
+    };
+  });
+
+  // And the other corner still takes a drawing, by touch, where it starts.
+  const { drag } = await touch(page, ctx);
+  const box = await canvasBox(page);
+  await page.evaluate(() => { shapes.length = 0; redraw(); });
+  await drag(box.at(0.04, 0.03), box.at(0.4, 0.3));
+  topBar.topLeftStillDraws = await page.evaluate(() => shapes.length);
+
   finish({
     byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch, quieter,
+    topBar,
     rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
     errors: realErrors(errors),
@@ -509,6 +574,16 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'quieter.armed.fontGroup': isFalse,
     'quieter.armed.strip': 45,
     'quieter.armed.chrome': v => v <= 140,
+    'topBar.pictureTop': 0,
+    'topBar.count': 4,
+    'topBar.shortest': v => v >= 44,
+    'topBar.onScreen': isTrue,
+    'topBar.spread': v => v <= 200,
+    'topBar.lowest': v => v <= 60,
+    'topBar.chrome': v => v <= 95,
+    'topBar.footprintPercent': v => v <= 4,
+    'topBar.onTheFloatsSide': isTrue,
+    'topBar.topLeftStillDraws': 1,
     'quieter.selected.fontGroup': isTrue,
     'quieter.zoom.atRest': isFalse,
     'quieter.zoom.zoomed.shown': isTrue,

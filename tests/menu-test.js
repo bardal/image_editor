@@ -33,9 +33,14 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     redraw();
   });
   await page.waitForTimeout(200);
+  // The middle of the shape, not its top edge. This used to press exactly on
+  // the line y = 100, which is the boundary of the polygon the hit test runs:
+  // whether it counted came down to whether the screen-to-canvas conversion
+  // landed on 99.999996 or 100.000004, and that moved with the height of the
+  // chrome. A press meant for a shape should be aimed at the shape.
   const shapePt = await page.evaluate(() => {
     const b = canvas.getBoundingClientRect(); const k = canvas.width / b.width;
-    return { x: b.x + (100 + 150) / k, y: b.y + 100 / k };
+    return { x: b.x + (100 + 150) / k, y: b.y + (100 + 100) / k };
   });
   await longPress(shapePt);
   r.shapeMenu = await menuItems();
