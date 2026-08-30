@@ -69,7 +69,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     await page.waitForTimeout(350);
   };
   const useTool = (t) => page.evaluate(t => {
-    document.querySelector(`[data-tool="${t}"]`).click();
+    // Only if it is not already in hand: pressing the tool you are holding
+    // puts it down.
+    if (tool !== t) document.querySelector(`[data-tool="${t}"]`).click();
     selectedShape = shapes[0]; redraw(); updateButtonStates();
   }, t);
 

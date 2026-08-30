@@ -95,7 +95,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   const box = await canvasBox(page);
   const tapNew = async (tool, at) => {
     await page.evaluate(t => { shapes.length = 0; selectedShape = null;
-      document.querySelector(`[data-tool="${t}"]`).click(); }, tool);
+      // Pressing the tool already in hand puts it down, so ask for it only
+      // when it is not.
+      if (tool !== t) document.querySelector(`[data-tool="${t}"]`).click(); }, tool);
     await page.waitForTimeout(150);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
     await page.waitForTimeout(60);

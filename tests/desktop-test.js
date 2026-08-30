@@ -1,4 +1,4 @@
-const { open, canvasBox, realErrors } = require('./harness');
+const { open, canvasBox, pickTool, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -92,15 +92,15 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await page.waitForTimeout(150);
 
   // Line thickness is meaningless for text; the swatch label should say so.
+  await pickTool(page, 'text');
   r.textPropLabel = await page.evaluate(() => {
-    document.querySelector('[data-tool="text"]').click();
     return {
       label: document.getElementById('lineGroupLabel').textContent,
       sliderHidden: document.getElementById('size').classList.contains('hidden'),
     };
   });
+  await pickTool(page, 'rect');
   r.rectPropLabel = await page.evaluate(() => {
-    document.querySelector('[data-tool="rect"]').click();
     return {
       label: document.getElementById('lineGroupLabel').textContent,
       sliderHidden: document.getElementById('size').classList.contains('hidden'),
@@ -115,8 +115,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   // two were separate implementations of one row.
   r.rowEdges = {};
   for (const t of ['rect', 'arrow', 'text']) {
-    await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
-    await page.waitForTimeout(180);
+    await pickTool(page, t, 180);
     r.rowEdges[t] = await page.evaluate(() => {
       const boxes = [...document.querySelectorAll(
         '.toolbar-props .swatch, .toolbar-props .swatch-label, .toolbar-props .slider-box,'
@@ -144,8 +143,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     await page.waitForTimeout(200);
     r.fitsAtWidth[width] = {};
     for (const t of ['rect', 'text', 'callout']) {
-      await page.evaluate(x => document.querySelector(`[data-tool="${x}"]`).click(), t);
-      await page.waitForTimeout(180);
+      await pickTool(page, t, 180);
       r.fitsAtWidth[width][t] = await page.evaluate(() => {
         const bar = document.querySelector('.toolbar');
         const offScreen = [];

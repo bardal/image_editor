@@ -6655,7 +6655,14 @@
         // ===== RIBBON HANDLERS =====
         function handleToolButtonClick(e) {
             const clickedButton = e.currentTarget;
-            const toolName = clickedButton.dataset.tool;
+            // A second press on the tool already in hand puts it down. What is
+            // underneath is Select, the one tool that does nothing until you
+            // touch something - so a press that was meant to change tools and
+            // a press that was meant to stop drawing both end somewhere safe.
+            // Select itself has nothing under it, so pressing it again drops
+            // the selection instead, which the line below does anyway.
+            const pressed = clickedButton.dataset.tool;
+            const toolName = (pressed === tool && pressed !== 'select') ? 'select' : pressed;
 
             // Finish any in-progress polyline before switching
             if (isDrawingPolyline) {
@@ -6664,9 +6671,8 @@
 
             // Update active tool button
             document.querySelectorAll('.tool-button').forEach(button => {
-                button.classList.remove('active');
+                button.classList.toggle('active', button.dataset.tool === toolName);
             });
-            clickedButton.classList.add('active');
 
             // Update tool
             tool = toolName;

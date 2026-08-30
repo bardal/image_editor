@@ -65,6 +65,17 @@ async function seedPhoto(page, { width = 800, height = 500, colour = '#3d6b8f',
   await page.waitForTimeout(settle);
 }
 
+// Puts a tool in hand. Pressing the button and picking the tool stopped being
+// the same thing when a second press on the tool you are holding began putting
+// it down: a suite that means "have the text tool" has to say that, or it gets
+// Select back and a tap that draws nothing.
+async function pickTool(page, name, settle = 150) {
+  await page.evaluate(t => {
+    if (tool !== t) document.querySelector(`[data-tool="${t}"]`).click();
+  }, name);
+  await page.waitForTimeout(settle);
+}
+
 // Where the canvas is on screen, and a point inside it by fraction. Measured
 // when asked rather than held: the property bar takes a different number of
 // rows for different tools, so the canvas moves as tools change.
@@ -134,4 +145,4 @@ async function touch(page, context) {
 // The service worker announces itself on every load; it is not a page fault.
 const realErrors = errors => errors.filter(e => !e.includes('ServiceWorker'));
 
-module.exports = { APP, launch, open, resetApp, seedPhoto, canvasBox, touch, realErrors };
+module.exports = { APP, launch, open, resetApp, seedPhoto, pickTool, canvasBox, touch, realErrors };

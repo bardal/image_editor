@@ -198,7 +198,59 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     await page.close();
   }
 
+  // ---- Putting a tool down ----
+  // Asked for from the phone: pressing a tool a second time should put it
+  // down. The tool you fall back to is Select, which is the one that does
+  // nothing until you touch something - and pressing Select again drops the
+  // selection, there being no tool underneath it to go back to.
+  {
+    const { page, errors } = await open({ browser, device: 'iPhone 13' });
+    const press = async name => {
+      await page.evaluate(t => document.querySelector(`[data-tool="${t}"]`).click(), name);
+      await page.waitForTimeout(150);
+      return page.evaluate(() => ({
+        tool,
+        active: document.querySelector('.tool-button.active').dataset.tool,
+        selected: !!selectedShape,
+      }));
+    };
+    r.putsToolDown = {};
+    r.putsToolDown.picked = await press('rect');
+    r.putsToolDown.putDown = await press('rect');
+    // The chip has to follow, or the bar says you are holding something you
+    // are not.
+    r.putsToolDown.tearPicked = await press('tear');
+    r.putsToolDown.tearPutDown = await press('tear');
+    // Crop keeps a frame of its own while it is the tool in hand; putting it
+    // down has to take the frame with it.
+    await press('crop');
+    r.putsToolDown.croppingFrame = await page.evaluate(() => !!cropRect);
+    await press('crop');
+    r.putsToolDown.cropFrameGone = await page.evaluate(() => !cropRect);
+    // And Select twice over drops what is selected.
+    await page.evaluate(() => {
+      shapes.push({ type: 'rect', x: 40, y: 40, w: 120, h: 90, rotation: 0,
+                    color: '#c00', size: 5, fill: false, id: newShapeId() });
+      selectedShape = shapes[shapes.length - 1];
+      redraw(); updateButtonStates();
+    });
+    r.putsToolDown.selectAgain = await press('select');
+    r.putsToolDownErrors = realErrors(errors);
+    await page.close();
+  }
+
   finish(r, {
+    'putsToolDown.picked.tool': 'rect',
+    'putsToolDown.picked.active': 'rect',
+    'putsToolDown.putDown.tool': 'select',
+    'putsToolDown.putDown.active': 'select',
+    'putsToolDown.tearPicked.tool': 'tear',
+    'putsToolDown.tearPutDown.tool': 'select',
+    'putsToolDown.croppingFrame': isTrue,
+    'putsToolDown.cropFrameGone': isTrue,
+    'putsToolDown.selectAgain.tool': 'select',
+    'putsToolDown.selectAgain.selected': isFalse,
+    'putsToolDownErrors': isEmpty,
     'pasteEvent.hasImage': isTrue,
     'pasteEvent.canvas': [640, 480],
     'pasteEvent.pixel': 'rgb(136,68,34)',
