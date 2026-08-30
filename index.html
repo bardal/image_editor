@@ -1217,22 +1217,24 @@
 
             .tool-strip {
                 bottom: 0;
-                /* Sized to what it holds - a 22px glyph and an 11px word - so
-                   it carries about as much of its height as the property row
-                   carries of its own. It was 56 with 35 of content in it. */
-                height: 43px;
+                /* Matched to the property row, which is at its own floor: 44
+                   of control and a hairline. The strip could be shorter - it
+                   holds 35px of glyph and word - but two rows of the same
+                   height read as a pair, and one row 2px short of the other
+                   reads as a mistake. */
+                height: 45px;
                 display: flex;
                 justify-content: space-around;
                 align-items: center;
                 border-top: 1px solid rgba(255,255,255,0.1);
                 /* Clear of the home indicator on gesture-nav phones. */
                 padding-bottom: env(safe-area-inset-bottom, 0px);
-                height: calc(43px + env(safe-area-inset-bottom, 0px));
+                height: calc(45px + env(safe-area-inset-bottom, 0px));
             }
 
             .toolbar-props {
-                bottom: calc(43px + env(safe-area-inset-bottom, 0px));
-                min-height: 48px;
+                bottom: calc(45px + env(safe-area-inset-bottom, 0px));
+                min-height: 45px;
                 display: flex;
                 align-items: center;
                 /* Two gaps rather than one: tight inside a control and its
@@ -1269,7 +1271,12 @@
             .toolbar-props {
                 column-gap: var(--gap-group);
                 row-gap: 4px;
-                padding: 4px 8px;
+                /* No padding above or below: the row is exactly its controls
+                   plus its own hairline. 44 is the finger minimum and the
+                   controls are already at it, so 45 is the floor for this row
+                   - it cannot match the 43 of the tool strip without putting
+                   the controls under the size of a fingertip. */
+                padding: 0 8px;
                 align-items: stretch;
             }
 
@@ -1341,7 +1348,7 @@
                takes as many rows as its controls need, so its height is
                measured rather than assumed - see syncPropsHeight(). */
             .main-content {
-                padding-bottom: calc(43px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
+                padding-bottom: calc(45px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
             }
 
             .status-bar { font-size: 10px; }
