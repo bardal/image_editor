@@ -276,7 +276,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
       apart: Math.abs(u.bottom - c.top) > 4 || Math.abs(c.bottom - u.top) > 4,
       clearOfReadouts: clearOf(u, status) && clearOf(c, status)
                     && clearOf(u, props) && clearOf(c, props),
-      // The top bar keeps the things you do once: open, save, paste.
+      // The top bar keeps the things you do once a session - open, save,
+      // paste - and About, which is where the build number lives now that the
+      // status bar has gone from the phone.
       topBarButtons: [...document.querySelectorAll('.toolbar .tb-btn')]
         .filter(b => b.getBoundingClientRect().width > 0).map(b => b.id),
     };
@@ -366,8 +368,83 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   });
   rowMatch.same = rowMatch.track === rowMatch.chip;
 
+  // ---- Less to look at, and more picture ----
+  // Four bands of chrome took 231px of a 664px screen with the callout tool in
+  // hand: a top bar, a row of readouts, two rows of properties and the tools.
+  // The readouts are gone from the phone, the font controls appear when there
+  // is text to format rather than when the tool is picked up, and the outlines
+  // round every group and every tool have given way to hairlines.
+  const quieter = {};
+  await page.evaluate(() => {
+    shapes.length = 0; selectedShape = null;
+    document.querySelector('[data-tool="callout"]').click();
+    redraw(); updateButtonStates();
+  });
+  await page.waitForTimeout(250);
+  quieter.armed = await page.evaluate(() => {
+    const shown = el => el && getComputedStyle(el).display !== 'none';
+    const h = sel => { const el = document.querySelector(sel);
+      return shown(el) ? Math.round(el.getBoundingClientRect().height) : 0; };
+    const chrome = h('.toolbar') + h('.status-bar') + h('.toolbar-props') + h('.tool-strip');
+    return {
+      statusBar: shown(document.querySelector('.status-bar')),
+      fontGroup: document.getElementById('textFormatGroup').classList.contains('visible'),
+      props: h('.toolbar-props'), strip: h('.tool-strip'),
+      chrome, percent: Math.round(chrome / window.innerHeight * 100),
+    };
+  });
+
+  // With a callout selected there is text to format, so the controls come back.
+  quieter.selected = await page.evaluate(() => {
+    shapes.push({ type: 'callout', x: 60, y: 60, w: 300, h: 90, text: 'x',
+      tipX: 400, tipY: 300, color: '#333', size: 3, fill: true, fillColor: '#fd0',
+      fontSize: 16, fontFamily: 'sans-serif', id: newShapeId() });
+    document.querySelector('[data-tool="select"]').click();
+    selectedShape = shapes[0]; redraw(); updateButtonStates();
+    return { fontGroup: document.getElementById('textFormatGroup').classList.contains('visible') };
+  });
+
+  // Outlines off, hairlines on - in both rows.
+  quieter.look = await page.evaluate(() => {
+    const cs = (el, pseudo) => getComputedStyle(el, pseudo);
+    const group = document.querySelector('#lineGroup');
+    const fill = document.querySelector('#fillGroup');
+    const first = document.querySelector('.tool-strip .tool-button');
+    const second = document.querySelectorAll('.tool-strip .tool-button')[1];
+    const btn = first.getBoundingClientRect();
+    const icon = first.querySelector('.tool-icon').getBoundingClientRect();
+    const label = first.querySelector('.tool-text').getBoundingClientRect();
+    return {
+      groupOutline: parseFloat(cs(group).borderTopWidth),
+      // Drawn in the gap as a pseudo-element rather than as a border, so that
+      // it costs no width and cannot indent a wrapped row.
+      groupSeparator: parseFloat(cs(fill, '::before').width) || 0,
+      toolOutline: parseFloat(cs(first).borderTopWidth),
+      toolSeparator: parseFloat(cs(second).borderLeftWidth),
+      // Centred in its button: the same air above the icon as below the label.
+      airAbove: Math.round(icon.top - btn.top),
+      airBelow: Math.round(btn.bottom - label.bottom),
+    };
+  });
+
+  const r0 = { quieter };
+  // The zoom moved out of the status bar and onto the picture, where it shows
+  // only when there is a zoom to undo.
+  quieter.zoom = await page.evaluate(async () => {
+    const pill = document.getElementById('floatZoom');
+    const shown = () => !pill.hidden && pill.getBoundingClientRect().height > 0;
+    const atRest = shown();
+    setZoom(3, canvas.getBoundingClientRect().left + 40,
+               canvas.getBoundingClientRect().top + 40);
+    await new Promise(res => setTimeout(res, 200));
+    const zoomed = { shown: shown(), reads: pill.textContent };
+    pill.click();
+    await new Promise(res => setTimeout(res, 300));
+    return { atRest, zoomed, backToFit: +viewScale.toFixed(2), goneAgain: !shown() };
+  });
+
   finish({
-    byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch,
+    byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch, quieter,
     rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
     errors: realErrors(errors),
@@ -428,6 +505,22 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     // off the end of the bar.
     'statusBar.touching': isFalse,
     'statusBar.insideBar': isTrue,
+    'quieter.armed.statusBar': isFalse,
+    'quieter.armed.fontGroup': isFalse,
+    'quieter.armed.strip': 43,
+    'quieter.armed.chrome': v => v <= 145,
+    'quieter.selected.fontGroup': isTrue,
+    'quieter.zoom.atRest': isFalse,
+    'quieter.zoom.zoomed.shown': isTrue,
+    'quieter.zoom.zoomed.reads': '300%',
+    'quieter.zoom.backToFit': 1,
+    'quieter.zoom.goneAgain': isTrue,
+    'quieter.look.groupOutline': 0,
+    'quieter.look.groupSeparator': v => v >= 1,
+    'quieter.look.toolOutline': 0,
+    'quieter.look.toolSeparator': v => v >= 1,
+    // Within a pixel of each other, rather than 7 above and 14 below.
+    'quieter.look.airAbove': v => Math.abs(v - r0.quieter.look.airBelow) <= 1,
     'rowMatch.same': isTrue,
     // And still a finger's worth of height, whatever they agree on.
     'rowMatch.chip': v => v >= 44,
@@ -439,7 +532,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'floatActions.bigEnough': isTrue,
     'floatActions.apart': isTrue,
     'floatActions.clearOfReadouts': isTrue,
-    'floatActions.topBarButtons': ['openFile', 'download', 'pasteImage'],
+    'floatActions.topBarButtons': ['openFile', 'download', 'aboutTop', 'pasteImage'],
     'floatUndoWorks.before': 1,
     'floatUndoWorks.after': 0,
     'floatsWhileEditing.visible': isFalse,

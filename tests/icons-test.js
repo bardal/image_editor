@@ -94,17 +94,17 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     heaviest: Math.max(...inks),
   };
 
-  // The strip they sit in has an edge of its own, and each tool is a chip
-  // inside it rather than a glyph floating on the bar.
+  // The tools were given outlines of their own and then lost them again: nine
+  // outlines on a bar that already had two rows of boxes was more to read, not
+  // less. What separates one tool from the next is a hairline.
   r.chips = await page.evaluate(() => {
-    const btn = document.querySelector('.tool-strip .tool-button');
-    const cs = getComputedStyle(btn);
+    const tools = document.querySelectorAll('.tool-strip .tool-button');
+    const cs = el => getComputedStyle(el);
     return {
-      borderWidth: cs.borderTopWidth,
-      radius: cs.borderTopLeftRadius,
+      outline: parseFloat(cs(tools[0]).borderTopWidth),
+      separator: parseFloat(cs(tools[1]).borderLeftWidth),
       // The one in hand still reads as the one in hand.
-      activeFilled: getComputedStyle(document.querySelector('.tool-button.active'))
-        .backgroundColor,
+      activeFilled: cs(document.querySelector('.tool-button.active')).backgroundColor,
     };
   });
 
@@ -112,8 +112,8 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   finish(r, {
     'set.offCentre': isEmpty,
     'set.oversized': isEmpty,
-    'chips.borderWidth': v => parseFloat(v) >= 1,
-    'chips.radius': v => parseFloat(v) >= 4,
+    'chips.outline': 0,
+    'chips.separator': v => v >= 1,
     'chips.activeFilled': 'rgb(59, 142, 237)',
     'errors': isEmpty,
   });

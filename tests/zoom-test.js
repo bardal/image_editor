@@ -18,8 +18,8 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
   r.afterPinch = await page.evaluate(() => ({
     scale: +viewScale.toFixed(2),
-    chip: document.getElementById('zoomLevel').textContent,
-    chipHighlighted: document.getElementById('zoomLevel').classList.contains('zoomed'),
+    chip: document.getElementById('floatZoom').textContent,
+    chipHighlighted: !document.getElementById('floatZoom').hidden,
     transformed: canvas.style.transform !== '',
   }));
   r.noStrayShape = await page.evaluate(() => shapes.length === 0);
@@ -32,10 +32,10 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   });
 
   // Reset via the status bar chip.
-  await page.click('#zoomLevel');
+  await page.click('#floatZoom');
   await page.waitForTimeout(250);
   r.afterReset = await page.evaluate(() => ({
-    scale: viewScale, chip: document.getElementById('zoomLevel').textContent,
+    scale: viewScale, chip: document.getElementById('floatZoom').textContent,
     transform: canvas.style.transform,
   }));
 

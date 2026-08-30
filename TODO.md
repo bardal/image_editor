@@ -14,6 +14,26 @@ Nothing decided and unbuilt.
 
 ## Built
 
+### Less to look at at the bottom of a phone
+
+Four bands took 231px of a 664px screen with the callout tool in hand. Now 142.
+
+- The status bar is gone from the phone: an image size, a pointer position with
+  no pointer, and a build number. About moved to the top bar, where the build
+  still is; zoom floats over the picture with undo and the bin, and only while
+  there is a zoom to undo.
+- The font controls appear when there are words to format - a block selected or
+  being typed into - rather than when the tool is picked up. Fill steps aside
+  while typing so they share the row rather than adding one: otherwise the
+  picture jumps every time you start and finish typing.
+- No outline round a group or a tool. What separates them is a hairline and the
+  shared height. The rule between line and fill is drawn in the gap rather than
+  as a border, because a border adds its own spacing to the row's width and
+  indents any row that starts with it.
+- The tool strip is 43px, sized to the 22px glyph and 11px word it holds, and
+  its content is centred - it had one pixel above the icon and ten below the
+  word.
+
 ### The desktop toolbar wraps rather than running off the edge
 
 At 1440 it wanted 1500px with the rect tool and 1776 with callout, so the

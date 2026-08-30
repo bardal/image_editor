@@ -154,16 +154,14 @@
             gap: 2px;
         }
 
-        /* Each tool is a bordered chip. The glyphs were floating on the bar
-           with nothing to say where one tool ended and the next began, and a
-           hover fill read as a smudge behind the glyph rather than a box round
-           it. The button grows by the two pixels that gives back. */
+        /* A tool is separated from its neighbour by a rule, not by an outline
+           of its own - the same treatment the property groups get. */
         .tool-button {
             display: flex;
             align-items: center;
             gap: 4px;
             padding: 0 8px;
-            border: 1px solid rgba(255,255,255,0.12);
+            border: 0;
             background: transparent;
             border-radius: 5px;
             cursor: pointer;
@@ -184,8 +182,11 @@
 
         .tool-button.active {
             background: #3b8eed;
-            border-color: #3b8eed;
             color: #fff;
+        }
+
+        .tool-strip .tool-button + .tool-button {
+            border-left: 1px solid rgba(255,255,255,0.10);
         }
 
         .tool-button .tool-icon {
@@ -677,17 +678,43 @@
             border-left: 1px solid var(--ctl-bd);
         }
 
-        /* The track itself, and the rules between what it holds. */
+        /* No outline round a group, and none round a tool: an outline apiece
+           made four bands of boxes to read, and the boxes were doing work the
+           shared height and a hairline can do between them. What is left is
+           the alignment - every box the same height, on the same two edges -
+           and a rule where one job ends and the next begins. */
         .toolbar-props .prop-group,
         .toolbar-props .text-format-group.visible,
         .toolbar-props .arrow-style-group.visible,
         .toolbar-props .crop-group.visible,
         .toolbar-props .tear-group.visible {
-            background: var(--ctl-bg);
-            border: 1px solid var(--ctl-bd);
-            border-radius: 8px;
-            overflow: hidden;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
         }
+
+        /* The rule goes between line and fill, which always share a row. A
+           rule on whatever merely follows in the markup ends up at the start
+           of a wrapped row instead of between two things - a hairline against
+           the bar's own edge, pushing that row in by the width of its own
+           spacing. Groups that land on a row together are separated by the
+           gap. */
+        .toolbar-props #fillGroup { position: relative; }
+
+        .toolbar-props #fillGroup::before {
+            content: '';
+            position: absolute;
+            left: calc(var(--gap-group, 12px) / -2);
+            top: 8px;
+            bottom: 8px;
+            width: 1px;
+            background: var(--ctl-bd);
+        }
+
+        /* Drawn in the gap rather than as a border with spacing of its own: a
+           border adds its padding to the row's width, which was enough to push
+           fill onto a second row and start that row indented by the width of
+           its own margin. */
 
 
         /* ===== MAIN CONTENT ===== */
@@ -824,6 +851,19 @@
         }
 
         .float-btn:disabled { opacity: 0.35; }
+
+        /* display: flex above beats the [hidden] attribute on its own, so the
+           zoom pill sat there reading 100% - a button offering to undo a zoom
+           that had not happened. Third time this shape of fault has appeared
+           in this file: a later rule that forces display wins over hiding. */
+        .float-btn[hidden] { display: none; }
+
+        .float-zoom {
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
 
         /* Deleting the shape you have picked, rather than offering to clear
            the drawing: the same difference the label carries on a desktop,
@@ -1125,6 +1165,9 @@
 
         .close:hover { color: #c8c8cc; }
 
+        /* Only where the status bar's own chip is not there to do the job. */
+        .tb-about { display: none; }
+
         /* Glyphs that differ by input: see the save button. */
         .icon-coarse { display: none; }
         @media (pointer: coarse) {
@@ -1174,18 +1217,21 @@
 
             .tool-strip {
                 bottom: 0;
-                height: 56px;
+                /* Sized to what it holds - a 22px glyph and an 11px word - so
+                   it carries about as much of its height as the property row
+                   carries of its own. It was 56 with 35 of content in it. */
+                height: 43px;
                 display: flex;
                 justify-content: space-around;
                 align-items: center;
                 border-top: 1px solid rgba(255,255,255,0.1);
                 /* Clear of the home indicator on gesture-nav phones. */
                 padding-bottom: env(safe-area-inset-bottom, 0px);
-                height: calc(56px + env(safe-area-inset-bottom, 0px));
+                height: calc(43px + env(safe-area-inset-bottom, 0px));
             }
 
             .toolbar-props {
-                bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+                bottom: calc(43px + env(safe-area-inset-bottom, 0px));
                 min-height: 48px;
                 display: flex;
                 align-items: center;
@@ -1195,7 +1241,7 @@
                    like it belonged to fill. In rem so it tracks the text size
                    a person has chosen rather than a pixel guess. */
                 --gap-tight: 0.25rem;
-                --gap-group: 0.9rem;
+                --gap-group: 12px;
                 /* Rows start at the same edge instead of each centring itself
                    at its own width - which left two wrapped rows sharing no
                    vertical line, and moved a control sideways whenever the
@@ -1221,7 +1267,7 @@
             /* Spacing of the bar itself, which is a pinned wrapping row here
                and an inline stretch of the top toolbar at a desk. */
             .toolbar-props {
-                column-gap: 0;
+                column-gap: var(--gap-group);
                 row-gap: 4px;
                 padding: 4px 8px;
                 align-items: stretch;
@@ -1230,11 +1276,6 @@
             .toolbar-props .slider-box { flex: 1 1 4rem; }
             .toolbar-props #fontSize { width: 3rem; }
             .toolbar-props .format-btn { width: 40px; min-width: 40px; }
-            /* Groups that share a row fuse into one track: the rule between
-               them is the only thing separating them. */
-            .toolbar-props > * + *:not(.toolbar-divider) {
-                margin-left: -1px;
-            }
 
             .toolbar-props .prop-group { gap: var(--gap-tight); }
 
@@ -1273,9 +1314,15 @@
             .tool-button {
                 flex: 1 1 0;
                 flex-direction: column;
+                /* Centred: without this the column packs to the top and every
+                   spare pixel falls below the label - one above the icon and
+                   ten below the word, in a button that measured perfectly
+                   symmetrical. */
+                justify-content: center;
                 gap: 2px;
                 min-width: 0;
-                min-height: 52px;
+                min-height: 0;
+                height: 100%;
                 padding: 0 2px;
                 background: none;
                 border-radius: 8px;
@@ -1294,7 +1341,7 @@
                takes as many rows as its controls need, so its height is
                measured rather than assumed - see syncPropsHeight(). */
             .main-content {
-                padding-bottom: calc(56px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
+                padding-bottom: calc(43px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
             }
 
             .status-bar { font-size: 10px; }
@@ -1381,7 +1428,7 @@
 
             /* Clear of the pinned property and tool bars. */
             .toast {
-                bottom: calc(76px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
+                bottom: calc(63px + var(--props-h, 48px) + env(safe-area-inset-bottom, 0px));
             }
 
             /* Nothing in the property bar applies right now, so drop it and
@@ -1391,6 +1438,13 @@
             /* The top bar keeps what you do once a session; what you do all
                the time has come down to the picture. */
             #undo, #clear { display: none; }
+
+            /* The readouts are a desk thing: an image size, a pointer position
+               with no pointer to report, and a build number. What was worth
+               having - the zoom, and only when you are zoomed - floats over the
+               picture with undo and the bin. */
+            .status-bar { display: none; }
+            .tb-about { display: flex; }
 
             body.props-empty .toolbar-props { display: none; }
         }
@@ -1560,6 +1614,12 @@
             <button class="tb-btn" id="copyImage" title="Copy Image to Clipboard (Ctrl+C)">
                 <span class="btn-icon"><svg><use href="#i-copy"/></svg></span>
                 <span class="btn-label">Copy</span>
+            </button>
+            <!-- On a phone the status bar is gone, and with it the chip that
+                 opened this. The build number is worth being able to find. -->
+            <button class="tb-btn tb-about" id="aboutTop" title="About this build">
+                <span class="btn-icon"><svg><use href="#i-info"/></svg></span>
+                <span class="btn-label">About</span>
             </button>
             <button class="tb-btn" id="pasteImage" title="Paste Image from Clipboard">
                 <span class="btn-icon"><svg><use href="#i-paste"/></svg></span>
@@ -1734,6 +1794,10 @@
                     <button type="button" id="floatClear" class="float-btn" title="Clear">
                         <svg><use href="#i-clear"/></svg>
                     </button>
+                    <!-- Only while zoomed: at 100% there is nothing to go back
+                         to, and a button that does nothing is furniture. -->
+                    <button type="button" id="floatZoom" class="float-btn float-zoom" hidden
+                            title="Fit the picture on screen">100%</button>
                 </div>
                 <div class="loading" id="loading">Processing image...</div>
             </div>
@@ -2067,10 +2131,19 @@
         }
 
         function updateZoomReadout() {
+            const percent = Math.round(viewScale * 100) + '%';
             const el = document.getElementById('zoomLevel');
-            if (!el) return;
-            el.textContent = Math.round(viewScale * 100) + '%';
-            el.classList.toggle('zoomed', viewScale > 1.01);
+            if (el) {
+                el.textContent = percent;
+                el.classList.toggle('zoomed', viewScale > 1.01);
+            }
+            // The floating one carries the same reading on a phone, where the
+            // status bar it used to live in is gone.
+            const float = document.getElementById('floatZoom');
+            if (float) {
+                float.textContent = percent;
+                float.hidden = viewScale <= 1.01;
+            }
         }
 
         // ===== CROP / EXPAND =====
@@ -3270,7 +3343,13 @@
             const drawingTools = ['rect', 'ellipse', 'arrow', 'polyline', 'text', 'callout'];
             const fillableTools = ['rect', 'ellipse', 'polyline', 'callout'];
             const showLine = drawingTools.includes(tool) || selectedShape !== null;
-            const showFill = fillableTools.includes(tool) || canFill(selectedShape);
+            // While words are being typed the font controls take the row, and
+            // fill steps aside so they can share it. Otherwise the row grows a
+            // second line the moment you start typing and loses it again when
+            // you stop, and the picture jumps under your hand both times.
+            const typing = !!(editingBlock &&
+                (editingBlock.type === 'text' || editingBlock.type === 'callout'));
+            const showFill = !typing && (fillableTools.includes(tool) || canFill(selectedShape));
 
             document.getElementById('lineGroup').classList.toggle('hidden', !showLine);
             document.getElementById('fillGroup').classList.toggle('hidden', !showFill);
@@ -3305,7 +3384,13 @@
 
             // Text format controls visibility
             const textFormatGroup = document.getElementById('textFormatGroup');
-            const showTextFormat = tool === 'text' || tool === 'callout' ||
+            // Shown when there are words to format - a block selected, or one
+            // being typed into - rather than the moment the tool is picked up.
+            // Seven controls that could do nothing yet were costing a whole row
+            // of a phone screen before anything had been placed.
+            const editingText = editingBlock &&
+                (editingBlock.type === 'text' || editingBlock.type === 'callout');
+            const showTextFormat = !!editingText ||
                 (selectedShape && (selectedShape.type === 'text' || selectedShape.type === 'callout'));
             textFormatGroup.classList.toggle('visible', showTextFormat);
             if (selectedShape && (selectedShape.type === 'text' || selectedShape.type === 'callout')) {
@@ -6099,7 +6184,9 @@
             });
 
             // About / build info
+            document.getElementById('aboutTop').addEventListener('click', showAbout);
             document.getElementById('zoomLevel').addEventListener('click', resetZoom);
+            document.getElementById('floatZoom').addEventListener('click', resetZoom);
             document.getElementById('aboutBtn').addEventListener('click', showAbout);
             document.getElementById('forceRefreshBtn').addEventListener('click', forceRefresh);
 

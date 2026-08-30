@@ -81,7 +81,10 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     shapes.filter(s => s.type === 'text').map(s => s.text));
 
   // Clicking existing text with the text tool must edit it, not stack a new one.
-  await page.mouse.click(tb.x + tb.w * 0.35 + 20, tb.y + tb.h * 0.35 + 5);
+  // Measured again: the property row changes what it holds as text is placed,
+  // so a coordinate taken before that is a coordinate somewhere else.
+  const tb2 = await canvasBox(page);
+  await page.mouse.click(tb2.x + tb2.w * 0.35 + 20, tb2.y + tb2.h * 0.35 + 5);
   await page.waitForTimeout(150);
   r.reopensExistingText = await page.evaluate(() =>
     document.getElementById('calloutTextInput').value);

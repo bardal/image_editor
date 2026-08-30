@@ -37,14 +37,16 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
   // Status bar: build chip must be visible and the bar must not overflow.
   r.statusBar = await page.evaluate(() => {
-    const chip = document.getElementById('aboutBtn');
-    const c = chip.getBoundingClientRect();
+    // The status bar is a desk thing now - an image size, a pointer position
+    // with no pointer, and a build number - so what it carried has to be
+    // reachable elsewhere: About from the top bar, zoom from the picture.
+    const about = document.getElementById('aboutTop').getBoundingClientRect();
     const sb = document.querySelector('.status-bar');
     return {
-      chipVisible: c.width > 0 && c.right <= window.innerWidth + 1,
-      chipWidth: Math.round(c.width),
-      barHeight: Math.round(sb.getBoundingClientRect().height),
-      hintHidden: getComputedStyle(document.querySelector('.heic-info')).display === 'none',
+      statusBarHidden: getComputedStyle(sb).display === 'none',
+      aboutReachable: about.width > 0 && about.right <= window.innerWidth + 1
+                      && about.height >= 43.5,
+      zoomOnPicture: !!document.getElementById('floatZoom'),
     };
   });
 
@@ -54,8 +56,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'focusedSynchronouslyInGesture': isTrue,
     'inputVisible': isTrue,
     'textShape': 'Hello phone',
-    'statusBar.chipVisible': isTrue,
-    'statusBar.hintHidden': isTrue,
+    'statusBar.statusBarHidden': isTrue,
+    'statusBar.aboutReachable': isTrue,
+    'statusBar.zoomOnPicture': isTrue,
   });
 
   await page.evaluate(() => document.querySelector('[data-tool="text"]').click());
