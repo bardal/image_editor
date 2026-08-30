@@ -547,7 +547,60 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await drag(box.at(0.04, 0.03), box.at(0.4, 0.3));
   topBar.topLeftStillDraws = await page.evaluate(() => shapes.length);
 
+  // ---- Held sideways ----
+  // A phone in landscape misses the phone layout entirely - it is 750 wide,
+  // not 390 - so it gets the desk one, readouts and all. Height is the scarce
+  // axis there: 342 of it, and a row of numbers nobody can use took 24. The
+  // picture is what is left, and on a portrait photo that is all there is.
+  const sideways = await (async () => {
+    const { page: land } = await open({ browser, device: 'iPhone 13 landscape', settle: 400 });
+    await land.evaluate(async () => {
+      const cv = document.createElement('canvas');
+      cv.width = 3024; cv.height = 4032;
+      const g = cv.getContext('2d'); g.fillStyle = '#7f95a8'; g.fillRect(0, 0, cv.width, cv.height);
+      const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+      await processImageFile(new File([blob], 'tall.png', { type: 'image/png' }));
+    });
+    await land.waitForTimeout(700);
+    await land.evaluate(() => { document.querySelector('[data-tool="tear"]').click();
+      tear = { top: true, right: true, bottom: true, left: true, depth: 48, seed: 1 };
+      tearCache = null; redraw(); updateButtonStates(); });
+    await land.waitForTimeout(300);
+    const out = await land.evaluate(() => {
+      const shown = sel => { const el = document.querySelector(sel);
+        return !!el && getComputedStyle(el).display !== 'none'
+          && el.getBoundingClientRect().height > 0; };
+      const h = sel => shown(sel)
+        ? Math.round(document.querySelector(sel).getBoundingClientRect().height) : 0;
+      const c = canvas.getBoundingClientRect();
+      // Furniture drawn in screen pixels against a picture this small: four
+      // grips at 56 screen pixels each, inset by the depth of the tear, met in
+      // the middle of a 204px picture and covered it.
+      const grip = tearGrip('top');
+      const perScreenPx = canvas.width / c.width;
+      return {
+        vh: window.innerHeight,
+        statusBar: shown('.status-bar'),
+        // Whatever the layout, what it costs: the height the picture does not
+        // get. Measured rather than added up, because the bars are pinned in
+        // one layout and in the flow in the other.
+        chrome: Math.round(window.innerHeight
+          - document.querySelector('.canvas-container').getBoundingClientRect().height),
+        picture: Math.round(c.height),
+        // The zoom is the one readout worth keeping, and it floats.
+        zoomPillAvailable: !!document.getElementById('floatZoom')
+          && getComputedStyle(document.getElementById('floatActions')).display !== 'none',
+        gripLengthScreen: Math.round(grip.w / perScreenPx),
+        gripShareOfPicture: +(grip.w / perScreenPx / Math.min(c.width, c.height)).toFixed(2),
+        gripInsetScreen: Math.round(grip.y / perScreenPx),
+      };
+    });
+    await land.close();
+    return out;
+  })();
+
   finish({
+    sideways,
     byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch, quieter,
     topBar, zoomDefence,
     rowEdges, edgesLineUp,
@@ -619,6 +672,15 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'zoomDefence.count': v => v >= 12,
     'zoomDefence.permissive': isEmpty,
     'zoomDefence.body': 'manipulation',
+    // Sideways: no desk readouts, and the picture gets what they were taking.
+    'sideways.statusBar': isFalse,
+    'sideways.chrome': v => v <= 95,
+    'sideways.picture': atLeast(245),
+    'sideways.zoomPillAvailable': isTrue,
+    // A grip is finger-sized, but never so much of the picture that it hides
+    // it: a quarter of the short side is the ceiling.
+    'sideways.gripShareOfPicture': v => v <= 0.31,
+    'sideways.gripInsetScreen': v => v <= 55,
     'zoomDefence.canvas': 'none',
     'zoomDefence.surround': 'none',
     'zoomDefence.strip': 'none',

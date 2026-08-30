@@ -1234,8 +1234,16 @@
            Tools move to the bottom, within thumb reach, with the properties
            they need directly above them; the top bar keeps only file actions.
            Previously everything stacked at the top, which put the controls in
-           the least reachable part of the screen and cost ~30% of it. */
-        @media (max-width: 600px) {
+           the least reachable part of the screen and cost ~30% of it.
+
+           A phone held sideways is 750 wide and missed this entirely, so it
+           got the desk layout: a row of readouts nobody can use, and a top bar
+           that wrapped to two rows as soon as a tool had controls of its own -
+           121px of chrome out of 342, and the picture moving up and down the
+           screen as tools changed. Short and touched is a phone whichever way
+           up it is: the same two rows, the same 90px, the tools where a thumb
+           is rather than as far from one as the screen allows. */
+        @media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
             /* The top bar was a band of its own: 46px of opaque chrome across
                the whole screen carrying four file actions that between them
                covered a sixth of its width, with nothing in the rest of it.
@@ -4762,13 +4770,23 @@
         // it to tear that edge or mend it, drag it inwards to set the depth.
         function tearGrip(edge) {
             const coarse = isCoarsePointer();
-            const long = screenPxToCanvas(coarse ? 56 : 44);
-            const thick = screenPxToCanvas(coarse ? 10 : 8);
+            // Finger-sized, but never so much of the picture that it hides it.
+            // A phone held sideways brings a 4032px photo down to about 200 on
+            // screen: four grips at 56 screen pixels each, inset by the depth
+            // of the tear as well, met in the middle and covered the picture
+            // they were meant to be gripping.
+            const shown = canvas.getBoundingClientRect();
+            const shortSide = Math.min(shown.width, shown.height) || 1;
+            const long = screenPxToCanvas(Math.min(coarse ? 56 : 44, shortSide * 0.25));
+            const thick = screenPxToCanvas(Math.min(coarse ? 10 : 8, shortSide * 0.05));
             // Clear of the rip on an edge already torn: at a fixed inset the
             // grip sat in the gap the tear had taken, floating off the page it
-            // belongs to.
-            const inset = screenPxToCanvas(coarse ? 20 : 15)
-                + (tear[edge] ? fitPxToCanvas(tear.depth) : 0);
+            // belongs to. Held to the outer fifth for the same reason as the
+            // length.
+            const inset = Math.min(
+                screenPxToCanvas(coarse ? 20 : 15)
+                    + (tear[edge] ? fitPxToCanvas(tear.depth) : 0),
+                screenPxToCanvas(shortSide * 0.2));
             const W = canvas.width, H = canvas.height;
             if (edge === 'top') return { x: W / 2 - long / 2, y: inset - thick / 2, w: long, h: thick };
             if (edge === 'bottom') return { x: W / 2 - long / 2, y: H - inset - thick / 2, w: long, h: thick };
