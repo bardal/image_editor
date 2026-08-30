@@ -29,6 +29,35 @@
             color: #c8c8cc;
             /* Stop iOS pull-to-refresh and rubber-band scroll firing mid-draw. */
             overscroll-behavior: none;
+            /* A tap on a control is a tap. iOS ignores user-scalable, so a
+               second tap inside the double-tap window zooms the whole page
+               wherever it lands - and picking up a tool is exactly the thing
+               a person taps twice in a row. Reported from an iPhone as
+               "zooming when I press Select": the page came up at 2x with the
+               tools running off the side of it.
+
+               `manipulation` says double tap to zoom is not wanted here, and
+               it reaches the controls through this ancestor, so it holds for
+               every control in the chrome rather than the handful named
+               today. A deliberate pinch still zooms the page: Apple ignores
+               user-scalable for a reason, and this only takes away the
+               gesture nobody meant to make. The canvas sets `none` of its
+               own - it claims every gesture, including the pinch. */
+            touch-action: manipulation;
+        }
+
+        /* Said again on the things a finger actually lands on. touch-action is
+           not inherited: the rule on body reaches these through the ancestor
+           chain, which is how the intersection is specified, but this app has
+           twice been caught by a Safari behaviour Chromium does not reproduce,
+           and a second tap that zooms the page is one of the two. Naming the
+           controls costs one rule. */
+        button,
+        .tool-button,
+        .swatch,
+        .fill-toggle,
+        .tear-edge {
+            touch-action: manipulation;
         }
 
         /* Form controls do not inherit the page font, so buttons and dropdowns

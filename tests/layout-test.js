@@ -505,6 +505,34 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     };
   });
 
+  // ---- A tap on a control is a tap, not a zoom ----
+  // Reported from an iPhone: pressing Select zoomed the whole page. iOS
+  // ignores user-scalable, so a second tap inside the double-tap window is a
+  // zoom gesture wherever it lands - and every control here left touch-action
+  // at auto, which is the value that says "double tap to zoom is fine". The
+  // canvas was the only element in the file that had ever set it.
+  // Chromium does not reproduce Safari's double-tap zoom, so this asserts the
+  // property that governs it rather than the behaviour.
+  const zoomDefence = await page.evaluate(() => {
+    // The things a finger lands on. The raw inputs inside them - the colour
+    // wells, the slider, the fill checkbox - are covered by the rule on body.
+    const chrome = [...document.querySelectorAll(
+      '.toolbar > .tb-btn, .tool-strip .tool-button, .toolbar-props button,'
+      + ' .toolbar-props .swatch, .toolbar-props .fill-toggle, .float-btn')]
+      .filter(el => el.getBoundingClientRect().height > 0);
+    return {
+      count: chrome.length,
+      permissive: [...new Set(chrome
+        .filter(el => getComputedStyle(el).touchAction === 'auto')
+        .map(el => el.id || el.className))],
+      // Reached through the ancestors as well: a control that says nothing
+      // itself must sit inside something that does.
+      body: getComputedStyle(document.body).touchAction,
+      // The canvas keeps every gesture for itself, as it always has.
+      canvas: getComputedStyle(document.getElementById('canvas')).touchAction,
+    };
+  });
+
   // And the other corner still takes a drawing, by touch, where it starts.
   const { drag } = await touch(page, ctx);
   const box = await canvasBox(page);
@@ -514,7 +542,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
   finish({
     byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch, quieter,
-    topBar,
+    topBar, zoomDefence,
     rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
     errors: realErrors(errors),
@@ -581,6 +609,10 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'quieter.armed.fontGroup': isFalse,
     'quieter.armed.strip': 45,
     'quieter.armed.chrome': v => v <= 140,
+    'zoomDefence.count': v => v >= 12,
+    'zoomDefence.permissive': isEmpty,
+    'zoomDefence.body': 'manipulation',
+    'zoomDefence.canvas': 'none',
     'topBar.pictureTop': 0,
     'topBar.count': 4,
     'topBar.shortest': v => v >= 44,
