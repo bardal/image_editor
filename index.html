@@ -4659,8 +4659,25 @@
                 // spread of depths reads as a wavy line instead.
                 const u = Math.max(0, Math.min(1, 0.5 + 0.5 * bias));
                 let d = depth * Math.pow(u, 1.6);
-                if (!a.cut && ramp) d *= tearEase(t / ramp);
-                if (!b.cut && ramp) d *= tearEase((1 - t) / ramp);
+                // Both ends taper to the corner they share, cut or square. A
+                // cut corner used to keep full depth right up to its last
+                // point, which meant the two edges meeting there arrived at
+                // two different places - the top edge 27 units below the
+                // corner, the left edge 46 to the right of it - and the line
+                // closing that gap crossed back over the edge beside it. The
+                // fill rule painted the sliver as paper, which is the little
+                // flap that appeared at every corner of a fully torn page.
+                if (ramp) {
+                    d *= tearEase(t / ramp);
+                    d *= tearEase((1 - t) / ramp);
+                }
+                // And never deeper than it is far from the corner it shares
+                // with the edge next to it. Both rips bite into the same
+                // corner from different sides, so anything past 45 degrees
+                // reaches across what the neighbour is drawing and the two
+                // cross: tapering to meet at a point was not enough on its
+                // own, because it says nothing about the run up to it.
+                d = Math.min(d, t * len, (1 - t) * len);
                 points.push({
                     x: a.x + (b.x - a.x) * t + side.nx * d,
                     y: a.y + (b.y - a.y) * t + side.ny * d,

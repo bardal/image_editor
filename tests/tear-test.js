@@ -156,7 +156,68 @@ const { finish, isTrue, isFalse, isEmpty, atLeast } = require('./expect');
   r.reloadedShape = await measure();
 
   r.errors = realErrors(errors);
+  // ---- The outline must not cross itself ----
+  // Reported from a phone with all four edges torn deeply: little flaps at the
+  // corners, "wrapping over themselves". A corner is bitten once and shared by
+  // the two edges that meet there, but each edge was still free to start at
+  // whatever depth its noise happened to give it - so the top edge began 27
+  // units below the corner while the left edge ended 46 to the right of it,
+  // and the line closing that gap crossed back over the edge beside it. The
+  // fill rule then painted the sliver outside the page as if it were paper.
+  //
+  // Random by nature, so this asks several seeds and every depth the slider
+  // offers rather than the one case that was reported.
+  r.outlineSimple = await page.evaluate(() => {
+    // Do two segments cross? Endpoints shared by neighbours do not count, so
+    // only pairs that are not adjacent are compared.
+    // Strictly crossing: a segment that merely touches another's endpoint is
+    // two edges meeting at the corner they share, which is the whole point.
+    const cross = (p, p2, q, q2) => {
+      const d = (a, b, c) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+      const d1 = d(p, p2, q), d2 = d(p, p2, q2), d3 = d(q, q2, p), d4 = d(q, q2, p2);
+      return d1 * d2 < 0 && d3 * d4 < 0;
+    };
+    const outline = () => {
+      const depth = Math.max(1, fitPxToCanvas(tear.depth));
+      const corners = tearCorners(depth);
+      const pts = [];
+      const same = (a, b) => a && Math.hypot(a.x - b.x, a.y - b.y) < 1e-6;
+      ['top', 'right', 'bottom', 'left'].forEach((e, i) => {
+        for (const q of tearEdgePoints(e, corners, depth, i)) {
+          // Where two edges meet they now hand over at the same point, which
+          // would otherwise leave a zero-length segment for the test to argue
+          // with.
+          if (!same(pts[pts.length - 1], q)) pts.push(q);
+        }
+      });
+      if (same(pts[pts.length - 1], pts[0])) pts.pop();
+      return pts;
+    };
+    const worst = [];
+    let crossings = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      for (const depth of [4, 16, 32, 48]) {
+        tear = { top: true, right: true, bottom: true, left: true, depth, seed };
+        tearCache = null;
+        const pts = outline();
+        const n = pts.length;
+        let here = 0;
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 2; j < n; j++) {
+            if (i === 0 && j === n - 1) continue;   // the closing segment's own ends
+            if (cross(pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n])) here++;
+          }
+        }
+        crossings += here;
+        if (here) worst.push(`seed ${seed} depth ${depth}: ${here}`);
+      }
+    }
+    return { crossings, worst: worst.slice(0, 6) };
+  });
+
   finish(r, {
+    'outlineSimple.crossings': 0,
+    'outlineSimple.worst': isEmpty,
     // Nothing torn to begin with.
     'beforeTool.bottomRowGone': 0,
     'beforeTool.centreAlpha': 255,
