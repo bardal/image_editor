@@ -43,11 +43,18 @@ the picture.
 `harness.js` holds the part that is the same in every suite: opening the app
 (`open({ device })` or `open({ viewport })`, which wipes the stored document
 and reloads unless told not to), loading a flat photo of a known size
-(`seedPhoto`), finding the canvas (`canvasBox`), and touch gestures
-(`touch(page, context)` → `tap`, `drag`, `pinch`). Gesture timings are options
+(`seedPhoto`), putting a tool in hand (`pickTool`), finding the canvas
+(`canvasBox`), and touch gestures (`touch(page, context)` → `tap`, `drag`,
+`pinch`). Gesture timings are options
 because they are load-bearing - a hold before the first move is what tells a
 long press from a drag - so a suite written around particular numbers keeps
 them.
+
+Use `pickTool(page, name)` rather than clicking the button: a second press on
+the tool already in hand puts it down and leaves Select in its place, so
+pressing the button and picking the tool are no longer the same thing. Three
+suites were pressing a tool they already held and only noticed when that
+changed - the tap that followed drew nothing.
 
 It was written after the seeding block had thirteen copies and one of them, in
 `clear-test`, was quietly broken: it returned `page.evaluate` without calling
