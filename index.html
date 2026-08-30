@@ -172,7 +172,9 @@
             color: #adadb2;
             transition: background 0.12s, color 0.12s, border-color 0.12s;
             white-space: nowrap;
-            height: 26px;
+            /* A chip is a track with one thing in it, so it stands as tall as
+               a track does - border included. */
+            height: var(--ctl-outer);
         }
 
         .tool-button:hover {
@@ -196,14 +198,21 @@
         }
 
         /* ===== PROPERTIES ===== */
-        .toolbar-props {
-            /* The control kit. Everything on the row takes its height, its
-               radius and its one border from these; a coarse pointer raises
-               the height and nothing else changes. */
+        /* The control kit, on the root because both bars build from it: the
+           property row and the tool strip are two rows of the same thing, and
+           they were two pixels apart because the track's border sits outside
+           its height while a chip's sits inside its own. --ctl-outer is what a
+           track measures once its border is counted, and what a chip has to
+           match. */
+        :root {
             --ctl-h: 28px;
             --ctl-r: 8px;
             --ctl-bd: rgba(255,255,255,0.13);
             --ctl-bg: rgba(255,255,255,0.06);
+            --ctl-outer: calc(var(--ctl-h) + 2px);
+        }
+
+        .toolbar-props {
             display: flex;
             align-items: stretch;
             gap: 8px;
@@ -1391,8 +1400,8 @@
            input whose font-size is below 16px). */
         @media (pointer: coarse) {
             /* The only thing a finger changes about the control kit: every box
-               on the property row follows this. */
-            .toolbar-props { --ctl-h: 44px; }
+               on the property row and every chip in the tool strip follows it. */
+            :root { --ctl-h: 44px; }
 
             .tb-btn {
                 min-width: 44px;

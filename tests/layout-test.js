@@ -346,8 +346,28 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   const edgesLineUp = Object.fromEntries(
     Object.entries(rowEdges).map(([k, v]) => [k, linedUp(v)]));
 
+  // ---- The two rows of controls are the same height ----
+  // They were 46 and 44: the same 44px box in both, but the property track's
+  // own border sits outside its height while a chip's sits inside it. Two
+  // pixels, on two rows stacked directly on top of each other, which is where
+  // a difference that size is most visible.
+  await page.evaluate(() => document.querySelector('[data-tool="rect"]').click());
+  await page.waitForTimeout(200);
+  const rowMatch = await page.evaluate(() => {
+    const h = sel => {
+      const el = document.querySelector(sel);
+      return el ? Math.round(el.getBoundingClientRect().height * 100) / 100 : null;
+    };
+    return {
+      track: h('#lineGroup'),
+      chip: h('.tool-strip .tool-button'),
+      insideTrack: h('.toolbar-props .swatch'),
+    };
+  });
+  rowMatch.same = rowMatch.track === rowMatch.chip;
+
   finish({
-    byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar,
+    byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch,
     rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
     errors: realErrors(errors),
@@ -408,6 +428,9 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     // off the end of the bar.
     'statusBar.touching': isFalse,
     'statusBar.insideBar': isTrue,
+    'rowMatch.same': isTrue,
+    // And still a finger's worth of height, whatever they agree on.
+    'rowMatch.chip': v => v >= 44,
     'edgesLineUp.rect': isTrue,
     'edgesLineUp.arrow': isTrue,
     'edgesLineUp.text': isTrue,
