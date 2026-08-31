@@ -55,7 +55,8 @@ function named(label, fn) {
     return fn;
 }
 const atLeast = n => named(`>= ${n}`, v => typeof v === 'number' && v >= n);
+const atMost = n => named(`<= ${n}`, v => typeof v === 'number' && v <= n);
 const near = (n, slack) => named(`${n} +/- ${slack}`,
     v => typeof v === 'number' && Math.abs(v - n) <= slack);
 
-module.exports = { finish, check, isTrue, isFalse, isEmpty, atLeast, near };
+module.exports = { finish, check, isTrue, isFalse, isEmpty, atLeast, atMost, near };

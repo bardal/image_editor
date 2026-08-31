@@ -2154,12 +2154,6 @@
                 viewOffset = { x: 0, y: 0 };
                 return;
             }
-            // The zoom is never left in the band that snapPastFill skips. A
-            // gesture cannot put it there, but a resized window can: widening
-            // the frame under a picture that filled it would otherwise hand back
-            // the empty strip along the sides that filling had taken away.
-            const fill = fillScale();
-            if (fill <= MAX_ZOOM && viewScale < fill) viewScale = fill;
             const container = document.querySelector('.canvas-container');
             const cw = container.clientWidth;
             const ch = container.clientHeight;
@@ -2187,40 +2181,26 @@
         // The zoom at which the picture covers the container edge to edge, with
         // no empty strip left along either side. Read from the layout, so it
         // answers for whatever this window and this photo happen to be.
-        function fillScale() {
-            const container = document.querySelector('.canvas-container');
-            const baseW = canvas.offsetWidth;
-            const baseH = canvas.offsetHeight;
-            if (!baseW || !baseH) return 1;
-            const fill = Math.max(container.clientWidth / baseW, container.clientHeight / baseH);
-            return Math.max(1, fill);
-        }
-
-        // Between fit and fill the picture is the worst of both: still hemmed by
-        // an empty strip along one side, already cut off along the other. So the
-        // band is passed over rather than settled in - the first step in from
-        // fit lands on fill, where the picture has taken the whole frame, and
-        // only past that does zooming start pushing the picture out of view.
+        // Zoom is continuous between fit and full.
         //
-        // Which way to jump is read from where the zoom is coming from, never
-        // from the frame before: `from` is a resting scale outside the band (or
-        // the scale a pinch began at), so a gesture cannot flicker between the
-        // two ends as it crosses.
-        function snapPastFill(next, from) {
-            const fill = fillScale();
-            // Nothing to skip when the picture already fills the frame, and
-            // nothing to land on when filling it would take more zoom than
-            // there is - a letterbox panorama in a tall window would otherwise
-            // have its first step throw it to the far end of the range.
-            if (fill <= 1.001 || fill > MAX_ZOOM || next <= 1 || next >= fill) return next;
-            return from <= 1 ? fill : 1;
-        }
-
+        // It used to skip the band between fit and fill - the scale at which the
+        // picture covers the frame edge to edge - on the reasoning that inside
+        // it the picture is the worst of both: still hemmed by an empty strip
+        // along one side, already cut off along the other. A notch in from fit
+        // landed on fill, a notch back out dropped to fit, and clampView held
+        // the scale out of the band besides.
+        //
+        // The band is the size of the aspect mismatch, and the guard was on the
+        // wrong quantity: it asked whether fill was reachable at all, not
+        // whether the skip was small enough to be worth making. A landscape
+        // photo on a phone - which is what every zoom suite was written against
+        // - has a band of nothing much. A portrait photo on a laptop has one
+        // from 100% to 291%, so a single notch threw the picture across most of
+        // the useful range and there was nowhere to stop in between.
         function setZoom(scale, centreClientX, centreClientY) {
             const rect = canvas.getBoundingClientRect();
             const prev = viewScale;
-            const next = Math.max(1, Math.min(MAX_ZOOM, snapPastFill(
-                Math.max(1, Math.min(MAX_ZOOM, scale)), viewScale)));
+            const next = Math.max(1, Math.min(MAX_ZOOM, scale));
             if (next === prev) return;
             // Keep the point under the fingers pinned while the scale changes.
             // Outside a gesture the painted frame matches viewScale/viewOffset,
@@ -4170,11 +4150,7 @@
             const px = (pinchStart.centreX - pinchStart.baseLeft - pinchStart.offset.x) / pinchStart.scale;
             const py = (pinchStart.centreY - pinchStart.baseTop - pinchStart.offset.y) / pinchStart.scale;
 
-            // Measured from the scale the pinch began at, so the picture settles
-            // on fit or on fill and stays there while the fingers cross the band
-            // between them.
-            viewScale = Math.max(1, Math.min(MAX_ZOOM, snapPastFill(
-                Math.max(1, Math.min(MAX_ZOOM, target)), pinchStart.scale)));
+            viewScale = Math.max(1, Math.min(MAX_ZOOM, target));
 
             // Put that same point back under where the fingers are now. Pan and
             // zoom fall out of the one calculation, worked from the start of the

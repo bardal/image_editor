@@ -1,5 +1,5 @@
 const { open, seedPhoto, canvasBox, touch, realErrors } = require('./harness');
-const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
+const { finish, isTrue, isFalse, isEmpty, atLeast, atMost, near } = require('./expect');
 
 (async () => {
   const { browser, context: ctx, page, errors } = await open({ device: 'iPhone 13', settle: 400, resetSettle: 400 });
@@ -149,6 +149,69 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     return { shaft, atPoint, pointed: atPoint < shaft * 0.6 };
   });
 
+  // ---- Zooming a portrait photo on a laptop is continuous ----
+  //
+  // Between fit and fill the zoom used to be forbidden: a notch in from fit
+  // jumped straight to fill and a notch back out dropped straight to fit. The
+  // band skipped is the size of the aspect mismatch, which is nothing much for
+  // a landscape photo on a phone - the case every zoom assertion above is
+  // written against - and almost the whole useful range for a portrait photo in
+  // a wide window: 100% to 291%, skipped in one notch.
+  //
+  // So this leg is a tall picture in a wide window, and it asserts the steps
+  // rather than the endpoints. Endpoint assertions pass on a jump; only the
+  // size of each step says whether the zoom is continuous.
+  const desk = await open({ browser, viewport: { width: 1440, height: 900 }, settle: 400 });
+  const dp = desk.page;
+  await dp.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 900; c.height = 1200;
+    const g = c.getContext('2d'); g.fillStyle = '#3d6b8f'; g.fillRect(0, 0, c.width, c.height);
+    const image = new Image();
+    await new Promise(res => { image.onload = res; image.src = c.toDataURL(); });
+    img = image; imgOffset = { x: 0, y: 0 }; canvasOverride = null; resizeCanvas();
+  });
+  await dp.waitForTimeout(400);
+
+  r.portraitZoom = await dp.evaluate(() => {
+    resetZoom();
+    // The scale at which the picture would cover the frame edge to edge. The
+    // app no longer computes this - the band is not special to it any more - so
+    // the suite works it out itself to say where the band was.
+    const cont = document.querySelector('.canvas-container');
+    const fill = Math.max(cont.clientWidth / canvas.offsetWidth,
+                          cont.clientHeight / canvas.offsetHeight);
+    const cv = canvas.getBoundingClientRect();
+    const cx = cv.x + cv.width / 2, cy = cv.y + cv.height / 2;
+    const notch = dy => canvas.dispatchEvent(new WheelEvent('wheel',
+      { deltaY: dy, clientX: cx, clientY: cy, ctrlKey: true, bubbles: true, cancelable: true }));
+
+    const stepsIn = [];
+    for (let i = 0; i < 6; i++) { notch(-100); stepsIn.push(viewScale); }
+    const stepsOut = [];
+    for (let i = 0; i < 6; i++) { notch(100); stepsOut.push(viewScale); }
+
+    // The largest jump between one resting scale and the next. A wheel notch is
+    // about 1.18, so anything much above that is a jump rather than a step.
+    const biggestStep = (seq, from) => seq.reduce((worst, v, i) => {
+      const prev = i === 0 ? from : seq[i - 1];
+      const ratio = Math.max(v / prev, prev / v);
+      return Math.max(worst, ratio);
+    }, 1);
+
+    return {
+      fill: +fill.toFixed(3),
+      stepsIn: stepsIn.map(v => +v.toFixed(3)),
+      stepsOut: stepsOut.map(v => +v.toFixed(3)),
+      biggestStepIn: +biggestStep(stepsIn, 1).toFixed(3),
+      // Measured back from where zooming in left off, not from fit.
+      biggestStepOut: +biggestStep(stepsOut, stepsIn[stepsIn.length - 1]).toFixed(3),
+      // The band between fit and fill has to be somewhere you can actually stop.
+      restsInsideTheBand: stepsIn.some(v => v > 1.02 && v < fill * 0.98),
+    };
+  });
+  await desk.context.close();
+
   r.errors = realErrors(errors);
   finish(r, {
     'startZoom.scale': 1,
@@ -172,6 +235,11 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'arrowhead.at4x.ratio': v => v >= 2,
     'arrowhead.ratioHeld': isTrue,
     'tipIsPointed.pointed': isTrue,
+    // Without a wide mismatch this leg proves nothing.
+    'portraitZoom.fill': atLeast(2),
+    'portraitZoom.biggestStepIn': atMost(1.3),
+    'portraitZoom.biggestStepOut': atMost(1.3),
+    'portraitZoom.restsInsideTheBand': isTrue,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

@@ -12,6 +12,37 @@ than deleting it quietly.
 
 Nothing decided and unbuilt.
 
+## Reversed
+
+### The zoom no longer skips the band between fit and fill
+
+Zooming a portrait photo on a laptop jumped from fitted vertically to fitted
+horizontally in one notch, and dropped back to fit in one notch out. That was
+deliberate: the band between fit and fill was passed over rather than settled
+in, on the reasoning that inside it the picture is the worst of both - still
+hemmed by an empty strip along one side, already cut off along the other.
+
+The reasoning holds for a small band and not for a large one, and nothing was
+measuring which it had. The guard asked whether fill was reachable at all
+(`fill > MAX_ZOOM`), not whether the skip was worth making. A landscape photo
+on a phone has a band of nothing much; a 3:4 portrait in a 1512px window has
+one from 100% to 291%, so a notch threw the picture across most of the useful
+range and there was nowhere to stop between.
+
+Removed rather than tuned to a threshold. A threshold would have kept a jump
+for middling mismatches and left the same complaint waiting for a 4:3 photo on
+a 16:9 laptop; and the in-between state, whatever the comment said about it,
+is what every image viewer does and what people expect. The strip is normal.
+
+Gone from all three places that enforced it - `snapPastFill`, its call in
+`setZoom`, its call in `updatePinch` - and from `clampView`, which forced the
+scale back up to fill on every clamp and would have undone the other three on
+its own. `fillScale` went with them, unused.
+
+`zoom-test` grew a desktop leg with a tall picture in a wide window. It asserts
+the size of each step rather than the endpoints, because endpoint assertions
+pass on a jump.
+
 ## Built
 
 ### Less to look at at the bottom of a phone
