@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 No build step required. Open `index.html` in a browser to run the app.
 
-**Test:** `npm test` (or `./tests/run-all.sh`) — 27 Playwright suites driving a real Chromium against a served copy of the app, about two minutes in all. **Run the whole suite before pushing any change to `index.html`.** The same command gates the deploy in CI, so a change that fails here never reaches the site; finding that out locally costs two minutes, finding it out from CI costs a round trip.
+**Test:** `npm test` (or `./tests/run-all.sh`) — 28 Playwright suites driving a real Chromium against a served copy of the app, about two minutes in all. **Run the whole suite before pushing any change to `index.html`.** The same command gates the deploy in CI, so a change that fails here never reaches the site; finding that out locally costs two minutes, finding it out from CI costs a round trip.
 
-There is a suite per area — `zoom`, `pinch`, `rotate`, `line`, `crop`, `tear`, `undo`, `persist`, `units` and the rest. To iterate on one, serve the repo (`python3 -m http.server 8080 &`) and run it alone: `node tests/zoom-test.js`. It needs a real origin, not `file://` — IndexedDB, the clipboard and the service worker are all unavailable there. A suite passes by asserting its own report, not merely by the page not throwing, so a failure means behaviour changed. `tests/README.md` explains how a suite is written and the two-unit rule (`fitPxToCanvas` vs `screenPxToCanvas`) that most visual faults here have come down to.
+There is a suite per area — `zoom`, `pinch`, `rotate`, `line`, `crop`, `tear`, `undo`, `persist`, `units`, `editorpos` and the rest. To iterate on one, serve the repo (`python3 -m http.server 8080 &`) and run it alone: `node tests/zoom-test.js`. It needs a real origin, not `file://` — IndexedDB, the clipboard and the service worker are all unavailable there. A suite passes by asserting its own report, not merely by the page not throwing, so a failure means behaviour changed. `tests/README.md` explains how a suite is written and the two-unit rule (`fitPxToCanvas` vs `screenPxToCanvas`) that most visual faults here have come down to.
 
 `npm install` first if `node_modules` is missing; web sessions get that from `.claude/hooks/session-start.sh`. The browser is found by `tests/browser.js` — Playwright's own if it has one, otherwise whatever the sandbox ships — so `CHROME_PATH` only needs setting to override that choice.
 
@@ -96,6 +96,19 @@ purpose. This has been broken three times — 46 against 44, 48 against 43, and 
 against 30 on the desk — and each time the break was invisible to tests that
 measured a row against itself. `icons-test` measures them against each other, at
 both sizes.
+
+**Furniture positioned from canvas coordinates needs the canvas's origin.**
+The editors are absolutely positioned children of `.canvas-container`, which
+centres the canvas inside itself - so a canvas coordinate scaled to the screen
+is not yet a position in that container, and all three editors opened displaced
+by whatever margin the centring left: 420px for a tall photo in a wide window.
+`canvasOriginInContainer()` is the missing term, read off the canvas's own
+`getBoundingClientRect` so it already carries zoom and pan. This was invisible
+to every existing assertion, all of which were about editor *state* - open,
+contents, font size - and all of which pass with the box anywhere on the page.
+`editorpos-test` asserts where the box lands, on a tall picture in a wide window
+because a landscape photo on a phone leaves almost no margin and goes green
+either way.
 
 **Fix the family, not the instance.** Every bug here has turned out to be one
 of several. One wrong unit meant six. One touch override that stopped short of

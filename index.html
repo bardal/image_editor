@@ -3211,6 +3211,23 @@
             return null;
         }
 
+        // Where the picture's top-left corner sits inside `.canvas-container`.
+        //
+        // The editors are absolutely positioned children of that container, but
+        // every coordinate they are placed from is a canvas coordinate. The
+        // container centres the canvas inside itself, so the two origins are
+        // different points whenever the picture does not fill it - and all three
+        // editors opened displaced by exactly the margin the centring left: 420
+        // screen pixels for a tall photo in a wide window.
+        //
+        // Read off the canvas's own box, which already carries the zoom and pan
+        // transform, so this holds at any zoom without knowing about either.
+        function canvasOriginInContainer() {
+            const rect = canvas.getBoundingClientRect();
+            const container = document.querySelector('.canvas-container').getBoundingClientRect();
+            return { x: rect.x - container.x, y: rect.y - container.y };
+        }
+
         function startLabelEditing(shape, initialChar) {
             beginEditUndo();
             const center = getShapeCenter(shape);
@@ -3221,8 +3238,9 @@
             const rect = canvas.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
 
-            const inputX = center.x * (rect.width / canvas.width);
-            const inputY = center.y * (rect.height / canvas.height) - 15;
+            const origin = canvasOriginInContainer();
+            const inputX = origin.x + center.x * (rect.width / canvas.width);
+            const inputY = origin.y + center.y * (rect.height / canvas.height) - 15;
 
             const maxX = containerRect.width - 50;
             const maxY = containerRect.height - 30;
@@ -3988,10 +4006,11 @@
 
             const rect = canvas.getBoundingClientRect();
             const toScreen = rect.width / canvas.width;
+            const origin = canvasOriginInContainer();
             const pad = calloutPadding() * toScreen;
 
-            calloutTextInput.style.left = (shape.x * toScreen) + 'px';
-            calloutTextInput.style.top = (shape.y * toScreen) + 'px';
+            calloutTextInput.style.left = (origin.x + shape.x * toScreen) + 'px';
+            calloutTextInput.style.top = (origin.y + shape.y * toScreen) + 'px';
             calloutTextInput.style.width = (shape.w * toScreen) + 'px';
             calloutTextInput.style.height = (shape.h * toScreen) + 'px';
             const isCallout = shape.type === 'callout';
@@ -4023,11 +4042,12 @@
             const bar = document.getElementById('blockEditBar');
             bar.classList.add('open');
             const container = document.querySelector('.canvas-container');
-            const editorBottom = (shape.y + shape.h) * toScreen;
+            const editorTop = origin.y + shape.y * toScreen;
+            const editorBottom = origin.y + (shape.y + shape.h) * toScreen;
             const barH = 52;
-            bar.style.left = (shape.x * toScreen) + 'px';
+            bar.style.left = (origin.x + shape.x * toScreen) + 'px';
             bar.style.top = (editorBottom + barH > container.clientHeight
-                ? Math.max(0, shape.y * toScreen - barH)
+                ? Math.max(0, editorTop - barH)
                 : editorBottom + 8) + 'px';
 
             // Synchronous, so iOS raises the keyboard - same reason as the
