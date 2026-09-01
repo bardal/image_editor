@@ -4188,13 +4188,16 @@
                 e.preventDefault();
                 // Exponential, so a notch is the same proportional step at any
                 // zoom - a fixed increment crawls when zoomed in and lurches
-                // when zoomed out. The divisor puts a mouse notch at about a
-                // fifth, so fit to full zoom is a dozen notches, while the small
-                // deltas a trackpad pinch sends stay smooth. deltaMode 1 and 2
-                // report lines and pages rather than pixels; converting keeps a
-                // notch a notch.
+                // when zoomed out. The divisor puts a notch at about two fifths,
+                // so fit to full zoom is half a dozen of them; at 600 it was a
+                // fifth and a dozen, which read as smooth but made crossing the
+                // range a long scroll on a trackpad. Only the wheel is tuned
+                // here - a touch pinch takes its scale from how far the fingers
+                // moved, so the phone is not affected either way. deltaMode 1
+                // and 2 report lines and pages rather than pixels; converting
+                // keeps a notch a notch.
                 const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
-                setZoom(viewScale * Math.exp(-e.deltaY * unit / 600), e.clientX, e.clientY);
+                setZoom(viewScale * Math.exp(-e.deltaY * unit / 300), e.clientX, e.clientY);
                 return;
             }
             if (viewScale === 1) return;

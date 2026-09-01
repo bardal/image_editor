@@ -186,26 +186,36 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, atMost, near } = require('./e
     const notch = dy => canvas.dispatchEvent(new WheelEvent('wheel',
       { deltaY: dy, clientX: cx, clientY: cy, ctrlKey: true, bubbles: true, cancelable: true }));
 
+    // Largest step over smallest: 1 when every notch moves the same proportion.
+    const spread = rs => Math.max(...rs) / Math.min(...rs);
+
     const stepsIn = [];
     for (let i = 0; i < 6; i++) { notch(-100); stepsIn.push(viewScale); }
     const stepsOut = [];
     for (let i = 0; i < 6; i++) { notch(100); stepsOut.push(viewScale); }
 
-    // The largest jump between one resting scale and the next. A wheel notch is
-    // about 1.18, so anything much above that is a jump rather than a step.
-    const biggestStep = (seq, from) => seq.reduce((worst, v, i) => {
+    // The ratio each notch multiplied the scale by. Smoothness is these being
+    // all the same, not any of them being small: the snap showed up as one step
+    // of 2.3 among steps of 1.18. Asserting a cap instead would pin the step
+    // size, so retuning how far a notch goes would fail a test about jumps.
+    const ratios = (seq, from) => seq.map((v, i) => {
       const prev = i === 0 ? from : seq[i - 1];
-      const ratio = Math.max(v / prev, prev / v);
-      return Math.max(worst, ratio);
-    }, 1);
+      return Math.max(v / prev, prev / v);
+    });
 
     return {
       fill: +fill.toFixed(3),
       stepsIn: stepsIn.map(v => +v.toFixed(3)),
       stepsOut: stepsOut.map(v => +v.toFixed(3)),
-      biggestStepIn: +biggestStep(stepsIn, 1).toFixed(3),
-      // Measured back from where zooming in left off, not from fit.
-      biggestStepOut: +biggestStep(stepsOut, stepsIn[stepsIn.length - 1]).toFixed(3),
+      stepSpreadIn: +spread(ratios(stepsIn, 1)).toFixed(3),
+      // Not trimmed at the fit end: zooming out retraces the same scales, so
+      // the last step is a whole notch like the rest. Dropping it as a partial
+      // one hid the snap, which landed on exactly that step.
+      stepSpreadOut: +spread(ratios(stepsOut, stepsIn[stepsIn.length - 1])).toFixed(3),
+      notchSize: +ratios(stepsIn, 1)[1].toFixed(3),
+      // A run that hit the ceiling would report a short step as unevenness, so
+      // the suite says plainly that it did not.
+      clampedAtMax: stepsIn.some(v => v >= MAX_ZOOM - 0.001),
       // The band between fit and fill has to be somewhere you can actually stop.
       restsInsideTheBand: stepsIn.some(v => v > 1.02 && v < fill * 0.98),
     };
@@ -237,8 +247,15 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, atMost, near } = require('./e
     'tipIsPointed.pointed': isTrue,
     // Without a wide mismatch this leg proves nothing.
     'portraitZoom.fill': atLeast(2),
-    'portraitZoom.biggestStepIn': atMost(1.3),
-    'portraitZoom.biggestStepOut': atMost(1.3),
+    // Every notch the same proportion, in and out. This is what smooth means.
+    'portraitZoom.stepSpreadIn': near(1, 0.02),
+    'portraitZoom.stepSpreadOut': near(1, 0.02),
+    // How far a notch goes is a matter of taste and gets retuned; that it stays
+    // inside arm's reach of a notch is not.
+    'portraitZoom.notchSize': v => typeof v === 'number' && v > 1.05 && v < 1.8,
+    // If a retune ever makes six notches reach the ceiling, use fewer notches
+    // here rather than loosening the spread.
+    'portraitZoom.clampedAtMax': isFalse,
     'portraitZoom.restsInsideTheBand': isTrue,
   });
   await browser.close();
