@@ -125,8 +125,34 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     wasTorn: JSON.parse(docBefore).tear.right === true,
   };
 
+  // ---- A torn page with nothing else on it is still a document ----
+  // The restore gate asked for shapes or an image and a torn blank page has
+  // neither, so it was read as an empty document and thrown away: the rips
+  // were gone on reload with no way to get them back. Tearing is a mark on the
+  // page like any other, so the gate counts it.
+  await page.evaluate(async () => { await dbDelete('doc'); await dbDelete('image'); });
+  await page.reload();
+  await page.waitForTimeout(800);
+  await page.evaluate(() => { toggleTearEdge('bottom'); });
+  await page.waitForTimeout(1400); // let the debounced save land
+  await page.reload();
+  await page.waitForTimeout(1400);
+  r.tornBlankPage = await page.evaluate(() => ({
+    torn: [tear.top, tear.right, tear.bottom, tear.left],
+    shapes: shapes.length,
+    hasImage: !!img,
+    // The control has to come back lit, or the next press turns on an edge
+    // that is already torn.
+    edgeButtonLit: document.getElementById('tear-bottom').classList.contains('active'),
+  }));
+
   r.errors = realErrors(errors);
   finish(r, {
+    'tornBlankPage.torn': [false, false, true, false],
+    'tornBlankPage.shapes': 0,
+    'tornBlankPage.hasImage': isFalse,
+    'tornBlankPage.edgeButtonLit': isTrue,
+
     'after.shapes': 2,
     'after.texts': ['Keep me'],
     'after.canvas': [900, 600],

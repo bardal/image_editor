@@ -63,6 +63,12 @@ Each shape is a plain object with `type`, position/size fields, `color`, `size`,
   resets the document through `restoreDoc` and empties the undo stack, so a
   pasted screenshot arrives clean rather than wearing the last picture's
   annotations against a canvas that no longer exists. `paste-test` holds it.
+- **A torn edge is an annotation.** It is made with a tool, it is an undo step
+  and it travels in the document, so "Clear drawing" takes the rips with the
+  shapes and a torn blank page is a document worth restoring. `hasAnnotations()`
+  is the one answer to "is there anything on this page" — three separate
+  `shapes.length` checks each had their own, and each forgot the tear. Only the
+  edges clear: depth and seed are settings, like colour and size.
 - **Canvas redraw**: `redraw()` clears canvas, draws the base image, then iterates all shapes. Called after every state change.
 - **Torn page**: `tearPaths()` builds the ragged page outline from a seeded noise function (`tearRandom`/`tearSample`), cached against the canvas size and settings. `redraw()` clips the picture to it, so the strip a tear takes is cleared rather than painted — an export keeps the alpha. Depth is in `fitPx`, like stroke widths.
 

@@ -2556,7 +2556,12 @@
                 console.error('Could not read saved session:', err);
                 return;
             }
-            if (!doc || (!doc.shapes?.length && !doc.hasImage)) return;
+            // Counts the rips as well as the shapes: a blank page with a torn
+            // edge is a document, and reading it as an empty one threw it away
+            // on reload. Read off the stored document rather than the live
+            // state, which is still at its defaults at this point.
+            const wasTorn = TEAR_EDGES.some(edge => doc?.tear?.[edge]);
+            if (!doc || (!doc.shapes?.length && !doc.hasImage && !wasTorn)) return;
 
             restoring = true;
             try {
@@ -2766,22 +2771,40 @@
         }
 
         // ===== CLEAR =====
+        // What "the drawing" means: everything a person has marked on the page.
+        // A torn edge is one of those - it is made with a tool, it is an undo
+        // step, and it travels in the document with the shapes - so it counts
+        // here and it goes when the drawing goes. It did not, and a torn page
+        // could only be put back by clearing the image along with it.
+        function hasAnnotations() {
+            return shapes.length > 0 || hasTear();
+        }
+
+        // The dialog says what is there in the same terms it will remove it in.
+        // Left saying "no annotations" over a torn page, it offered Everything
+        // as the only way to take back a rip.
+        function annotationSummary() {
+            const torn = TEAR_EDGES.filter(edge => tear[edge]).length;
+            const parts = [];
+            if (shapes.length) parts.push(`${shapes.length} ${shapes.length === 1 ? 'shape' : 'shapes'}`);
+            if (torn) parts.push(`${torn} torn ${torn === 1 ? 'edge' : 'edges'}`);
+            if (!parts.length) return 'An image with no annotations.';
+            return parts.join(' and ') + (img ? ' on an image.' : '.');
+        }
+
         function showClearOptions() {
-            const hasShapes = shapes.length > 0;
             const hasImage = !!img;
 
-            if (!hasShapes && !hasImage) {
+            if (!hasAnnotations() && !hasImage) {
                 showToast('Nothing to clear');
                 return;
             }
 
-            document.getElementById('clearSummary').textContent = hasShapes
-                ? `${shapes.length} ${shapes.length === 1 ? 'shape' : 'shapes'} drawn${hasImage ? ' on an image' : ''}.`
-                : 'An image with no annotations.';
+            document.getElementById('clearSummary').textContent = annotationSummary();
 
             // Only offer what there is to remove.
-            document.getElementById('clearShapesBtn').disabled = !hasShapes;
-            document.getElementById('clearAllBtn').disabled = !hasImage && !hasShapes;
+            document.getElementById('clearShapesBtn').disabled = !hasAnnotations();
+            document.getElementById('clearAllBtn').disabled = !hasImage && !hasAnnotations();
 
             document.getElementById('clearModal').style.display = 'block';
         }
@@ -2793,8 +2816,14 @@
         function clearShapesOnly() {
             beginUndo();
             shapes = [];
+            // The rips go with the shapes: tearing an edge is drawing on the
+            // page, not a property of the picture underneath. Only which edges
+            // are torn - how deep they go and the shape they rip in are
+            // settings, kept for the next tear the way colour and size are.
+            for (const edge of TEAR_EDGES) tear[edge] = false;
             selectedShape = null;
             closeClearOptions();
+            syncTearControls();
             redraw();
             updateButtonStates();
             commitUndo();
@@ -6248,7 +6277,7 @@
             // The canvas is usable without a background image - shapes drawn on
             // the blank canvas are just as copyable, so this keys off whether
             // there is anything to copy rather than whether a photo is loaded.
-            if (!img && shapes.length === 0) {
+            if (!img && !hasAnnotations()) {
                 showToast('Nothing to copy yet');
                 return;
             }

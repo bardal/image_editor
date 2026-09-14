@@ -1,4 +1,4 @@
-const { open, seedPhoto, realErrors } = require('./harness');
+const { open, seedPhoto, resetApp, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 const APP = process.env.APP_URL || 'http://127.0.0.1:8080/index.html';
 
@@ -123,8 +123,91 @@ const BIN = '#floatClear';
   r.noSeparateDeleteButton = await page.evaluate(() =>
     document.getElementById('delete') === null);
 
+  // ---- A torn edge is an annotation ----
+  // Tearing an edge is a mark made on the picture, like drawing on it: it is an
+  // undo step like any other and it travels in the document. "Drawing only"
+  // took the shapes and left the rips behind, so the only way to put a torn
+  // page back was to clear the image with it and open the picture again. A
+  // picture whose only annotation was a tear had it worse: it reported "no
+  // annotations" and offered nothing but Everything.
+  await resetApp(page, 600);
+  await seedPhoto(page, { name: 't.png', settle: 500 });
+  await page.evaluate(() => {
+    shapes.push({type:'rect',x:60,y:60,w:200,h:120,rotation:0,color:'#f00',size:5,id:81});
+    toggleTearEdge('top');
+    toggleTearEdge('left');
+    redraw(); updateButtonStates();
+  });
+  await page.waitForTimeout(300);
+  await page.click(BIN);
+  await page.waitForTimeout(250);
+  r.withTear = await page.evaluate(() => ({
+    summary: document.getElementById('clearSummary').textContent,
+    shapesOptionEnabled: !document.getElementById('clearShapesBtn').disabled,
+  }));
+  await page.click('#clearShapesBtn');
+  await page.waitForTimeout(400);
+  r.afterClearWithTear = await page.evaluate(() => ({
+    shapes: shapes.length,
+    torn: [tear.top, tear.right, tear.bottom, tear.left],
+    // The rip settings are not the annotation: how deep a tear goes and the
+    // shape it rips in are still what they were, ready for the next one.
+    depth: tear.depth,
+    hasImage: !!img,
+    canvas: [canvas.width, canvas.height],
+    // The edge buttons have to say what the document says, or the next press
+    // on one turns the edge it already shows as off.
+    edgeButtonsLit: ['top','right','bottom','left']
+      .filter(e => document.getElementById('tear-' + e).classList.contains('active')),
+  }));
+
+  // One step, so one undo brings the drawing and the rips back together.
+  await page.evaluate(() => undoLastAction());
+  await page.waitForTimeout(300);
+  r.undoBringsBothBack = await page.evaluate(() => ({
+    shapes: shapes.length,
+    torn: [tear.top, tear.right, tear.bottom, tear.left],
+  }));
+
+  // A torn page with nothing drawn on it is still a page with something to
+  // clear, and saying so is the whole of what the dialog is for.
+  await page.evaluate(() => { shapes.length = 0; selectedShape = null; redraw(); updateButtonStates(); });
+  await page.waitForTimeout(200);
+  await page.click(BIN);
+  await page.waitForTimeout(250);
+  r.tearOnly = await page.evaluate(() => ({
+    summary: document.getElementById('clearSummary').textContent,
+    shapesOptionEnabled: !document.getElementById('clearShapesBtn').disabled,
+    allOptionEnabled: !document.getElementById('clearAllBtn').disabled,
+  }));
+  // Tolerant of a disabled button on purpose: when the option is not offered
+  // the failure belongs in the report, next to the state that explains it,
+  // rather than as a thirty-second timeout with the rest of the suite unrun.
+  await page.click('#clearShapesBtn', { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  r.afterClearTearOnly = await page.evaluate(() => ({
+    torn: [tear.top, tear.right, tear.bottom, tear.left],
+    hasImage: !!img,
+  }));
+
   r.errors = realErrors(errors);
   finish(r, {
+    'withTear.summary': '1 shape and 2 torn edges on an image.',
+    'withTear.shapesOptionEnabled': isTrue,
+    'afterClearWithTear.shapes': 0,
+    'afterClearWithTear.torn': [false, false, false, false],
+    'afterClearWithTear.depth': 16,
+    'afterClearWithTear.hasImage': isTrue,
+    'afterClearWithTear.canvas': [800, 500],
+    'afterClearWithTear.edgeButtonsLit': isEmpty,
+    'undoBringsBothBack.shapes': 1,
+    'undoBringsBothBack.torn': [true, false, false, true],
+    'tearOnly.summary': '2 torn edges on an image.',
+    'tearOnly.shapesOptionEnabled': isTrue,
+    'tearOnly.allOptionEnabled': isTrue,
+    'afterClearTearOnly.torn': [false, false, false, false],
+    'afterClearTearOnly.hasImage': isTrue,
+
     'binWithSelection.armed': isTrue,
     'binWithoutSelection.armed': isFalse,
     'binWithSelection.label': 'Delete',
@@ -139,7 +222,7 @@ const BIN = '#floatClear';
     'emptyCanvas.dialogShown': isFalse,
     'emptyCanvas.toast': 'Nothing to clear',
     'withBoth.dialogShown': isTrue,
-    'withBoth.summary': '1 shape drawn on an image.',
+    'withBoth.summary': '1 shape on an image.',
     'withBoth.shapesOptionEnabled': isTrue,
     'withBoth.allOptionEnabled': isTrue,
     'afterClearDrawing.shapes': 0,
