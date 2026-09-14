@@ -6124,14 +6124,43 @@
                     const image = new Image();
                     image.onload = function() {
                         img = image;
-                        // A new image starts from its own bounds, not the last
-                        // image's crop.
-                        imgOffset = { x: 0, y: 0 };
-                        canvasOverride = null;
+                        // A new picture is a new document. The bounds were being
+                        // reset here already - a new image starts from its own,
+                        // not the last one's crop - but the shapes and the torn
+                        // edges were left behind, so a pasted screenshot arrived
+                        // wearing the annotations of the picture before it, placed
+                        // against a canvas that no longer existed. Everything
+                        // drawn belongs to the picture it was drawn on.
+                        //
+                        // An editor still open is part of that: it is holding a
+                        // shape of the old document, and closing it after the
+                        // reset would put that shape back on the new picture.
+                        cancelGestureInProgress();
+                        // Said through restoreDoc because that is the only way
+                        // back into a document: it defaults every field left out,
+                        // so `{}` is the empty one and a field added to
+                        // snapshotDoc is cleared here by that fact alone. The
+                        // torn edges are named because restoreDoc merges those
+                        // rather than assigning them - a document saved before
+                        // tearing existed has to keep a depth and a seed.
+                        restoreDoc({ tear: { top: false, right: false, bottom: false, left: false } });
+                        selectedShape = null;
                         cropRect = null;
+                        // The steps in the stack are snapshots of the document
+                        // just replaced. Left in place, the first undo after a
+                        // paste dropped the old picture's shapes onto the new one.
+                        undoStack = [];
+                        undoBefore = null;
+                        editUndoBefore = null;
+                        syncTearControls();
                         resizeCanvas();
                         if (tool === 'crop') startCropMode();
                         updateImageInfo();
+                        updateButtonStates();
+                        // Written now rather than left to the debounce, for the
+                        // reason clearing is: a reload a moment after a paste must
+                        // not bring back the drawing that was pasted over.
+                        saveSession();
                     };
                     image.src = ev.target.result;
                 };

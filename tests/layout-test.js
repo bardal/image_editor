@@ -258,10 +258,17 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   // phone, and they are the two most used things in the app. They float over
   // the picture at the bottom right instead - clear of the readouts under it,
   // clear of each other, and out of the top bar altogether.
+  // Bracketed the way the app brackets a real edit, so the press below has a
+  // step of its own to take back. Pushed bare, the shape made no step at all
+  // and the press was popping whatever the suite had left on the stack earlier
+  // - which also held a document with nothing drawn in it, so the assertion
+  // passed while proving nothing about this shape.
   await page.evaluate(() => {
     document.querySelector('[data-tool="rect"]').click();
+    beginUndo();
     shapes.push({ type: 'rect', x: 100, y: 100, w: 200, h: 150, rotation: 0,
       color: '#e33', size: 5, fill: false, id: newShapeId() });
+    commitUndo();
     redraw(); updateButtonStates();
   });
   await page.waitForTimeout(250);
