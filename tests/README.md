@@ -140,6 +140,8 @@ does not.
 | `tear` | Torn edges: the strip really goes, only the chosen edge, depth, undo, and what a reload brings back |
 | `clear` | Clearing the drawing, everything, what survives a reload, and the single bin that deletes a selection or offers to clear |
 | `persist` | Shapes, image and crop surviving a reload |
+| `paste` | A pasted picture arriving as a new document: no shapes, no rips, no crop and no undo history from the picture before it |
+| `highlight` | The marker: a dragged block that multiplies into the picture rather than covering it, its own colour kept apart from the pen's, and a wash that stays on the paper over a torn edge |
 | `reflow` | The drawing keeping its place when the blank canvas is re-sized: address bar, rotation, and a document saved on a differently sized canvas |
 | `touch` / `keyboard` | Touch drawing, hit target sizes, the on-screen keyboard |
 | `line` | Drag adds a segment, tap ends it |

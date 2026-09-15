@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 No build step required. Open `index.html` in a browser to run the app.
 
-**Test:** `npm test` (or `./tests/run-all.sh`) — 29 Playwright suites driving a real Chromium against a served copy of the app, about two minutes in all. **Run the whole suite before pushing any change to `index.html`.** The same command gates the deploy in CI, so a change that fails here never reaches the site; finding that out locally costs two minutes, finding it out from CI costs a round trip.
+**Test:** `npm test` (or `./tests/run-all.sh`) — 30 Playwright suites driving a real Chromium against a served copy of the app, about two minutes in all. **Run the whole suite before pushing any change to `index.html`.** The same command gates the deploy in CI, so a change that fails here never reaches the site; finding that out locally costs two minutes, finding it out from CI costs a round trip.
 
-There is a suite per area — `zoom`, `pinch`, `rotate`, `line`, `crop`, `tear`, `undo`, `persist`, `paste`, `units`, `editorpos` and the rest. To iterate on one, serve the repo (`python3 -m http.server 8080 &`) and run it alone: `node tests/zoom-test.js`. It needs a real origin, not `file://` — IndexedDB, the clipboard and the service worker are all unavailable there. A suite passes by asserting its own report, not merely by the page not throwing, so a failure means behaviour changed. `tests/README.md` explains how a suite is written and the two-unit rule (`fitPxToCanvas` vs `screenPxToCanvas`) that most visual faults here have come down to.
+There is a suite per area — `zoom`, `pinch`, `rotate`, `line`, `crop`, `tear`, `undo`, `persist`, `paste`, `highlight`, `units`, `editorpos` and the rest. To iterate on one, serve the repo (`python3 -m http.server 8080 &`) and run it alone: `node tests/zoom-test.js`. It needs a real origin, not `file://` — IndexedDB, the clipboard and the service worker are all unavailable there. A suite passes by asserting its own report, not merely by the page not throwing, so a failure means behaviour changed. `tests/README.md` explains how a suite is written and the two-unit rule (`fitPxToCanvas` vs `screenPxToCanvas`) that most visual faults here have come down to.
 
 `npm install` first if `node_modules` is missing; web sessions get that from `.claude/hooks/session-start.sh`. The browser is found by `tests/browser.js` — Playwright's own if it has one, otherwise whatever the sandbox ships — so `CHROME_PATH` only needs setting to override that choice.
 
@@ -33,9 +33,10 @@ The entire app lives in one file with three sections:
 
 ### Key global state variables
 - `img` — loaded image; `shapes` — array of all drawn shapes; `selectedShape` — current selection
-- `tool` — active tool: `'select'`, `'rect'`, `'ellipse'`, `'arrow'`, `'polyline'`, `'text'`, `'callout'`, `'crop'`, `'tear'`
+- `tool` — active tool: `'select'`, `'rect'`, `'ellipse'`, `'arrow'`, `'polyline'`, `'highlight'`, `'text'`, `'callout'`, `'crop'`, `'tear'`
 - `tear` — which page edges are torn, how deep, and the seed the rip is generated from
-- `color`, `size`, `fillDefault` — drawing properties
+- `color`, `size`, `fillDefault` — drawing properties; `highlightColor` — the
+  marker's own colour, kept apart from the pen's
 - `drawing`, `isDragging`, `isRotating`, `isResizing` — interaction state flags
 - `canvasScale` — DPI adjustment factor for coordinate conversion
 
@@ -69,6 +70,15 @@ Each shape is a plain object with `type`, position/size fields, `color`, `size`,
   is the one answer to "is there anything on this page" — three separate
   `shapes.length` checks each had their own, and each forgot the tear. Only the
   edges clear: depth and seed are settings, like colour and size.
+- **The highlighter is a marker, not a paint pot.** A `highlight` shape is a
+  box you drag out, painted with `globalCompositeOperation = 'multiply'`: white
+  paper takes the colour and black words stay readable, which opaque paint
+  cannot do. It is a box like a rect in every other way — `isBoxShape()` is the
+  one predicate both answer to, so hit testing, handles, rotation and the
+  centre came with it. It carries no `size` (a wash has no thickness) and its
+  colour is `highlightColor`, not `color`: `currentColour()`/`setCurrentColour()`
+  decide which of the two the swatch is holding, from the selected shape if
+  there is one and the tool in hand if there is not. `highlight-test` holds it.
 - **Canvas redraw**: `redraw()` clears canvas, draws the base image, then iterates all shapes. Called after every state change.
 - **Torn page**: `tearPaths()` builds the ragged page outline from a seeded noise function (`tearRandom`/`tearSample`), cached against the canvas size and settings. `redraw()` clips the picture to it, so the strip a tear takes is cleared rather than painted — an export keeps the alpha. Depth is in `fitPx`, like stroke widths.
 

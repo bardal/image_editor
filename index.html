@@ -1558,6 +1558,16 @@
             body.props-empty .toolbar-props { display: none; }
         }
 
+        /* The narrowest phones still in use are 320px across, which is 32px a
+           tool once ten of them have divided it. Two of the words - Callout and
+           Marker - are wider than that at 10px and had their ends cut off by
+           the button's own overflow. The label gives up a point of size and the
+           side padding rather than the last letter. */
+        @media (max-width: 370px) {
+            .tool-button { padding: 0; }
+            .tool-button .tool-text { font-size: 9px; }
+        }
+
         /* Touch devices: meet the ~44px minimum tap target, and stop the
            browser zooming in when a form control is focused (iOS zooms any
            input whose font-size is below 16px). */
@@ -1571,14 +1581,19 @@
                 min-height: 44px;
             }
             /* The tool strip divides the screen between its tools rather than
-               giving each one a fixed size, so on the narrowest phone nine
-               tools come out at 43px - a pixel under the finger size the rest
-               of this block asks for. They sit edge to edge with no dead space
-               between them and are 56px tall, which is the direction a thumb
-               actually misses in. A fixed 44 would put the last tool off the
-               screen entirely, which is the worse of the two. */
+               giving each one a fixed size: on the narrowest phone ten tools
+               come out at 39px, under the finger size the rest of this block
+               asks for. They sit edge to edge with no dead space between them
+               and are 45px tall, which is the direction a thumb actually
+               misses in. Putting a tool off the right-hand edge is the worse
+               of the two, and that is what a floor here does: it was 40px,
+               written when there were nine tools and 43px each, and the tenth
+               took the row to 400px on a 390px screen with Tear hanging off
+               the end of it. A row whose job is to divide the width cannot
+               also hold a fixed width, so the floor is gone and the height
+               carries the finger size. */
             .tool-button {
-                min-width: 40px;
+                min-width: 0;
                 min-height: 44px;
             }
             .swatch-preview {
@@ -1686,6 +1701,7 @@
         <symbol id="i-select" viewBox="0 0 24 24"><path d="M6.6 5.75L17.4 11.55l-4.6 1.5L10.8 18.25z"/></symbol>
         <symbol id="i-rect" viewBox="0 0 24 24"><rect x="5.4" y="6.4" width="13.2" height="11.2" rx="1.6"/></symbol>
         <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7.1" ry="5.6"/></symbol>
+        <symbol id="i-highlight" viewBox="0 0 24 24"><path d="M7 13.2l7 -7 3.6 3.6 -7 7z"/><path d="M5.4 17.8h13.2"/></symbol>
         <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5.2 12h13.6"/><path d="M14.2 7.2L18.8 12l-4.6 4.8"/></symbol>
         <!-- The two arrow ends that are not an arrow head. The third, the open
              head, is #i-arrow itself: it is the same drawing, and two copies of
@@ -1779,6 +1795,13 @@
                 <button class="tool-button" data-tool="polyline">
                     <span class="tool-icon"><svg><use href="#i-line"/></svg></span>
                     <span class="tool-text">Line</span>
+                </button>
+                <button class="tool-button" data-tool="highlight" title="Highlighter - drag a block over what you want to mark">
+                    <span class="tool-icon"><svg><use href="#i-highlight"/></svg></span>
+                    <!-- "Marker" rather than "Highlighter": ten tools share a
+                         phone's width, and the longer word is wider than the
+                         39px each one gets. The title says it in full. -->
+                    <span class="tool-text">Marker</span>
                 </button>
                 <button class="tool-button" data-tool="text">
                     <span class="tool-icon"><svg><use href="#i-text"/></svg></span>
@@ -2043,6 +2066,11 @@
         let size = parseInt(document.getElementById('size').value);
         let fillDefault = false;
         let fillColorDefault = document.getElementById('fillColor').value;
+        // The marker's colour, kept apart from the pen's. Reaching for the
+        // highlighter and reaching for the pen are different hands: picking
+        // yellow here must not leave the next arrow yellow, and `color` is a
+        // single global that every tool and every selection writes to.
+        let highlightColor = '#ffe066';
         let defaultStartStyle = 'none';
         let defaultEndStyle = 'closedArrow';
         // Screen pixels at fit zoom, so this is the size you actually see
@@ -2642,13 +2670,37 @@
             strokePreview.style.setProperty('--stroke-color', strokeVal);
             // The bar doubles as a thickness preview, clamped so it stays a
             // line rather than growing into a block at the top of the range.
+            // The chip shows what the tool in hand would lay down. For the
+            // pen that is a line of the current thickness, clamped so it stays
+            // a line rather than growing into a block at the top of the range.
+            // For the marker it is the block - a wash has no thickness, and a
+            // hairline of yellow said nothing about what the marker does.
             strokePreview.style.setProperty('--stroke-bar',
-                Math.max(2, Math.min(12, size || 3)) + 'px');
+                colourBelongsToMarker() ? '70%'
+                    : Math.max(2, Math.min(12, size || 3)) + 'px');
 
             document.getElementById('fillPreview').style.setProperty('--fill-color', fillVal);
 
             const fillOn = document.getElementById('fillToggle').checked;
             document.getElementById('fillSwatch').classList.toggle('is-off', !fillOn);
+        }
+
+        // Which colour the swatch is holding. There are two - the pen's and the
+        // marker's - and the shape being worked on decides, falling back to the
+        // tool in hand when nothing is picked. Without this the single `color`
+        // global made them one: picking yellow for a highlight left the next
+        // arrow yellow, and selecting a highlight repainted the pen.
+        function colourBelongsToMarker() {
+            return selectedShape ? selectedShape.type === 'highlight' : tool === 'highlight';
+        }
+
+        function currentColour() {
+            return colourBelongsToMarker() ? highlightColor : color;
+        }
+
+        function setCurrentColour(value) {
+            if (colourBelongsToMarker()) highlightColor = value;
+            else color = value;
         }
 
         // Fill colour for a shape, falling back to the stroke colour for shapes
@@ -2916,6 +2968,15 @@
             }));
         }
 
+        // A rectangle and a highlight are the same box: same corners, same
+        // handles, same centre, same hit test. Everything that asked for 'rect'
+        // and meant "an upright box with a width and a height" asks for this
+        // instead, so the marker got all of it the day it was added rather than
+        // one conditional at a time.
+        function isBoxShape(s) {
+            return !!s && (s.type === 'rect' || s.type === 'highlight');
+        }
+
         function isPointInPolygon(px, py, corners) {
             let inside = false;
             for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
@@ -2929,7 +2990,7 @@
         }
 
         function isPointInShape(x, y, shape) {
-            if (shape.type === 'rect') {
+            if (isBoxShape(shape)) {
                 return isPointInPolygon(x, y, getRectCorners(shape));
             } else if (shape.type === 'ellipse') {
                 const left = Math.min(shape.x, shape.x + shape.w);
@@ -3020,7 +3081,10 @@
             let best = null, bestDist = Infinity;
             for (let i = shapes.length - 1; i >= 0; i--) {
                 const s = shapes[i];
-                if (s === excludeShape || s.type === 'arrow') continue;
+                // A highlight is a mark on the picture, not a box drawn
+                // round something: an arrow that leapt to the edge of every
+                // wash near it would be unusable, so it is not a target.
+                if (s === excludeShape || s.type === 'arrow' || s.type === 'highlight') continue;
                 // Check if inside shape first (always a match)
                 if (isPointInShape(x, y, s)) {
                     return { shape: s, index: i };
@@ -3143,7 +3207,7 @@
                 }
                 return handles;
             }
-            if (shape.type !== 'rect' && shape.type !== 'ellipse') return [];
+            if (!isBoxShape(shape) && shape.type !== 'ellipse') return [];
 
             const rot = shape.rotation || 0;
             const cx = shape.x + shape.w / 2;
@@ -3294,7 +3358,7 @@
 
         // ===== CONNECTOR HELPERS =====
         function getShapeCenter(shape) {
-            if (shape.type === 'rect' || shape.type === 'ellipse') {
+            if (isBoxShape(shape) || shape.type === 'ellipse') {
                 return { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 };
             } else if (shape.type === 'arrow') {
                 return { x: (shape.x + shape.x2) / 2, y: (shape.y + shape.y2) / 2 };
@@ -3487,13 +3551,23 @@
             }
             if (selectedShape) {
                 document.getElementById('color').value = selectedShape.color;
-                color = selectedShape.color;
-                document.getElementById('size').value = selectedShape.size;
-                document.querySelector('.size-value').textContent = selectedShape.size;
-                size = selectedShape.size;
+                // Into whichever of the two colours made this shape, so picking
+                // up a highlight does not repaint the pen.
+                setCurrentColour(selectedShape.color);
+                // A highlight carries no thickness, and reading one off it left
+                // the slider at NaN and the next line drawn at no width at all.
+                if (typeof selectedShape.size === 'number') {
+                    document.getElementById('size').value = selectedShape.size;
+                    document.querySelector('.size-value').textContent = selectedShape.size;
+                    size = selectedShape.size;
+                }
                 if (canFill(selectedShape)) {
                     document.getElementById('fillColor').value = fillColorOf(selectedShape);
                 }
+            } else {
+                // Nothing picked, so the swatch shows what the tool in hand
+                // would lay down - which is not one colour for every tool.
+                document.getElementById('color').value = currentColour();
             }
             updateSwatches();
             // Crop controls only while cropping.
@@ -3507,7 +3581,7 @@
             // takes them is selected. They are not selection-only - setting a
             // colour before drawing is the usual way round - but with the
             // select tool and nothing picked, neither applies to anything.
-            const drawingTools = ['rect', 'ellipse', 'arrow', 'polyline', 'text', 'callout'];
+            const drawingTools = ['rect', 'highlight', 'ellipse', 'arrow', 'polyline', 'text', 'callout'];
             const fillableTools = ['rect', 'ellipse', 'polyline', 'callout'];
             const showLine = drawingTools.includes(tool) || selectedShape !== null;
             // While words are being typed the font controls take the row, and
@@ -3522,14 +3596,16 @@
             document.getElementById('fillGroup').classList.toggle('hidden', !showFill);
             document.getElementById('propDivider').classList.toggle('hidden', !(showLine && showFill));
 
-            // For text the colour applies but the line thickness does not - the
-            // size comes from the font controls - so the slider is dropped and
-            // the label says what the swatch actually changes.
-            const textMode = tool === 'text' || (selectedShape && selectedShape.type === 'text');
-            document.getElementById('lineGroupLabel').textContent = textMode ? 'Colour' : 'Line';
-            document.getElementById('size').classList.toggle('hidden', !!textMode);
-            document.querySelector('.size-value').classList.toggle('hidden', !!textMode);
-            document.querySelector('.slider-box').classList.toggle('hidden', !!textMode);
+            // Two tools whose colour applies but whose thickness does not:
+            // text takes its size from the font controls, and a highlight is a
+            // wash with no line in it at all. Both drop the slider, and the
+            // label stops saying "Line" over a control that sets neither.
+            const colourOnly = tool === 'text' || tool === 'highlight' ||
+                (selectedShape && (selectedShape.type === 'text' || selectedShape.type === 'highlight'));
+            document.getElementById('lineGroupLabel').textContent = colourOnly ? 'Colour' : 'Line';
+            document.getElementById('size').classList.toggle('hidden', !!colourOnly);
+            document.querySelector('.size-value').classList.toggle('hidden', !!colourOnly);
+            document.querySelector('.slider-box').classList.toggle('hidden', !!colourOnly);
 
             // With nothing left in it, the bar itself goes, handing the space
             // back to the picture.
@@ -3725,6 +3801,17 @@
                     ctx.restore();
                 }
                 ctx.stroke();
+            } else if (s.type === 'highlight') {
+                // A marker, not a paint pot. Multiplied into what is under it,
+                // so white paper takes the colour and black words stay black
+                // and readable - painted opaquely it would cover up the very
+                // thing it was drawn to point at. Two washes over each other
+                // deepen, the way two passes of a real highlighter do.
+                ctx.save();
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.fillStyle = s.color;
+                ctx.fillRect(s.x, s.y, s.w, s.h);
+                ctx.restore();
             } else if (s.type === 'ellipse') {
                 ctx.beginPath();
                 ctx.ellipse(s.x + s.w/2, s.y + s.h/2, Math.abs(s.w/2), Math.abs(s.h/2), 0, 0, 2*Math.PI);
@@ -3782,7 +3869,7 @@
 
         function drawSelectionHandles(shape) {
             // Draw rotation handle
-            if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'text') {
+            if (isBoxShape(shape) || shape.type === 'ellipse' || shape.type === 'text') {
                 const handle = getRotationHandle(shape);
                 if (handle) {
                     ctx.save();
@@ -3809,7 +3896,7 @@
             // width handles and the callout's tip could always be grabbed, but
             // nothing was drawn for them, so the only way to find one was to
             // guess where it was.
-            const handled = ['rect', 'ellipse', 'polyline', 'arrow', 'callout', 'text'];
+            const handled = ['rect', 'highlight', 'ellipse', 'polyline', 'arrow', 'callout', 'text'];
             if (handled.includes(shape.type)) {
                 const handles = getResizeHandles(shape);
                 ctx.save();
@@ -5200,7 +5287,7 @@
 
         function handleSelectMouseDown(x, y) {
             // Check resize handle
-            if (selectedShape && (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow' || selectedShape.type === 'callout' || selectedShape.type === 'text')) {
+            if (selectedShape && (isBoxShape(selectedShape) || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow' || selectedShape.type === 'callout' || selectedShape.type === 'text')) {
                 const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                 if (resizeHandle) {
                     isResizing = true;
@@ -5400,6 +5487,19 @@
                 updateButtonStates();
                 startBlockEditing(shape);
                 return;
+            } else if (tool === 'highlight') {
+                // No size: a wash has no line to be thick or thin, and the one
+                // number it does carry - its colour - is the marker's own.
+                shapes.push({
+                    type: 'highlight',
+                    x: Math.min(startX, x),
+                    y: Math.min(startY, y),
+                    w: Math.abs(x - startX),
+                    h: Math.abs(y - startY),
+                    rotation: 0,
+                    color: highlightColor,
+                    id: newShapeId()
+                });
             } else if (tool === 'ellipse') {
                 shapes.push({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size, rotation: 0, id: newShapeId() });
             } else if (tool === 'arrow') {
@@ -5548,6 +5648,16 @@
                         h: Math.abs(y - startY),
                         rotation: 0,
                         color, size, fill: fillDefault, fillColor: fillColorDefault
+                    }, true);
+                } else if (tool === 'highlight') {
+                    drawShape({
+                        type: 'highlight',
+                        x: Math.min(startX, x),
+                        y: Math.min(startY, y),
+                        w: Math.abs(x - startX),
+                        h: Math.abs(y - startY),
+                        rotation: 0,
+                        color: highlightColor
                     }, true);
                 } else if (tool === 'ellipse') {
                     drawShape({ type: 'ellipse', x: startX, y: startY, w: x-startX, h: y-startY, color, size }, true);
@@ -5771,7 +5881,7 @@
 
         function updateCursor(x, y) {
             if (tool === 'select' && selectedShape) {
-                if (selectedShape.type === 'rect' || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow') {
+                if (isBoxShape(selectedShape) || selectedShape.type === 'ellipse' || selectedShape.type === 'polyline' || selectedShape.type === 'arrow') {
                     const resizeHandle = isPointNearResizeHandle(x, y, selectedShape);
                     if (resizeHandle) {
                         canvas.style.cursor = resizeHandle.cursor;
@@ -6577,9 +6687,9 @@
             // Listening for the drag alone left the swatch showing a colour that
             // had gone nowhere.
             function applyStrokeColour(value) {
-                color = value;
+                setCurrentColour(value);
                 if (selectedShape) {
-                    selectedShape.color = color;
+                    selectedShape.color = value;
                     redraw();
                 }
                 updateSwatches();

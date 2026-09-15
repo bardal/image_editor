@@ -70,6 +70,26 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     byTool[t] = await check(t);
   }
 
+  // ---- The words under the glyphs, inside the buttons they belong to ----
+  // The strip divides the screen between its tools, so every tool added takes
+  // a few pixels off all of them: ten come out at 39px on this phone and 32px
+  // on a 320px one. The button clips what will not fit, silently - a label
+  // measured against itself reports the same width either way, because the
+  // span shrink-wraps its text and overflows the button rather than itself.
+  // So this measures each word against the button it sits in.
+  const toolLabels = await page.evaluate(() => {
+    const escaped = [];
+    document.querySelectorAll('.tool-strip .tool-button').forEach(b => {
+      const t = b.querySelector('.tool-text');
+      if (!t) return;
+      const br = b.getBoundingClientRect(), tr = t.getBoundingClientRect();
+      if (tr.left < br.left - 0.5 || tr.right > br.right + 0.5) {
+        escaped.push(`${t.textContent} ${(tr.right - tr.left).toFixed(1)} in ${(br.right - br.left).toFixed(1)}`);
+      }
+    });
+    return { escaped, count: document.querySelectorAll('.tool-strip .tool-button').length };
+  });
+
   // The two controls the question was actually about, under every tool that
   // offers them: both colour swatches, fully on screen, no scrolling.
   const swatches = {};
@@ -200,8 +220,17 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
           if (!t.width && !t.height) return;
           const name = el.id || el.className.split(' ')[0];
           // Height is the figure that has to hold; a dense row of glyph
-          // buttons is allowed to be narrower, as the iOS keyboard is.
-          if (t.width < 39.5 || t.height < 43.5) {
+          // buttons is allowed to be narrower, as the iOS keyboard is. The
+          // tool strip is that row, and it is the one control whose width
+          // nobody sets: it divides the screen between however many tools
+          // there are, so each tool added takes a few pixels off all of them -
+          // 43px at nine, 39px at ten, 32px on a 320px phone. That last figure
+          // is an iOS keyboard key exactly, and the key is the thing a thumb
+          // hits all day without missing, so it is the floor here. A fixed
+          // width instead would put the last tool off the right-hand edge,
+          // which is how Tear came to be hanging off a 390px screen.
+          const floor = el.closest('.tool-strip') ? 31.5 : 39.5;
+          if (t.width < floor || t.height < 43.5) {
             tooSmall.push(`${name} ${Math.round(t.width)}x${Math.round(t.height)}`);
           }
           const b = el.getBoundingClientRect();
@@ -608,7 +637,7 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
   finish({
     sideways,
-    byTool, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch, quieter,
+    byTool, toolLabels, swatches, anchors, chips, fillSwitch, controlGeometry, statusBar, rowMatch, quieter,
     topBar, zoomDefence,
     rowEdges, edgesLineUp,
     floatActions, floatUndoWorks, floatsWhileEditing,
@@ -637,6 +666,8 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'byTool.tear.unreachableInProps': isEmpty,
     'byTool.tear.canvasClearOfBars': isTrue,
     'byTool.tear.toolsAllVisible': isTrue,
+    // No word cut off by the button it is in, however many tools there are.
+    'toolLabels.escaped': isEmpty,
     'swatches.rect.stroke': isTrue,
     'swatches.rect.fill': isTrue,
     'swatches.ellipse.stroke': isTrue,
