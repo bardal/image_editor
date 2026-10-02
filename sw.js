@@ -15,7 +15,7 @@ const ASSETS = [
 // opportunistically because addAll() rejects as a whole if any single
 // request fails, which would abort the entire service worker install.
 const OPTIONAL_ASSETS = [
-  'https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js'
+  'https://unpkg.com/heic-to@1.6.5/dist/iife/heic-to.js'
 ];
 
 self.addEventListener('install', e => {

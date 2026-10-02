@@ -15,7 +15,6 @@
          short_name from the manifest instead. -->
     <meta name="apple-mobile-web-app-title" content="Etch">
     <title>Etch</title>
-    <script async src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
     
     <!-- ===== STYLES ===== -->
     <style>
@@ -2019,7 +2018,7 @@
         <div class="modal-content">
             <span class="close" onclick="closeHeicHelp()">&times;</span>
             <h3>HEIC Image Support</h3>
-            <p><strong>This editor supports HEIC files!</strong> Using the heic2any library.</p>
+            <p><strong>This editor supports HEIC files!</strong> Using the heic-to library.</p>
             <ul>
                 <li><strong>How it works:</strong> Converts HEIC to JPEG in your browser</li>
                 <li><strong>Privacy:</strong> No files uploaded to servers</li>
@@ -2290,14 +2289,34 @@
         let editingLabelShape = null;
 
         // ===== HEIC CONVERSION =====
-        async function convertHeicToJpeg(file) {
-            if (typeof heic2any === 'undefined') {
-                throw new Error('HEIC library not loaded');
+        // heic-to, which follows libheif's releases. This was heic2any, whose
+        // decoder dates from 2019 and turns away what current iPhones write
+        // with "format not supported". The newer one is 3MB, so it is fetched
+        // when the first HEIC arrives rather than on every load; the service
+        // worker keeps a copy for offline. The URL must match the one in sw.js.
+        const HEIC_LIBRARY_URL = 'https://unpkg.com/heic-to@1.6.5/dist/iife/heic-to.js';
+        let heicLibrary = null;
+        function loadHeicLibrary() {
+            if (!heicLibrary) {
+                heicLibrary = new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = HEIC_LIBRARY_URL;
+                    script.onload = resolve;
+                    script.onerror = () => {
+                        heicLibrary = null;
+                        reject(new Error('HEIC library could not be loaded'));
+                    };
+                    document.head.appendChild(script);
+                });
             }
-            
-            return await heic2any({
+            return heicLibrary;
+        }
+
+        async function convertHeicToJpeg(file) {
+            await loadHeicLibrary();
+            return await HeicTo({
                 blob: file,
-                toType: 'image/jpeg',
+                type: 'image/jpeg',
                 quality: 0.9
             });
         }

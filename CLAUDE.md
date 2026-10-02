@@ -140,7 +140,7 @@ sub-16px focused field, and the synthesised mouse events after a tap. When a
 change rests on iOS behaviour, say plainly that the suites cannot confirm it.
 
 ### External dependency
-Only one: `heic2any` loaded async from unpkg CDN for HEIC/HEIF to JPEG conversion (iPhone photos).
+Only one: `heic-to` loaded on demand from unpkg CDN for HEIC/HEIF to JPEG conversion (iPhone photos).
 
 ### PWA files
 - `sw.js` — service worker with network-first caching strategy

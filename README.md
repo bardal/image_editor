@@ -148,7 +148,7 @@ You can load images in three convenient ways:
 - **Mobile browsers**: Works on iOS Safari and Chrome Mobile
 
 ### **HEIC Support**
-- Uses the `heic2any` library for client-side conversion
+- Uses the `heic-to` library for client-side conversion
 - No server processing required
 - Maintains image quality during conversion
 
