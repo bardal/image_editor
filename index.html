@@ -4507,30 +4507,48 @@
             redraw();
         }
 
-        // Handle positions around the crop frame, in canvas coordinates.
-        function getCropHandles() {
-            if (!cropRect) return [];
-            const { x, y, w, h } = cropRect;
-            return [
-                { name: 'nw', x: x,         y: y },
-                { name: 'n',  x: x + w / 2, y: y },
-                { name: 'ne', x: x + w,     y: y },
-                { name: 'e',  x: x + w,     y: y + h / 2 },
-                { name: 'se', x: x + w,     y: y + h },
-                { name: 's',  x: x + w / 2, y: y + h },
-                { name: 'sw', x: x,         y: y + h },
-                { name: 'w',  x: x,         y: y + h / 2 },
-            ];
+        // Which part of the frame a press takes hold of: 'nw', 'e' and so on, or
+        // null for the middle, which moves it. An edge is a grip along its
+        // whole length and a corner is wherever two of them meet. It used to
+        // take a press within 12px of a handle's centre, and the frame starts
+        // on the canvas edge, where three quarters of a corner handle is
+        // clipped away - so a press a little way in from the corner missed,
+        // moved the whole frame instead, and pushed the far corner off the
+        // picture. The reach inwards stops at a quarter of the frame, so a
+        // small frame keeps a middle to move it by.
+        function getCropGripAt(x, y) {
+            if (!cropRect) return null;
+            const reach = screenPxToCanvas(isCoarsePointer() ? 30 : 22);
+            const left = cropRect.x, top = cropRect.y;
+            const right = left + cropRect.w, bottom = top + cropRect.h;
+            if (x < left - reach || x > right + reach ||
+                y < top - reach || y > bottom + reach) return null;
+            const inX = Math.min(reach, cropRect.w / 4);
+            const inY = Math.min(reach, cropRect.h / 4);
+            let name = '';
+            if (y <= top + inY) name += 'n';
+            else if (y >= bottom - inY) name += 's';
+            if (x <= left + inX) name += 'w';
+            else if (x >= right - inX) name += 'e';
+            return name || null;
         }
 
-        function getCropHandleAt(x, y) {
-            const tolerance = screenPxToCanvas(isCoarsePointer() ? 26 : 12);
-            let best = null, bestDist = Infinity;
-            for (const handle of getCropHandles()) {
-                const d = Math.sqrt((x - handle.x) ** 2 + (y - handle.y) ** 2);
-                if (d <= tolerance && d < bestDist) { best = handle; bestDist = d; }
-            }
-            return best;
+        function cropGripCursor(name) {
+            if (!name) return 'move';
+            if (name === 'nw' || name === 'se') return 'nwse-resize';
+            if (name === 'ne' || name === 'sw') return 'nesw-resize';
+            return (name === 'n' || name === 's') ? 'ns-resize' : 'ew-resize';
+        }
+
+        // The press rarely lands exactly on the edge it takes hold of. The
+        // drag remembers how far off it was, so the edge follows the pointer
+        // from where it is rather than jumping to it.
+        function startCropDrag(x, y) {
+            const grip = getCropGripAt(x, y);
+            if (!grip) return { mode: 'move', fromX: x, fromY: y, rect: { ...cropRect } };
+            const edgeX = grip.includes('w') ? cropRect.x : cropRect.x + cropRect.w;
+            const edgeY = grip.includes('n') ? cropRect.y : cropRect.y + cropRect.h;
+            return { mode: 'resize', handle: grip, offX: x - edgeX, offY: y - edgeY };
         }
 
         function drawCropOverlay() {
@@ -4563,16 +4581,32 @@
             }
             ctx.stroke();
 
-            const r = screenPxToCanvas(isCoarsePointer() ? 11 : 7);
-            ctx.fillStyle = '#ffffff';
-            ctx.strokeStyle = '#3b8eed';
-            ctx.lineWidth = screenPxToCanvas(2);
-            for (const handle of getCropHandles()) {
-                ctx.beginPath();
-                ctx.arc(handle.x, handle.y, r, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.stroke();
-            }
+            // Grips: a bracket in each corner and a bar on each side, drawn
+            // inside the frame. They were circles centred on the frame, which
+            // starts on the canvas edge - so all but a sliver of each was
+            // clipped away and there was nothing to aim at.
+            const coarse = isCoarsePointer();
+            const thick = screenPxToCanvas(coarse ? 5 : 4);
+            const arm = Math.min(screenPxToCanvas(coarse ? 26 : 20), w / 3, h / 3);
+            const inset = thick / 2;
+            const l = x + inset, t = y + inset, rt = x + w - inset, b = y + h - inset;
+            const mx = x + w / 2, my = y + h / 2;
+            ctx.beginPath();
+            ctx.moveTo(l, t + arm);  ctx.lineTo(l, t);  ctx.lineTo(l + arm, t);
+            ctx.moveTo(rt - arm, t); ctx.lineTo(rt, t); ctx.lineTo(rt, t + arm);
+            ctx.moveTo(rt, b - arm); ctx.lineTo(rt, b); ctx.lineTo(rt - arm, b);
+            ctx.moveTo(l + arm, b);  ctx.lineTo(l, b);  ctx.lineTo(l, b - arm);
+            ctx.moveTo(mx - arm / 2, t); ctx.lineTo(mx + arm / 2, t);
+            ctx.moveTo(mx - arm / 2, b); ctx.lineTo(mx + arm / 2, b);
+            ctx.moveTo(l, my - arm / 2); ctx.lineTo(l, my + arm / 2);
+            ctx.moveTo(rt, my - arm / 2); ctx.lineTo(rt, my + arm / 2);
+            ctx.lineCap = 'butt';
+            ctx.lineJoin = 'miter';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = thick;
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = 3;
+            ctx.stroke();
             ctx.restore();
         }
 
@@ -5191,10 +5225,7 @@
                 const edge = tearEdgeAt(x, y);
                 tearDrag = edge ? { edge, changed: false } : null;
             } else if (tool === 'crop') {
-                const handle = getCropHandleAt(x, y);
-                cropDrag = handle
-                    ? { mode: 'resize', handle: handle.name }
-                    : { mode: 'move', fromX: x, fromY: y, rect: { ...cropRect } };
+                cropDrag = startCropDrag(x, y);
             } else if (tool === 'select') {
                 handleSelectMouseDown(x, y);
             } else if (tool === 'text') {
@@ -5594,7 +5625,7 @@
 
             if (tool === 'crop') {
                 if (cropDrag && cropDrag.mode === 'resize') {
-                    resizeCropRect(cropDrag.handle, x, y);
+                    resizeCropRect(cropDrag.handle, x - cropDrag.offX, y - cropDrag.offY);
                     redraw();
                 } else if (cropDrag && cropDrag.mode === 'move') {
                     cropRect = {
@@ -5898,6 +5929,11 @@
             } else if (tool === 'arrow' && !drawing) {
                 const hoverSnap = getSnapTargetAtPoint(x, y);
                 canvas.style.cursor = hoverSnap ? 'pointer' : 'crosshair';
+            } else if (tool === 'crop') {
+                // Mid-drag the cursor keeps saying what is held, not what it
+                // happens to be passing over.
+                canvas.style.cursor = cropGripCursor(
+                    cropDrag ? cropDrag.handle : getCropGripAt(x, y));
             } else if (tool === 'tear') {
                 const edge = tearDrag ? tearDrag.edge : tearEdgeAt(x, y);
                 canvas.style.cursor = !edge ? 'default'
@@ -6842,9 +6878,13 @@
 
                 // 1. A phone. The share sheet is the only way a picture can
                 //    reach Photos - a download lands in Files and stays there -
-                //    and it carries AirDrop, Messages and Copy with it.
+                //    and it carries AirDrop, Messages and Copy with it. Asked
+                //    of the pointer and not only of the browser: Chrome and
+                //    Edge on Windows can share a file too, and a PC was being
+                //    handed the share sheet when what Save means there is a
+                //    file, saved where you say.
                 const file = new File([blob], name, { type: 'image/png' });
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                if (isCoarsePointer() && navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({ files: [file], title: name });
                         return;

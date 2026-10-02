@@ -1,4 +1,4 @@
-const { open, realErrors } = require('./harness');
+const { open, seedPhoto, pickTool, canvasBox, realErrors } = require('./harness');
 const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
 
 (async () => {
@@ -85,6 +85,35 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   await page.waitForTimeout(200);
   r.overlayCleared = await page.evaluate(() => cropRect === null);
 
+  // ---- With a mouse, the frame's edges are grips along their whole length ----
+  // The frame starts on the canvas edge, which clips the handles to slivers,
+  // and a press had to land within 12px of a handle's centre to resize. A
+  // press a little way in from the corner moved the whole frame instead, and
+  // the far corner left the picture.
+  const desk = await open({ browser, viewport: { width: 1440, height: 900 } });
+  await seedPhoto(desk.page, { width: 1200, height: 800 });
+  const mouseDrag = async (fromX, fromY, dx, dy) => {
+    await pickTool(desk.page, 'select');
+    await pickTool(desk.page, 'crop');
+    const b = await canvasBox(desk.page);
+    const k = b.w / 1200;
+    await desk.page.mouse.move(b.x + fromX * k, b.y + fromY * k);
+    const cursor = await desk.page.evaluate(() => canvas.style.cursor);
+    await desk.page.mouse.down();
+    await desk.page.mouse.move(b.x + (fromX + dx) * k, b.y + (fromY + dy) * k, { steps: 6 });
+    await desk.page.mouse.up();
+    const rect = await desk.page.evaluate(() => cropRect);
+    return { rect: [rect.x, rect.y, rect.w, rect.h].map(Math.round), cursor };
+  };
+  // A little way inside the top left corner: the corner follows by exactly
+  // the distance dragged, and the far corner stays where it was.
+  r.cornerDrag = await mouseDrag(18, 18, 100, 100);
+  // The left edge, well away from its middle handle.
+  r.edgeDrag = await mouseDrag(15, 200, 80, 0);
+  // The middle of the frame still moves it.
+  r.middleDrag = await mouseDrag(600, 400, 50, 30);
+  r.desktopErrors = realErrors(desk.errors);
+
   r.errors = realErrors(errors);
   finish(r, {
     'cropModeOn': isTrue,
@@ -101,6 +130,13 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'afterReset.canvas': [1000, 800],
     'afterReset.shape': [400, 300],
     'overlayCleared': isTrue,
+    'cornerDrag.rect': [100, 100, 1100, 700],
+    'cornerDrag.cursor': 'nwse-resize',
+    'edgeDrag.rect': [80, 0, 1120, 800],
+    'edgeDrag.cursor': 'ew-resize',
+    'middleDrag.rect': [50, 30, 1200, 800],
+    'middleDrag.cursor': 'move',
+    'desktopErrors': isEmpty,
   });
   await browser.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

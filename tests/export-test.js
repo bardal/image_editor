@@ -138,6 +138,28 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
   });
   await page.waitForTimeout(200);
 
+  // ---- Saving with a mouse saves a file ----
+  // Chrome and Edge on Windows can share files too, and Save asked about
+  // sharing first - so a PC got the share sheet and never the save dialogue.
+  r.desktopSaves = await page.evaluate(async () => {
+    let shared = 0, picked = 0;
+    const realShare = navigator.share, realCanShare = navigator.canShare;
+    navigator.canShare = () => true;
+    navigator.share = async () => { shared++; };
+    window.showSaveFilePicker = async () => {
+      picked++;
+      const e = new Error('x'); e.name = 'AbortError'; throw e;
+    };
+    document.getElementById('download').click();
+    await new Promise(res => setTimeout(res, 600));
+    navigator.share = realShare; navigator.canShare = realCanShare;
+    delete window.showSaveFilePicker;
+    return { shared, picked };
+  });
+
+  // The rest is about a phone, which this page now says it is.
+  await page.evaluate(() => { window.isCoarsePointer = () => true; });
+
   // ---- Saving on a phone goes through the share sheet ----
   // A download on iOS lands in Files > Downloads and can never reach Photos.
   // The share sheet is the only route to "Save Image", so where the browser
@@ -206,6 +228,8 @@ const { finish, isTrue, isFalse, isEmpty, atLeast, near } = require('./expect');
     'croppedExport.size': [600, 500],
     'croppedExport.canvasSize': [600, 500],
     'anchorFallback.filename': 'photo-etch.png',
+    'desktopSaves.shared': 0,
+    'desktopSaves.picked': 1,
     'shareBranch.shared': 1,
     'shareBranch.name': 'photo-etch.png',
     'shareBranch.type': 'image/png',
